@@ -14,7 +14,10 @@
 
 name: Test and build
 on:
-  - push
+  pull_request:
+  push:
+    branches:
+      - main
 jobs:
   test:
     runs-on: ubuntu-latest
