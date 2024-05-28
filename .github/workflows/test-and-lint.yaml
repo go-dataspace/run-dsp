@@ -16,6 +16,38 @@ name: Test and lint
 on:
   - push
 jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        go-version:
+          - 1.22
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        name: Setup Go ${{ matrix.go-version }}
+        with:
+          go-version: ${{ matrix.go-version }}
+      - name: tests
+        run: make test
+
+  lint:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        go-version:
+          - 1.22
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        name: Setup Go ${{ matrix.go-version }}
+        with:
+          go-version: ${{ matrix.go-version }}
+      - name: lint
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: v1.58
+
   build:
     runs-on: ubuntu-latest
     strategy:
@@ -28,5 +60,5 @@ jobs:
         name: Setup Go ${{ matrix.go-version }}
         with:
           go-version: ${{ matrix.go-version }}
-      - name: Display Go version
-        run: go version
+      - name: tests
+        run: make build

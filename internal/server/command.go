@@ -33,7 +33,7 @@ type Command struct {
 	Port       int    `help:"Listen port" default:"8080" env:"PORT"`
 }
 
-// Run starts the server.
+// Run starts the server
 func (c *Command) Run(p cli.Params) error {
 	ctx := p.Context()
 	logger := logging.Extract(ctx)
