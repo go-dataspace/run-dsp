@@ -12,24 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-BINARY_NAME := run-dsp
+FROM golang:1.22 as builder
+WORKDIR /app
+COPY . ./
+RUN make build
 
-build:
-	-mkdir _build
-	go mod download
-	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 GO111MODULE=on go build -ldflags="-extldflags=-static" -o _build/$(BINARY_NAME) ./cmd/
+FROM scratch
+WORKDIR /app
+COPY --from=builder /app/_build/run-dsp /
+COPY --from=alpine:latest /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 
-docker_build:
-	docker build --tag docker.io/dwa-backend/dwa-backend:dev .
-
-podman_build:
-	podman build --tag docker.io/dwa-backend/dwa-backend:dev .
-
-test:
-	go test -v ./...
-
-lint:
-	golangci-lint run
-
-vulncheck:
-	govulncheck ./...
+ENTRYPOINT [ "/run-dsp" ]

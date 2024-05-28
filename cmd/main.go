@@ -16,6 +16,7 @@ package main
 
 import (
 	"os"
+	_ "time/tzdata"
 
 	"github.com/alecthomas/kong"
 	"github.com/go-dataspace/run-dsp/internal/cli"
