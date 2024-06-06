@@ -39,7 +39,7 @@ type fakeConsumerContractTasksService struct {
 }
 
 func (f *fakeConsumerContractTasksService) SendContractRequest(
-	ctx context.Context, args ContractArgs, odrlOffer string) (
+	ctx context.Context, args ContractArgs) (
 	ContractNegotiationMessageType, error,
 ) {
 	return f.sendContractRequestMessageType, f.sendContractRequestError

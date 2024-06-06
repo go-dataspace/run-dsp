@@ -20,8 +20,6 @@ import (
 	"errors"
 	"fmt"
 	"slices"
-
-	"github.com/google/uuid"
 )
 
 type ContractNegotiationMessageType int64
@@ -82,16 +80,22 @@ type DSPContractNegotiationError struct {
 	Err        error
 }
 
+func newDSPContractError(status int, message string) error {
+	return &DSPContractNegotiationError{
+		status, errors.New(message),
+	}
+}
+
 func (err *DSPContractNegotiationError) Error() string {
 	return fmt.Sprintf("status %d: err %v", err.StatusCode, err.Err)
 }
 
 type consumerContractTasksService interface {
-	SendContractRequest(ctx context.Context, args ContractArgs, odrlOffer string) (ContractNegotiationMessageType, error)
-	CheckContractOffer(ctx context.Context, args ContractArgs, odrlOffer string) error
-	SendContractAccepted(ctx context.Context, args ContractArgs, odrlOffer string) (ContractNegotiationMessageType, error)
-	CheckContractAgreement(ctx context.Context, args ContractArgs, odrlOffer string) error
-	SendContractAgreementVerification(ctx context.Context, args ContractArgs, odrlOffer string) (
+	SendContractRequest(ctx context.Context, args ContractArgs) (ContractNegotiationMessageType, error)
+	CheckContractOffer(ctx context.Context, args ContractArgs) error
+	SendContractAccepted(ctx context.Context, args ContractArgs) (ContractNegotiationMessageType, error)
+	CheckContractAgreement(ctx context.Context, args ContractArgs) error
+	SendContractAgreementVerification(ctx context.Context, args ContractArgs) (
 		ContractNegotiationMessageType, error,
 	)
 	SendTerminationMessage(ctx context.Context) (ContractNegotiationMessageType, ContractNegotiationState, error)
@@ -99,12 +103,12 @@ type consumerContractTasksService interface {
 }
 
 type providerContractTasksService interface {
-	CheckContractRequest(ctx context.Context, args ContractArgs, odrlOffer string) error
-	SendContractOffer(ctx context.Context, args ContractArgs, odrlOffer string) (ContractNegotiationMessageType, error)
-	CheckContractAccepted(ctx context.Context, args ContractArgs, processId uuid.UUID) error
-	SendContractAgreement(ctx context.Context, args ContractArgs, pid uuid.UUID) (ContractNegotiationMessageType, error)
-	CheckContractAgreementVerification(ctx context.Context, args ContractArgs, processId uuid.UUID)
-	SendNegotiationFinalized(ctx context.Context, args ContractArgs, pid uuid.UUID) (ContractNegotiationMessageType, error)
+	CheckContractRequest(ctx context.Context, args ContractArgs) error
+	SendContractOffer(ctx context.Context, args ContractArgs) (ContractNegotiationMessageType, error)
+	CheckContractAccepted(ctx context.Context, args ContractArgs) error
+	SendContractAgreement(ctx context.Context, args ContractArgs) (ContractNegotiationMessageType, error)
+	CheckContractAgreementVerification(ctx context.Context, args ContractArgs)
+	SendNegotiationFinalized(ctx context.Context, args ContractArgs) (ContractNegotiationMessageType, error)
 	SendTerminationMessage(ctx context.Context) (ContractNegotiationMessageType, ContractNegotiationState, error)
 	SendErrorMessage(ctx context.Context, args ContractArgs) error
 }
@@ -141,7 +145,7 @@ func terminateContractNegotiation(ctx context.Context, args ContractArgs) (
 
 	if messageType != ContractNegotiationMessage || negotiationState != Terminated {
 		logger.Error("Unexpected response. Expected ContractNegotiationMessage and state TERMINATED")
-		return ContractArgs{}, nil, fmt.Errorf("Unexpected response when trying to terminate negotiation.")
+		return ContractArgs{}, nil, newDSPContractError(42, "Unexpected response when trying to terminate negotiation.")
 	}
 
 	logger.Info("Terminated contract negotiation in state TERMINATED")
@@ -159,27 +163,25 @@ func sendContractRequest(ctx context.Context, args ContractArgs) (ContractArgs, 
 	}
 
 	if negotiationState != UndefinedState {
-		return ContractArgs{}, nil, fmt.Errorf("Initial contract negotiation state invalid, should be UndefinedState")
+		return ContractArgs{}, nil, &DSPContractNegotiationError{
+			42, errors.New("Initial contract negotiation state invalid, should be UndefinedState"),
+		}
 	}
 
-	odrlOffer := "this is a very jsonld data string"
-
-	messageType, err := args.consumerService.SendContractRequest(ctx, args, odrlOffer)
+	messageType, err := args.consumerService.SendContractRequest(ctx, args)
 	if err != nil {
 		return ContractArgs{}, nil, err
 	}
 
 	if messageType == ContractNegotiationError {
 		logger.Error("Got error response when sending contract request")
-		return ContractArgs{}, nil, &DSPContractNegotiationError{
-			42, errors.New("Remote returned error. Should set negotiation to failed?"),
-		}
+		return ContractArgs{}, nil, newDSPContractError(42, "Remote returned error. Should set negotiation to failed?")
 	}
 
 	if !slices.Contains([]ContractNegotiationMessageType{ContractNegotiationMessage, ContractOfferMessage}, messageType) {
 		logger.Error("Unexpected message type. Expected ContractOfferMessage or ContractNegotiationError.",
 			"message_type", messageType)
-		return ContractArgs{}, nil, fmt.Errorf("Unexpected message type received after sending contract request")
+		return ContractArgs{}, nil, newDSPContractError(42, "Unexpected message type received after sending contract request")
 	}
 
 	if messageType == ContractNegotiationMessage {
@@ -207,7 +209,7 @@ func sendContractRequest(ctx context.Context, args ContractArgs) (ContractArgs, 
 		return args, sendContractAcceptedRequest, nil
 	}
 
-	return ContractArgs{}, nil, fmt.Errorf("Transaction failure. This point should not be reached")
+	return ContractArgs{}, nil, newDSPContractError(42, "Transaction failure. This point should not be reached")
 }
 
 func sendContractAcceptedRequest(ctx context.Context, args ContractArgs) (ContractArgs, DSPState[ContractArgs], error) {

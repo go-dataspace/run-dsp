@@ -50,7 +50,7 @@ func TestSendContractRequest(t *testing.T) {
 				},
 			},
 			wantErr:     true,
-			expectedErr: "Initial contract negotiation state invalid, should be UndefinedState",
+			expectedErr: "status 42: err Initial contract negotiation state invalid, should be UndefinedState",
 		},
 		{
 			name: "Error: consumerService.SendContractRequest() returns an error",
@@ -74,7 +74,7 @@ func TestSendContractRequest(t *testing.T) {
 				consumerService: &fakeConsumerContractTasksService{},
 			},
 			wantErr:     true,
-			expectedErr: "Unexpected message type received after sending contract request",
+			expectedErr: "status 42: err Unexpected message type received after sending contract request",
 		},
 		{
 			name: "Error: Failing to store REQUESTED state on ContractNegotiationMessage",
