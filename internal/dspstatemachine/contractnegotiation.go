@@ -102,9 +102,9 @@ type providerContractTasksService interface {
 	CheckContractRequest(ctx context.Context, args ContractArgs, odrlOffer string) error
 	SendContractOffer(ctx context.Context, args ContractArgs, odrlOffer string) (ContractNegotiationMessageType, error)
 	CheckContractAccepted(ctx context.Context, args ContractArgs, processId uuid.UUID) error
-	SendContractAgreement(ctx context.Context, args ContractArgs, processId uuid.UUID) (ContractNegotiationMessageType, error)
+	SendContractAgreement(ctx context.Context, args ContractArgs, pid uuid.UUID) (ContractNegotiationMessageType, error)
 	CheckContractAgreementVerification(ctx context.Context, args ContractArgs, processId uuid.UUID)
-	SendNegotiationFinalized(ctx context.Context, args ContractArgs, processId uuid.UUID) (ContractNegotiationMessageType, error)
+	SendNegotiationFinalized(ctx context.Context, args ContractArgs, pid uuid.UUID) (ContractNegotiationMessageType, error)
 	SendTerminationMessage(ctx context.Context) (ContractNegotiationMessageType, ContractNegotiationState, error)
 	SendErrorMessage(ctx context.Context, args ContractArgs) error
 }
@@ -117,7 +117,9 @@ func sendContractErrorMessage(ctx context.Context, args ContractArgs) (ContractA
 	return ContractArgs{}, nil, nil
 }
 
-func terminateContractNegotiation(ctx context.Context, args ContractArgs) (ContractArgs, DSPState[ContractArgs], error) {
+func terminateContractNegotiation(ctx context.Context, args ContractArgs) (
+	ContractArgs, DSPState[ContractArgs], error,
+) {
 	logger := getLogger(ctx, args.BaseArgs)
 
 	negotiationID := args.ProviderProcessId
@@ -128,17 +130,18 @@ func terminateContractNegotiation(ctx context.Context, args ContractArgs) (Contr
 	err := args.StateStorage.StoreState(ctx, negotiationID, Terminated)
 	if err != nil {
 		logger.Error("Failed to store state TERMINATED")
+		return ContractArgs{}, nil, err
 	}
 
 	messageType, negotiationState, err := args.consumerService.SendTerminationMessage(ctx)
 	if err != nil {
 		logger.Error("Error sending termination message")
-		return args, nil, err
+		return ContractArgs{}, nil, err
 	}
 
 	if messageType != ContractNegotiationMessage || negotiationState != Terminated {
 		logger.Error("Unexpected response. Expected ContractNegotiationMessage and state TERMINATED")
-		return args, nil, fmt.Errorf("Unexpected response when trying to terminate negotiation.")
+		return ContractArgs{}, nil, fmt.Errorf("Unexpected response when trying to terminate negotiation.")
 	}
 
 	logger.Info("Terminated contract negotiation in state TERMINATED")
@@ -168,7 +171,15 @@ func sendContractRequest(ctx context.Context, args ContractArgs) (ContractArgs, 
 
 	if messageType == ContractNegotiationError {
 		logger.Error("Got error response when sending contract request")
-		return ContractArgs{}, nil, &DSPContractNegotiationError{42, errors.New("Remote returned error. Should set negotiation to failed?")}
+		return ContractArgs{}, nil, &DSPContractNegotiationError{
+			42, errors.New("Remote returned error. Should set negotiation to failed?"),
+		}
+	}
+
+	if !slices.Contains([]ContractNegotiationMessageType{ContractNegotiationMessage, ContractOfferMessage}, messageType) {
+		logger.Error("Unexpected message type. Expected ContractOfferMessage or ContractNegotiationError.",
+			"message_type", messageType)
+		return ContractArgs{}, nil, fmt.Errorf("Unexpected message type received after sending contract request")
 	}
 
 	if messageType == ContractNegotiationMessage {
@@ -176,7 +187,8 @@ func sendContractRequest(ctx context.Context, args ContractArgs) (ContractArgs, 
 		err := args.StateStorage.StoreState(ctx, args.ConsumerProcessId, Requested)
 		if err != nil {
 			logger.Error("Failed to store state REQUESTED, this is bad and will probably leak transactions remotely")
-			return ContractArgs{}, nil, err
+			// TODO: Should we send a termination message here instead?
+			return ContractArgs{}, sendContractErrorMessage, err
 		}
 
 		return ContractArgs{}, nil, nil
@@ -187,6 +199,7 @@ func sendContractRequest(ctx context.Context, args ContractArgs) (ContractArgs, 
 		err := args.StateStorage.StoreState(ctx, args.ConsumerProcessId, Offered)
 		if err != nil {
 			logger.Error("Failed to store state OFFERED, send ERROR response")
+			// TODO: Should we send a termination message here instead?
 			return args, sendContractErrorMessage, err
 		}
 
@@ -200,6 +213,7 @@ func sendContractRequest(ctx context.Context, args ContractArgs) (ContractArgs, 
 func sendContractAcceptedRequest(ctx context.Context, args ContractArgs) (ContractArgs, DSPState[ContractArgs], error) {
 	logger := getLogger(ctx, args.BaseArgs)
 	logger.Debug("in sendContractAcceptedRequest")
+
 	return ContractArgs{}, nil, fmt.Errorf("Transaction failure. This point should not be reached")
 }
 
@@ -215,7 +229,9 @@ func sendContractVerifiedRequest(ctx context.Context, args ContractArgs) (Contra
 	return ContractArgs{}, nil, fmt.Errorf("Transaction failure. This point should not be reached")
 }
 
-func sendContractFinalizedRequest(ctx context.Context, args ContractArgs) (ContractArgs, DSPState[ContractArgs], error) {
+func sendContractFinalizedRequest(ctx context.Context, args ContractArgs) (
+	ContractArgs, DSPState[ContractArgs], error,
+) {
 	logger := getLogger(ctx, args.BaseArgs)
 	logger.Debug("in sendContractFinalizedRequest")
 	return ContractArgs{}, nil, fmt.Errorf("Transaction failure. This point should not be reached")

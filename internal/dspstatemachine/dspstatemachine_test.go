@@ -38,7 +38,10 @@ type fakeConsumerContractTasksService struct {
 	consumerContractTasksService
 }
 
-func (f *fakeConsumerContractTasksService) SendContractRequest(ctx context.Context, args ContractArgs, odrlOffer string) (ContractNegotiationMessageType, error) {
+func (f *fakeConsumerContractTasksService) SendContractRequest(
+	ctx context.Context, args ContractArgs, odrlOffer string) (
+	ContractNegotiationMessageType, error,
+) {
 	return f.sendContractRequestMessageType, f.sendContractRequestError
 }
 
@@ -56,10 +59,10 @@ func (f *fakeDSPStateStorageService) FindState(ctx context.Context, id uuid.UUID
 	return f.negotiationState, f.findStateError
 }
 
-func (f *fakeDSPStateStorageService) StoreState(ctx context.Context, id uuid.UUID, negotationState ContractNegotiationState) error {
+func (f *fakeDSPStateStorageService) StoreState(ctx context.Context, id uuid.UUID, cns ContractNegotiationState) error {
 	return f.storeStateError
 }
 
-func (f *fakeDSPStateStorageService) GenerateProcessId(ctx context.Context) (processId uuid.UUID, error error) {
+func (f *fakeDSPStateStorageService) GenerateProcessId(ctx context.Context) (uuid.UUID, error) {
 	return f.generatedUUID, f.uuidError
 }

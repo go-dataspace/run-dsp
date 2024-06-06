@@ -36,19 +36,11 @@ func TestSendContractRequest(t *testing.T) {
 			name: "Error: DSPStateStorageService.FindState() returns an error",
 			args: ContractArgs{
 				StateStorage: &fakeDSPStateStorageService{
-					negotiationState: 0,
-					findStateError:   errors.New("no state"),
+					findStateError: errors.New("no state"),
 				},
-				// consumerService: &fakeConsumerContractTasksService{
-				// 	sendContractRequestMessageType: 0,
-				// 	negotiationState:               0,
-				// 	sendContractRequestError:       nil,
-				// 	consumerContractTasksService:   nil,
-				// },
 			},
 			wantErr:     true,
 			expectedErr: "no state",
-			wantState:   nil,
 		},
 		{
 			name: "Error: Initial state is not UndefinedState",
@@ -59,7 +51,6 @@ func TestSendContractRequest(t *testing.T) {
 			},
 			wantErr:     true,
 			expectedErr: "Initial contract negotiation state invalid, should be UndefinedState",
-			wantState:   nil,
 		},
 		{
 			name: "Error: consumerService.SendContractRequest() returns an error",
@@ -68,15 +59,11 @@ func TestSendContractRequest(t *testing.T) {
 					negotiationState: UndefinedState,
 				},
 				consumerService: &fakeConsumerContractTasksService{
-					sendContractRequestMessageType: 0,
-					negotiationState:               0,
-					sendContractRequestError:       errors.New("Connection broke"),
-					consumerContractTasksService:   nil,
+					sendContractRequestError: errors.New("Connection broke"),
 				},
 			},
 			wantErr:     true,
 			expectedErr: "Connection broke",
-			wantState:   nil,
 		},
 		{
 			name: "Error: expecting ContractNegotiationMessage, but getting other",
@@ -84,16 +71,64 @@ func TestSendContractRequest(t *testing.T) {
 				StateStorage: &fakeDSPStateStorageService{
 					negotiationState: UndefinedState,
 				},
+				consumerService: &fakeConsumerContractTasksService{},
+			},
+			wantErr:     true,
+			expectedErr: "Unexpected message type received after sending contract request",
+		},
+		{
+			name: "Error: Failing to store REQUESTED state on ContractNegotiationMessage",
+			args: ContractArgs{
+				StateStorage: &fakeDSPStateStorageService{
+					negotiationState: UndefinedState,
+					storeStateError:  errors.New("no storing REQUESTED for you"),
+				},
 				consumerService: &fakeConsumerContractTasksService{
-					sendContractRequestMessageType: 0,
-					negotiationState:               0,
-					sendContractRequestError:       nil,
-					consumerContractTasksService:   nil,
+					sendContractRequestMessageType: ContractNegotiationMessage,
 				},
 			},
 			wantErr:     true,
-			expectedErr: "Connection broke",
-			wantState:   nil,
+			expectedErr: "no storing REQUESTED for you",
+			wantState:   sendContractErrorMessage,
+		},
+		{
+			name: "Success: Exiting statemachine due to asynchronous communication",
+			args: ContractArgs{
+				StateStorage: &fakeDSPStateStorageService{
+					negotiationState: UndefinedState,
+				},
+				consumerService: &fakeConsumerContractTasksService{
+					sendContractRequestMessageType: ContractNegotiationMessage,
+				},
+			},
+			wantErr:   false,
+			wantState: nil,
+		},
+		{
+			name: "Error: Failing to store OFFERED state on ContractNegotiationMessage",
+			args: ContractArgs{
+				StateStorage: &fakeDSPStateStorageService{
+					negotiationState: UndefinedState,
+					storeStateError:  errors.New("no storing OFFERED for you"),
+				},
+				consumerService: &fakeConsumerContractTasksService{
+					sendContractRequestMessageType: ContractOfferMessage,
+				},
+			},
+			wantErr:     true,
+			expectedErr: "no storing OFFERED for you",
+			wantState:   sendContractErrorMessage,
+		},
+		{
+			name: "Success: Next state contract accepted on synchronous communication",
+			args: ContractArgs{
+				StateStorage: &fakeDSPStateStorageService{},
+				consumerService: &fakeConsumerContractTasksService{
+					sendContractRequestMessageType: ContractOfferMessage,
+				},
+			},
+			wantErr:   false,
+			wantState: sendContractAcceptedRequest,
 		},
 	}
 
