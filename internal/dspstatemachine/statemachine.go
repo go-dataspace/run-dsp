@@ -43,6 +43,16 @@ type BaseArgs struct {
 
 	// ProviderProcessIdContractNegotiationState
 	ProviderProcessId uuid.UUID
+
+	// Role in DSP interaction
+	ParticipantRole DSPParticipantRole
+
+	// Type of DSP transaction
+	TransactionType DSPTransactionType
+	// Error information
+	StatusCode   int
+	ErrorMessage string
+	Error        error
 }
 
 type TransferArgs struct {

@@ -26,11 +26,13 @@ func TestSendContractRequest(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name        string
-		args        ContractArgs
-		wantErr     bool
-		expectedErr string
-		wantState   DSPState[ContractArgs]
+		name                 string
+		args                 ContractArgs
+		wantErr              bool
+		expectedErr          string
+		expectedArgErrMsg    string
+		expectedArgErrStatus int
+		wantState            DSPState[ContractArgs]
 	}{
 		{
 			name: "Error: DSPStateStorageService.FindState() returns an error",
@@ -87,9 +89,10 @@ func TestSendContractRequest(t *testing.T) {
 					sendContractRequestMessageType: ContractNegotiationMessage,
 				},
 			},
-			wantErr:     true,
-			expectedErr: "no storing REQUESTED for you",
-			wantState:   sendContractErrorMessage,
+			wantErr:              false,
+			expectedArgErrStatus: 42,
+			expectedArgErrMsg:    "Failed to store REQUESTED state",
+			wantState:            sendContractErrorMessage,
 		},
 		{
 			name: "Success: Exiting statemachine due to asynchronous communication",
@@ -115,9 +118,10 @@ func TestSendContractRequest(t *testing.T) {
 					sendContractRequestMessageType: ContractOfferMessage,
 				},
 			},
-			wantErr:     true,
-			expectedErr: "no storing OFFERED for you",
-			wantState:   sendContractErrorMessage,
+			wantErr:              false,
+			expectedArgErrStatus: 42,
+			expectedArgErrMsg:    "Failed to store OFFERED state",
+			wantState:            sendContractErrorMessage,
 		},
 		{
 			name: "Success: Next state contract accepted on synchronous communication",
@@ -134,7 +138,7 @@ func TestSendContractRequest(t *testing.T) {
 
 	for _, test := range tests {
 		ctx := logging.Inject(context.Background(), logging.NewJSON("debug", true))
-		_, nextState, err := sendContractRequest(ctx, test.args)
+		args, nextState, err := sendContractRequest(ctx, test.args)
 		switch {
 		case err == nil && test.wantErr:
 			t.Errorf("TestsendContractRequest(%s): got err == nil, want err != nil", test.name)
@@ -149,6 +153,16 @@ func TestSendContractRequest(t *testing.T) {
 			continue
 		}
 
+		if test.expectedArgErrMsg != args.ErrorMessage {
+			t.Errorf(
+				"TestsendContractRequest(%s): got args.ErrorMessage == '%s', want args.ErrorMessage == %s",
+				test.name, test.expectedArgErrMsg, args.ErrorMessage)
+		}
+		if test.expectedArgErrStatus != args.StatusCode {
+			t.Errorf(
+				"TestsendContractRequest(%s): got args.StatusCode == '%d', want args.StatusCode == %d",
+				test.name, test.expectedArgErrStatus, args.StatusCode)
+		}
 		gotState := methodName(nextState)
 		wantState := methodName(test.wantState)
 		if gotState != wantState {

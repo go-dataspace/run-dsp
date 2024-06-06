@@ -52,12 +52,6 @@ const (
 type ContractArgs struct {
 	BaseArgs
 
-	// Role in DSP interaction
-	ParticipantRole DSPParticipantRole
-
-	// Type of DSP transaction
-	TransactionType DSPTransactionType
-
 	// ContractNegotiationstate
 	NegotiationState ContractNegotiationState
 
@@ -69,10 +63,6 @@ type ContractArgs struct {
 
 	// Consumer contract managing service
 	consumerService consumerContractTasksService
-
-	// Error information
-	StatusCode int
-	Error      string
 }
 
 type DSPContractNegotiationError struct {
@@ -155,24 +145,20 @@ func terminateContractNegotiation(ctx context.Context, args ContractArgs) (
 
 func sendContractRequest(ctx context.Context, args ContractArgs) (ContractArgs, DSPState[ContractArgs], error) {
 	logger := getLogger(ctx, args.BaseArgs)
-
 	negotiationState, err := args.StateStorage.FindState(ctx, args.ConsumerProcessId)
 	if err != nil {
 		logger.Error("Can't find initial state for contract negotiation")
 		return ContractArgs{}, nil, err
 	}
-
 	if negotiationState != UndefinedState {
 		return ContractArgs{}, nil, &DSPContractNegotiationError{
 			42, errors.New("Initial contract negotiation state invalid, should be UndefinedState"),
 		}
 	}
-
 	messageType, err := args.consumerService.SendContractRequest(ctx, args)
 	if err != nil {
 		return ContractArgs{}, nil, err
 	}
-
 	if messageType == ContractNegotiationError {
 		logger.Error("Got error response when sending contract request")
 		return ContractArgs{}, nil, newDSPContractError(42, "Remote returned error. Should set negotiation to failed?")
@@ -190,7 +176,11 @@ func sendContractRequest(ctx context.Context, args ContractArgs) (ContractArgs, 
 		if err != nil {
 			logger.Error("Failed to store state REQUESTED, this is bad and will probably leak transactions remotely")
 			// TODO: Should we send a termination message here instead?
-			return ContractArgs{}, sendContractErrorMessage, err
+			args.StatusCode = 42
+			args.ErrorMessage = "Failed to store REQUESTED state"
+			args.Error = err
+			//lint:ignore nilerr Error can be returned in sendContractErrorMessage if necessary
+			return args, sendContractErrorMessage, nil
 		}
 
 		return ContractArgs{}, nil, nil
@@ -202,7 +192,11 @@ func sendContractRequest(ctx context.Context, args ContractArgs) (ContractArgs, 
 		if err != nil {
 			logger.Error("Failed to store state OFFERED, send ERROR response")
 			// TODO: Should we send a termination message here instead?
-			return args, sendContractErrorMessage, err
+			args.StatusCode = 42
+			args.ErrorMessage = "Failed to store OFFERED state"
+			args.Error = err
+			//lint:ignore nilerr Error can be returned in sendContractErrorMessage if necessary
+			return args, sendContractErrorMessage, nil
 		}
 
 		args.NegotiationState = Offered
