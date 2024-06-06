@@ -15,6 +15,8 @@
 // Package odrl contains ODRL code
 package odrl
 
+import "time"
+
 //nolint:lll
 // This is for now a partial port of this JSON schema:
 // https://international-data-spaces-association.github.io/ids-specification/2024-1/negotiation/message/schema/contract-schema.json
@@ -33,10 +35,10 @@ type MessageOffer struct {
 // PolicyClass is an ODRL PolicyClass.
 type PolicyClass struct {
 	AbstractPolicyRule
-	ID         string       `json:"@id" verification:"required"`
-	Profile    []Reference  `json:"odrl:profile,omitempty" verification:"dive"`
-	Permission []Permission `json:"odrl:permission,omitempty" verification:"gte=1,dive"`
-	Obligation []Duty       `json:"odrl:obligation,omitempty" verification:"gte=1,dive"`
+	ID         string       `json:"@id" validate:"required"`
+	Profile    []Reference  `json:"odrl:profile,omitempty" validate:"dive"`
+	Permission []Permission `json:"odrl:permission,omitempty" validate:"gte=1,dive"`
+	Obligation []Duty       `json:"odrl:obligation,omitempty" validate:"gte=1,dive"`
 }
 
 // AbstractPolicyRule defines an ODRL abstract policy rule.
@@ -47,29 +49,38 @@ type AbstractPolicyRule struct {
 
 // Reference is a reference.
 type Reference struct {
-	ID string `json:"@id" verification:"required"`
+	ID string `json:"@id" validate:"required"`
 }
 
 // Permission is a permisson entry.
 type Permission struct {
 	AbstractPolicyRule
-	Action     string       `json:"action" verification:"required"` // TODO custom verifier.
-	Constraint []Constraint `json:"constraint,omitempty" verification:"gte=1,dive"`
-	Duty       Duty         `json:"duty,omitempty" verification:"dive"`
+	Action     string       `json:"action" validate:"required"` // TODO custom verifier.
+	Constraint []Constraint `json:"constraint,omitempty" validate:"gte=1,dive"`
+	Duty       Duty         `json:"duty,omitempty" validate:"dive"`
 }
 
 // Duty is an ODRL duty.
 type Duty struct {
 	AbstractPolicyRule
 	ID         string       `json:"@id"`
-	Action     string       `json:"action" verification:"required"` // TODO: custom verifier.
-	Constraint []Constraint `json:"constraint,omitempty" verification:"gte=1,dive"`
+	Action     string       `json:"action" validate:"required"` // TODO: custom verifier.
+	Constraint []Constraint `json:"constraint,omitempty" validate:"gte=1,dive"`
 }
 
 // Constraint is an ODRL constraint.
 type Constraint struct {
-	RightOperand          string // TODO: implement custom verifier
-	RightOperandReference Reference
-	LeftOperand           string // TODO: implement custom verifier.
-	Operator              string // TODO: implment custom verifier.
+	RightOperand          string    `json:"odrl:rightOperand"` // TODO: implement custom verifier
+	RightOperandReference Reference `json:"odrl:rightOperandReference"`
+	LeftOperand           string    `json:"odrl:leftOperand"` // TODO: implement custom verifier.
+	Operator              string    `json:"odrl:operator"`    // TODO: implment custom verifier.
+}
+
+// Agreement is an ODRL agreement.
+type Agreement struct {
+	PolicyClass
+	Type      string    `json:"@type" validate:"required,eq=odrl:Agreement"`
+	ID        string    `json:"@id" validate:"required"`
+	Target    string    `json:"@target" validate:"required"`
+	Timestamp time.Time `json:"dspace:timestamp"`
 }
