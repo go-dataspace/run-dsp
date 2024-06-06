@@ -138,6 +138,11 @@ func terminateContractNegotiation(ctx context.Context, args ContractArgs) (
 		return ContractArgs{}, nil, newDSPContractError(42, "Unexpected response when trying to terminate negotiation.")
 	}
 
+	if args.StatusCode > 0 {
+		logger.Info("Error message triggered by actual internal problem, returning exception")
+		return ContractArgs{}, nil, newDSPContractError(args.StatusCode, args.ErrorMessage)
+	}
+
 	logger.Info("Terminated contract negotiation in state TERMINATED")
 
 	return ContractArgs{}, nil, nil
