@@ -82,7 +82,7 @@ type ContractNegotiation struct {
 	Type        string         `json:"@type" validate:"required,eq=dspace:ContractNegotiation"`
 	ProviderPID string         `json:"dspace:providerPid" validate:"required"`
 	ConsumerPID string         `json:"dspace:consumerPid" validate:"required"`
-	State       string         `json:"dspace:state" validate:"required"` // TODO: Implement custom verifier
+	State       string         `json:"dspace:state" validate:"required,contract_state"`
 }
 
 // ContractNegotiationError is a response to show the state of the contract negotiation.
