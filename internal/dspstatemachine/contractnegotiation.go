@@ -326,7 +326,22 @@ func sendContractAgreedRequest(ctx context.Context, args ContractArgs) (Contract
 func sendContractVerifiedRequest(ctx context.Context, args ContractArgs) (ContractArgs, DSPState[ContractArgs], error) {
 	logger := getLogger(ctx, args.BaseArgs)
 	logger.Debug("in sendContractVerifiedRequest")
-	return ContractArgs{}, nil, fmt.Errorf("Transaction failure. This point should not be reached")
+
+	err := checkFindNegotiationState(ctx, args, Agreed)
+	if err != nil {
+		return ContractArgs{}, nil, err
+	}
+
+	messageType, err := args.consumerService.SendContractAgreementVerification(ctx, args)
+	return checkMessageTypeAndStoreState(
+		ctx,
+		args,
+		[]ContractNegotiationMessageType{ContractNegotiationMessage, ContractNegotiationEventMessage},
+		messageType,
+		err,
+		Verified,
+		Finalized,
+		nil)
 }
 
 func sendContractFinalizedRequest(ctx context.Context, args ContractArgs) (
