@@ -1,4 +1,7 @@
 {
     "licenser.author": "go-dataspace",
-    "licenser.license": "AL2"
+    "licenser.license": "AL2",
+    "go.addTags": {
+        "transform": "camelcase"
+    }
 }
