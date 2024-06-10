@@ -52,7 +52,7 @@ func TestSendContractRequest(t *testing.T) {
 				},
 			},
 			wantErr:     true,
-			expectedErr: "status 42: err Initial contract negotiation state invalid, should be UndefinedState",
+			expectedErr: "status 42: err Initial contract negotiation state invalid. Got 1, expected 0",
 		},
 		{
 			name: "Error: consumerService.SendContractRequest() returns an error",

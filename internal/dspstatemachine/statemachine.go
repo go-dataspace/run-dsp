@@ -49,6 +49,7 @@ type BaseArgs struct {
 
 	// Type of DSP transaction
 	TransactionType DSPTransactionType
+
 	// Error information
 	StatusCode   int
 	ErrorMessage string

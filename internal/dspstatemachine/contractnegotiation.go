@@ -103,6 +103,54 @@ type providerContractTasksService interface {
 	SendErrorMessage(ctx context.Context, args ContractArgs) error
 }
 
+func checkNegotiationState(ctx context.Context, args ContractArgs, expectedState ContractNegotiationState) error {
+	logger := getLogger(ctx, args.BaseArgs)
+
+	processId := args.ConsumerProcessId
+	if args.ParticipantRole == Provider {
+		processId = args.ProviderProcessId
+	}
+	negotiationState, err := args.StateStorage.FindState(ctx, processId)
+	if err != nil {
+		logger.Error("Could not find state for contract negotiation", "uuid", processId)
+		return err
+	}
+	if negotiationState != expectedState {
+		return &DSPContractNegotiationError{
+			42, fmt.Errorf("Initial contract negotiation state invalid. Got %d, expected %d", negotiationState, expectedState),
+		}
+	}
+
+	return nil
+}
+
+func checkMessageType(
+	ctx context.Context,
+	args ContractArgs,
+	expectedMessageTypes []ContractNegotiationMessageType,
+	messageType ContractNegotiationMessageType,
+	err error,
+) (ContractNegotiationMessageType, error) {
+	logger := getLogger(ctx, args.BaseArgs)
+
+	if err != nil {
+		return messageType, err
+	}
+
+	if messageType == ContractNegotiationError {
+		logger.Error("Got error response when sending contract request")
+		return messageType, newDSPContractError(42, "Remote returned error. Should set negotiation to failed?")
+	}
+
+	if !slices.Contains(expectedMessageTypes, messageType) {
+		logger.Error("Unexpected message type. Expected ContractOfferMessage or ContractNegotiationError.",
+			"message_type", messageType)
+		return messageType, newDSPContractError(42, "Unexpected message type received after sending contract request")
+	}
+
+	return messageType, nil
+}
+
 func sendContractErrorMessage(ctx context.Context, args ContractArgs) (ContractArgs, DSPState[ContractArgs], error) {
 	err := args.consumerService.SendErrorMessage(ctx, args)
 	if err != nil {
@@ -150,29 +198,16 @@ func terminateContractNegotiation(ctx context.Context, args ContractArgs) (
 
 func sendContractRequest(ctx context.Context, args ContractArgs) (ContractArgs, DSPState[ContractArgs], error) {
 	logger := getLogger(ctx, args.BaseArgs)
-	negotiationState, err := args.StateStorage.FindState(ctx, args.ConsumerProcessId)
-	if err != nil {
-		logger.Error("Can't find initial state for contract negotiation")
-		return ContractArgs{}, nil, err
-	}
-	if negotiationState != UndefinedState {
-		return ContractArgs{}, nil, &DSPContractNegotiationError{
-			42, errors.New("Initial contract negotiation state invalid, should be UndefinedState"),
-		}
-	}
-	messageType, err := args.consumerService.SendContractRequest(ctx, args)
+	err := checkNegotiationState(ctx, args, UndefinedState)
 	if err != nil {
 		return ContractArgs{}, nil, err
-	}
-	if messageType == ContractNegotiationError {
-		logger.Error("Got error response when sending contract request")
-		return ContractArgs{}, nil, newDSPContractError(42, "Remote returned error. Should set negotiation to failed?")
 	}
 
-	if !slices.Contains([]ContractNegotiationMessageType{ContractNegotiationMessage, ContractOfferMessage}, messageType) {
-		logger.Error("Unexpected message type. Expected ContractOfferMessage or ContractNegotiationError.",
-			"message_type", messageType)
-		return ContractArgs{}, nil, newDSPContractError(42, "Unexpected message type received after sending contract request")
+	messageType, err := args.consumerService.SendContractRequest(ctx, args)
+	messageType, err = checkMessageType(
+		ctx, args, []ContractNegotiationMessageType{ContractNegotiationMessage, ContractOfferMessage}, messageType, err)
+	if err != nil {
+		return ContractArgs{}, nil, err
 	}
 
 	if messageType == ContractNegotiationMessage {
