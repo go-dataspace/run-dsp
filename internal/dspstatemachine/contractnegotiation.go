@@ -136,7 +136,7 @@ type consumerContractTasksService interface {
 		ContractNegotiationMessageType, error,
 	)
 	SendTerminationMessage(ctx context.Context, args ContractArgs) (
-		ContractNegotiationMessageType, ContractNegotiationState, error)
+		ContractNegotiationMessageType, error)
 	SendErrorMessage(ctx context.Context, args ContractArgs) error
 }
 
@@ -146,7 +146,7 @@ type providerContractTasksService interface {
 	SendNegotiationFinalized(ctx context.Context, args ContractArgs) (
 		ContractNegotiationMessageType, error)
 	SendTerminationMessage(ctx context.Context, args ContractArgs) (
-		ContractNegotiationMessageType, ContractNegotiationState, error)
+		ContractNegotiationMessageType, error)
 	SendErrorMessage(ctx context.Context, args ContractArgs) error
 }
 
@@ -258,9 +258,9 @@ func sendTerminateContractNegotiation(ctx context.Context, args ContractArgs) (
 
 	var messageType ContractNegotiationMessageType
 	if args.BaseArgs.ParticipantRole == Consumer {
-		messageType, _, err = args.consumerService.SendTerminationMessage(ctx, args)
+		messageType, err = args.consumerService.SendTerminationMessage(ctx, args)
 	} else {
-		messageType, _, err = args.providerService.SendTerminationMessage(ctx, args)
+		messageType, err = args.providerService.SendTerminationMessage(ctx, args)
 	}
 	return checkMessageTypeAndStoreState(
 		ctx,

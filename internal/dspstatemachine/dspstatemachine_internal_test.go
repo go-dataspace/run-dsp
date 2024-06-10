@@ -34,13 +34,16 @@ func methodName(method any) string {
 }
 
 type fakeConsumerContractTasksService struct {
-	sendContractRequestMessageType         ContractNegotiationMessageType
-	sendContractAcceptedRequestMessageType ContractNegotiationMessageType
-	sendContractVerifiedRequestMessageType ContractNegotiationMessageType
+	sendContractRequestMessageType            ContractNegotiationMessageType
+	sendContractAcceptedRequestMessageType    ContractNegotiationMessageType
+	sendContractVerifiedRequestMessageType    ContractNegotiationMessageType
+	sendContractTerminationRequestMessageType ContractNegotiationMessageType
+
 	// negotiationState                       ContractNegotiationState
-	sendContractRequestError         error
-	sendContractAcceptedRequestError error
-	sendContractVerifiedRequestError error
+	sendContractRequestError            error
+	sendContractAcceptedRequestError    error
+	sendContractVerifiedRequestError    error
+	sendContractTerminationRequestError error
 
 	consumerContractTasksService
 }
@@ -64,6 +67,24 @@ func (f *fakeConsumerContractTasksService) SendContractAgreementVerification(
 	ContractNegotiationMessageType, error,
 ) {
 	return f.sendContractVerifiedRequestMessageType, f.sendContractVerifiedRequestError
+}
+
+func (f *fakeConsumerContractTasksService) SendTerminationMessage(
+	ctx context.Context, args ContractArgs,
+) (ContractNegotiationMessageType, error) {
+	return f.sendContractTerminationRequestMessageType, f.sendContractTerminationRequestError
+}
+
+type fakeProviderContractTasksService struct {
+	sendContractTerminationRequestMessageType ContractNegotiationMessageType
+	sendContractTerminationRequestError       error
+	providerContractTasksService
+}
+
+func (f *fakeProviderContractTasksService) SendTerminationMessage(
+	ctx context.Context, args ContractArgs,
+) (ContractNegotiationMessageType, error) {
+	return f.sendContractTerminationRequestMessageType, f.sendContractTerminationRequestError
 }
 
 type fakeDSPStateStorageService struct {
