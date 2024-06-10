@@ -36,6 +36,30 @@ const (
 	ContractNegotiationError
 )
 
+func (s ContractNegotiationMessageType) String() string {
+	switch s {
+	case UndefinedMessage:
+		return "UndefinedMessage"
+	case ContractRequestMessage:
+		return "ContractRequestMessage"
+	case ContractOfferMessage:
+		return "ContractOfferMessage"
+	case ContractAgreementMessage:
+		return "ContractAgreementMessage"
+	case ContractAgreementVerificationMessage:
+		return "ContractAgreementVerificationMessage"
+	case ContractNegotiationEventMessage:
+		return "ContractNegotiationEventMessage"
+	case ContractNegotiationTerminationMessage:
+		return "ContractNegotiationTerminationMessage"
+	case ContractNegotiationMessage:
+		return "ContractNegotiationMessage"
+	case ContractNegotiationError:
+		return "ContractNegotiationError"
+	}
+	return "unknown"
+}
+
 type ContractNegotiationState int64
 
 const (
@@ -48,6 +72,28 @@ const (
 	Finalized
 	Terminated
 )
+
+func (s ContractNegotiationState) String() string {
+	switch s {
+	case UndefinedState:
+		return "UndefinedState"
+	case Requested:
+		return "REQUESTED"
+	case Offered:
+		return "OFFERED"
+	case Accepted:
+		return "ACCEPTED"
+	case Agreed:
+		return "AGREED"
+	case Verified:
+		return "VERIFIED"
+	case Finalized:
+		return "FINALIZED"
+	case Terminated:
+		return "TERMINATED"
+	}
+	return "unknown"
+}
 
 type ContractArgs struct {
 	BaseArgs
@@ -103,7 +149,7 @@ type providerContractTasksService interface {
 	SendErrorMessage(ctx context.Context, args ContractArgs) error
 }
 
-func checkNegotiationState(ctx context.Context, args ContractArgs, expectedState ContractNegotiationState) error {
+func checkFindNegotiationState(ctx context.Context, args ContractArgs, expectedState ContractNegotiationState) error {
 	logger := getLogger(ctx, args.BaseArgs)
 
 	processId := args.ConsumerProcessId
@@ -117,38 +163,74 @@ func checkNegotiationState(ctx context.Context, args ContractArgs, expectedState
 	}
 	if negotiationState != expectedState {
 		return &DSPContractNegotiationError{
-			42, fmt.Errorf("Initial contract negotiation state invalid. Got %d, expected %d", negotiationState, expectedState),
+			42, fmt.Errorf("Contract negotiation state invalid. Got %s, expected %s", negotiationState, expectedState),
 		}
 	}
 
 	return nil
 }
 
-func checkMessageType(
+func checkMessageTypeAndStoreState(
 	ctx context.Context,
 	args ContractArgs,
 	expectedMessageTypes []ContractNegotiationMessageType,
 	messageType ContractNegotiationMessageType,
 	err error,
-) (ContractNegotiationMessageType, error) {
+	asyncState ContractNegotiationState,
+	syncState ContractNegotiationState,
+	nextState DSPState[ContractArgs],
+) (ContractArgs, DSPState[ContractArgs], error) {
 	logger := getLogger(ctx, args.BaseArgs)
-
 	if err != nil {
-		return messageType, err
+		return ContractArgs{}, nil, err
 	}
-
 	if messageType == ContractNegotiationError {
 		logger.Error("Got error response when sending contract request")
-		return messageType, newDSPContractError(42, "Remote returned error. Should set negotiation to failed?")
+		return ContractArgs{}, nil, newDSPContractError(42, "Remote returned error. Should set negotiation to failed?")
 	}
-
 	if !slices.Contains(expectedMessageTypes, messageType) {
+		// FIXME: Replace error message
 		logger.Error("Unexpected message type. Expected ContractOfferMessage or ContractNegotiationError.",
 			"message_type", messageType)
-		return messageType, newDSPContractError(42, "Unexpected message type received after sending contract request")
+		return ContractArgs{}, nil, newDSPContractError(42, "Unexpected message type received after sending contract request")
 	}
 
-	return messageType, nil
+	processId := args.ConsumerProcessId
+	if args.ParticipantRole == Provider {
+		processId = args.ProviderProcessId
+	}
+
+	if messageType == ContractNegotiationMessage {
+		logger.Info("Got contract negotiation message, assuming this is an asynchronous negotiation")
+		err := args.StateStorage.StoreState(ctx, args.ConsumerProcessId, asyncState)
+		if err != nil {
+			msg := fmt.Sprintf("Failed to store state %s, this is bad and will probably leak transactions remotely", asyncState)
+			logger.Error(msg)
+			// TODO: Should we send a termination message here instead?
+			args.StatusCode = 42
+			args.ErrorMessage = fmt.Sprintf("Failed to store %s state", asyncState)
+			args.Error = err
+			//lint:ignore nilerr Error can be returned in sendContractErrorMessage if necessary
+			return args, sendContractErrorMessage, nil
+		}
+
+		return ContractArgs{}, nil, nil
+	}
+
+	logger.Info("Got other message than ACK, this is a synchronous negotiation")
+	err = args.StateStorage.StoreState(ctx, processId, syncState)
+	if err != nil {
+		msg := fmt.Sprintf("Failed to store state %s, send ERROR response", syncState)
+		logger.Error(msg)
+		// TODO: Should we send a termination message here instead?
+		args.StatusCode = 42
+		args.ErrorMessage = fmt.Sprintf("Failed to store %s state", syncState)
+		args.Error = err
+		// lint:ignore nilerr Error can be returned in sendContractErrorMessage if necessary
+		return args, sendContractErrorMessage, nil
+	}
+
+	return args, nextState, nil
 }
 
 func sendContractErrorMessage(ctx context.Context, args ContractArgs) (ContractArgs, DSPState[ContractArgs], error) {
@@ -197,60 +279,42 @@ func terminateContractNegotiation(ctx context.Context, args ContractArgs) (
 }
 
 func sendContractRequest(ctx context.Context, args ContractArgs) (ContractArgs, DSPState[ContractArgs], error) {
-	logger := getLogger(ctx, args.BaseArgs)
-	err := checkNegotiationState(ctx, args, UndefinedState)
+	err := checkFindNegotiationState(ctx, args, UndefinedState)
 	if err != nil {
 		return ContractArgs{}, nil, err
 	}
 
 	messageType, err := args.consumerService.SendContractRequest(ctx, args)
-	messageType, err = checkMessageType(
-		ctx, args, []ContractNegotiationMessageType{ContractNegotiationMessage, ContractOfferMessage}, messageType, err)
-	if err != nil {
-		return ContractArgs{}, nil, err
-	}
-
-	if messageType == ContractNegotiationMessage {
-		logger.Info("Got contract negotiation message, assuming this is an asynchronous negotiation")
-		err := args.StateStorage.StoreState(ctx, args.ConsumerProcessId, Requested)
-		if err != nil {
-			logger.Error("Failed to store state REQUESTED, this is bad and will probably leak transactions remotely")
-			// TODO: Should we send a termination message here instead?
-			args.StatusCode = 42
-			args.ErrorMessage = "Failed to store REQUESTED state"
-			args.Error = err
-			//lint:ignore nilerr Error can be returned in sendContractErrorMessage if necessary
-			return args, sendContractErrorMessage, nil
-		}
-
-		return ContractArgs{}, nil, nil
-	}
-
-	if messageType == ContractOfferMessage {
-		logger.Info("Got contract offer message, this is a synchronous negotiation")
-		err := args.StateStorage.StoreState(ctx, args.ConsumerProcessId, Offered)
-		if err != nil {
-			logger.Error("Failed to store state OFFERED, send ERROR response")
-			// TODO: Should we send a termination message here instead?
-			args.StatusCode = 42
-			args.ErrorMessage = "Failed to store OFFERED state"
-			args.Error = err
-			//lint:ignore nilerr Error can be returned in sendContractErrorMessage if necessary
-			return args, sendContractErrorMessage, nil
-		}
-
-		args.NegotiationState = Offered
-		return args, sendContractAcceptedRequest, nil
-	}
-
-	return ContractArgs{}, nil, newDSPContractError(42, "Transaction failure. This point should not be reached")
+	return checkMessageTypeAndStoreState(
+		ctx,
+		args,
+		[]ContractNegotiationMessageType{ContractNegotiationMessage, ContractOfferMessage},
+		messageType,
+		err,
+		Requested,
+		Offered,
+		sendContractAcceptedRequest)
 }
 
 func sendContractAcceptedRequest(ctx context.Context, args ContractArgs) (ContractArgs, DSPState[ContractArgs], error) {
 	logger := getLogger(ctx, args.BaseArgs)
 	logger.Debug("in sendContractAcceptedRequest")
 
-	return ContractArgs{}, nil, fmt.Errorf("Transaction failure. This point should not be reached")
+	err := checkFindNegotiationState(ctx, args, Offered)
+	if err != nil {
+		return ContractArgs{}, nil, err
+	}
+
+	messageType, err := args.consumerService.SendContractAccepted(ctx, args)
+	return checkMessageTypeAndStoreState(
+		ctx,
+		args,
+		[]ContractNegotiationMessageType{ContractNegotiationMessage, ContractAgreementMessage},
+		messageType,
+		err,
+		Accepted,
+		Agreed,
+		sendContractAgreedRequest)
 }
 
 func sendContractAgreedRequest(ctx context.Context, args ContractArgs) (ContractArgs, DSPState[ContractArgs], error) {

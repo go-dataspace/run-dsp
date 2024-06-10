@@ -14,28 +14,18 @@
 package dspstatemachine
 
 import (
-	"context"
 	"errors"
 	"testing"
-
-	"github.com/go-dataspace/run-dsp/logging"
 )
 
 //nolint:funlen,lll
 func TestSendContractRequest(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct {
-		name                 string
-		args                 ContractArgs
-		wantErr              bool
-		expectedErr          string
-		expectedArgErrMsg    string
-		expectedArgErrStatus int
-		wantState            DSPState[ContractArgs]
-	}{
+	tests := []stateMachineTestCase{
 		{
-			name: "Error: DSPStateStorageService.FindState() returns an error",
+			name:        "Error: DSPStateStorageService.FindState() returns an error",
+			stateMethod: sendContractRequest,
 			args: ContractArgs{
 				StateStorage: &fakeDSPStateStorageService{
 					findStateError: errors.New("no state"),
@@ -45,17 +35,19 @@ func TestSendContractRequest(t *testing.T) {
 			expectedErr: "no state",
 		},
 		{
-			name: "Error: Initial state is not UndefinedState",
+			name:        "Error: Initial state is not UndefinedState",
+			stateMethod: sendContractRequest,
 			args: ContractArgs{
 				StateStorage: &fakeDSPStateStorageService{
 					negotiationState: Requested,
 				},
 			},
 			wantErr:     true,
-			expectedErr: "status 42: err Initial contract negotiation state invalid. Got 1, expected 0",
+			expectedErr: "status 42: err Contract negotiation state invalid. Got REQUESTED, expected UndefinedState",
 		},
 		{
-			name: "Error: consumerService.SendContractRequest() returns an error",
+			name:        "Error: consumerService.SendContractRequest() returns an error",
+			stateMethod: sendContractRequest,
 			args: ContractArgs{
 				StateStorage: &fakeDSPStateStorageService{
 					negotiationState: UndefinedState,
@@ -68,7 +60,8 @@ func TestSendContractRequest(t *testing.T) {
 			expectedErr: "Connection broke",
 		},
 		{
-			name: "Error: expecting ContractNegotiationMessage, but getting other",
+			name:        "Error: expecting ContractNegotiationMessage, but getting other",
+			stateMethod: sendContractRequest,
 			args: ContractArgs{
 				StateStorage: &fakeDSPStateStorageService{
 					negotiationState: UndefinedState,
@@ -79,7 +72,8 @@ func TestSendContractRequest(t *testing.T) {
 			expectedErr: "status 42: err Unexpected message type received after sending contract request",
 		},
 		{
-			name: "Error: Failing to store REQUESTED state on ContractNegotiationMessage",
+			name:        "Error: Failing to store REQUESTED state on ContractNegotiationMessage",
+			stateMethod: sendContractRequest,
 			args: ContractArgs{
 				StateStorage: &fakeDSPStateStorageService{
 					negotiationState: UndefinedState,
@@ -95,7 +89,8 @@ func TestSendContractRequest(t *testing.T) {
 			wantState:            sendContractErrorMessage,
 		},
 		{
-			name: "Success: Exiting statemachine due to asynchronous communication",
+			name:        "Success: Exiting statemachine due to asynchronous communication",
+			stateMethod: sendContractRequest,
 			args: ContractArgs{
 				StateStorage: &fakeDSPStateStorageService{
 					negotiationState: UndefinedState,
@@ -108,7 +103,8 @@ func TestSendContractRequest(t *testing.T) {
 			wantState: nil,
 		},
 		{
-			name: "Error: Failing to store OFFERED state on ContractNegotiationMessage",
+			name:        "Error: Failing to store OFFERED state on ContractNegotiationMessage",
+			stateMethod: sendContractRequest,
 			args: ContractArgs{
 				StateStorage: &fakeDSPStateStorageService{
 					negotiationState: UndefinedState,
@@ -124,7 +120,8 @@ func TestSendContractRequest(t *testing.T) {
 			wantState:            sendContractErrorMessage,
 		},
 		{
-			name: "Success: Next state contract accepted on synchronous communication",
+			name:        "Success: Next state contract accepted on synchronous communication",
+			stateMethod: sendContractRequest,
 			args: ContractArgs{
 				StateStorage: &fakeDSPStateStorageService{},
 				consumerService: &fakeConsumerContractTasksService{
@@ -136,37 +133,5 @@ func TestSendContractRequest(t *testing.T) {
 		},
 	}
 
-	for _, test := range tests {
-		ctx := logging.Inject(context.Background(), logging.NewJSON("debug", true))
-		args, nextState, err := sendContractRequest(ctx, test.args)
-		switch {
-		case err == nil && test.wantErr:
-			t.Errorf("TestsendContractRequest(%s): got err == nil, want err != nil", test.name)
-			continue
-		case err != nil && !test.wantErr:
-			t.Errorf("TestsendContractRequest(%s): got err == '%s', want err == nil", test.name, err)
-			continue
-		case err != nil:
-			if test.expectedErr != "" && test.expectedErr != err.Error() {
-				t.Errorf("TestsendContractRequest(%s): got err == '%s', want err == '%s'", test.name, err, test.expectedErr)
-			}
-			continue
-		}
-
-		if test.expectedArgErrMsg != args.ErrorMessage {
-			t.Errorf(
-				"TestsendContractRequest(%s): got args.ErrorMessage == '%s', want args.ErrorMessage == %s",
-				test.name, test.expectedArgErrMsg, args.ErrorMessage)
-		}
-		if test.expectedArgErrStatus != args.StatusCode {
-			t.Errorf(
-				"TestsendContractRequest(%s): got args.StatusCode == '%d', want args.StatusCode == %d",
-				test.name, test.expectedArgErrStatus, args.StatusCode)
-		}
-		gotState := methodName(nextState)
-		wantState := methodName(test.wantState)
-		if gotState != wantState {
-			t.Errorf("TestsendContractRequest(%s): got next state %s, want %s", test.name, gotState, wantState)
-		}
-	}
+	runTests(t, tests)
 }
