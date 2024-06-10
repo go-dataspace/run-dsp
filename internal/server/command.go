@@ -43,6 +43,8 @@ func (c *Command) Run(p cli.Params) error {
 	mux := dsp.GetRoutes()
 	handler := sloghttp.Recovery(mux)
 	handler = sloghttp.New(logger)(handler)
+	handler = logging.NewMiddleware(logger)(handler)
+	handler = jsonHeaderMiddleware(handler)
 
 	srv := &http.Server{
 		Addr:              fmt.Sprintf("%s:%d", c.ListenAddr, c.Port),

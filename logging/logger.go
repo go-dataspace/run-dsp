@@ -75,3 +75,11 @@ func Extract(ctx context.Context) *slog.Logger {
 	}
 	return logger
 }
+
+// InjectLabels injects labels to the logger living in the context, it will return both the context
+// and the logger.
+func InjectLabels(ctx context.Context, labels ...any) (context.Context, *slog.Logger) {
+	logger := Extract(ctx).With(labels...)
+	ctx = Inject(ctx, logger)
+	return ctx, logger
+}

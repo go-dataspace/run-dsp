@@ -16,42 +16,19 @@
 package dsp
 
 import (
-	"encoding/json"
-	"fmt"
 	"net/http"
 )
-
-type errorResponse struct {
-	Error string `json:"error"`
-}
-
-func errorString(e string) string {
-	er := errorResponse{Error: e}
-	s, err := json.Marshal(er)
-	if err != nil {
-		panic(fmt.Sprintf("Couldn't marshal error message: %s", err.Error()))
-	}
-	return string(s)
-}
-
-func routeNotImplemented(w http.ResponseWriter, req *http.Request) {
-	w.Header().Add("Content-Type", "application/json")
-	w.WriteHeader(http.StatusNotImplemented)
-	path := req.URL.Path
-	method := req.Method
-	fmt.Fprint(w, errorString(fmt.Sprintf("%s %s has not been implemented", method, path)))
-}
 
 // GetRoutes gets all the dataspace routes.
 func GetRoutes() http.Handler {
 	mux := http.NewServeMux()
 
-	mux.HandleFunc("GET /.well-known/dspace-version", routeNotImplemented)
+	mux.HandleFunc("GET /.well-known/dspace-version", dspaceVersionHandler)
 	// This is an optional proof endpoint for protected datasets.
 	mux.HandleFunc("GET /.well-known/dspace-trust", routeNotImplemented)
 
 	// Catalog endpoints
-	mux.HandleFunc("POST /catalog/request", routeNotImplemented)
+	mux.HandleFunc("POST /catalog/request", catalogRequestHandler)
 	mux.HandleFunc("GET /catalog/datasets/{id}", routeNotImplemented)
 
 	// Contract negotiation endpoints
