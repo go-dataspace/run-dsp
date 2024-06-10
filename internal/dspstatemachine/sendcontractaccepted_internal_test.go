@@ -135,5 +135,5 @@ func TestSendAcceptedRequest(t *testing.T) {
 		},
 	}
 
-	runTests(t, tests)
+	runTests(t, tests, "TestSendAcceptedRequest")
 }

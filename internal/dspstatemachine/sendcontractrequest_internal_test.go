@@ -133,5 +133,5 @@ func TestSendContractRequest(t *testing.T) {
 		},
 	}
 
-	runTests(t, tests)
+	runTests(t, tests, "TestSendContractRequest")
 }

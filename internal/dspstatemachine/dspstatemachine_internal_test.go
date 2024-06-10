@@ -36,9 +36,11 @@ func methodName(method any) string {
 type fakeConsumerContractTasksService struct {
 	sendContractRequestMessageType         ContractNegotiationMessageType
 	sendContractAcceptedRequestMessageType ContractNegotiationMessageType
+	sendContractVerifiedRequestMessageType ContractNegotiationMessageType
 	// negotiationState                       ContractNegotiationState
 	sendContractRequestError         error
 	sendContractAcceptedRequestError error
+	sendContractVerifiedRequestError error
 
 	consumerContractTasksService
 }
@@ -55,6 +57,13 @@ func (f *fakeConsumerContractTasksService) SendContractAccepted(
 	ContractNegotiationMessageType, error,
 ) {
 	return f.sendContractAcceptedRequestMessageType, f.sendContractAcceptedRequestError
+}
+
+func (f *fakeConsumerContractTasksService) SendContractAgreementVerification(
+	ctx context.Context, args ContractArgs) (
+	ContractNegotiationMessageType, error,
+) {
+	return f.sendContractVerifiedRequestMessageType, f.sendContractVerifiedRequestError
 }
 
 type fakeDSPStateStorageService struct {
@@ -91,38 +100,38 @@ type stateMachineTestCase struct {
 }
 
 //nolint:cyclop
-func runTests(t *testing.T, tests []stateMachineTestCase) {
+func runTests(t *testing.T, tests []stateMachineTestCase, testName string) {
 	for _, test := range tests {
 		ctx := logging.Inject(context.Background(), logging.NewJSON("debug", true))
 		args, nextState, err := test.stateMethod(ctx, test.args)
 		switch {
 		case err == nil && test.wantErr:
-			t.Errorf("TestsendContractRequest(%s): got err == nil, want err != nil", test.name)
+			t.Errorf("%s(%s): got err == nil, want err != nil", testName, test.name)
 			continue
 		case err != nil && !test.wantErr:
-			t.Errorf("TestsendContractRequest(%s): got err == '%s', want err == nil", test.name, err)
+			t.Errorf("%s(%s): got err == '%s', want err == nil", testName, test.name, err)
 			continue
 		case err != nil:
 			if test.expectedErr != "" && test.expectedErr != err.Error() {
-				t.Errorf("TestsendContractRequest(%s): got err == '%s', want err == '%s'", test.name, err, test.expectedErr)
+				t.Errorf("%s(%s): got err == '%s', want err == '%s'", testName, test.name, err, test.expectedErr)
 			}
 			continue
 		}
 
 		if test.expectedArgErrMsg != args.ErrorMessage {
 			t.Errorf(
-				"TestsendContractRequest(%s): got args.ErrorMessage == '%s', want args.ErrorMessage == '%s'",
-				test.name, args.ErrorMessage, test.expectedArgErrMsg)
+				"%s(%s): got args.ErrorMessage == '%s', want args.ErrorMessage == '%s'",
+				testName, test.name, args.ErrorMessage, test.expectedArgErrMsg)
 		}
 		if test.expectedArgErrStatus != args.StatusCode {
 			t.Errorf(
-				"TestsendContractRequest(%s): got args.StatusCode == '%d', want args.StatusCode == '%d'",
-				test.name, args.StatusCode, test.expectedArgErrStatus)
+				"%s(%s): got args.StatusCode == '%d', want args.StatusCode == '%d'",
+				testName, test.name, args.StatusCode, test.expectedArgErrStatus)
 		}
 		gotState := methodName(nextState)
 		wantState := methodName(test.wantState)
 		if gotState != wantState {
-			t.Errorf("TestsendContractRequest(%s): got next state %s, want %s", test.name, gotState, wantState)
+			t.Errorf("%s(%s): got next state %s, want %s", testName, test.name, gotState, wantState)
 		}
 	}
 }
