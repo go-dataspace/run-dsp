@@ -43,7 +43,7 @@ func TestSendContractRequest(t *testing.T) {
 				},
 			},
 			wantErr:     true,
-			expectedErr: "status 42: err Contract negotiation state invalid. Got REQUESTED, expected UndefinedState",
+			expectedErr: "status 42: err Contract negotiation state invalid. Got REQUESTED, expected [UndefinedState]",
 		},
 		{
 			name:        "Error: consumerService.SendContractRequest() returns an error",

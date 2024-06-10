@@ -43,7 +43,7 @@ func TestSendAcceptedRequest(t *testing.T) {
 				},
 			},
 			wantErr:     true,
-			expectedErr: "status 42: err Contract negotiation state invalid. Got REQUESTED, expected OFFERED",
+			expectedErr: "status 42: err Contract negotiation state invalid. Got REQUESTED, expected [OFFERED]",
 		},
 		{
 			name:        "Error: consumerService.SendContractAccepted() returns an error",

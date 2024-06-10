@@ -109,6 +109,9 @@ type ContractArgs struct {
 
 	// Consumer contract managing service
 	consumerService consumerContractTasksService
+
+	// Provider contract managing service
+	providerService providerContractTasksService
 }
 
 type DSPContractNegotiationError struct {
@@ -128,28 +131,28 @@ func (err *DSPContractNegotiationError) Error() string {
 
 type consumerContractTasksService interface {
 	SendContractRequest(ctx context.Context, args ContractArgs) (ContractNegotiationMessageType, error)
-	CheckContractOffer(ctx context.Context, args ContractArgs) error
 	SendContractAccepted(ctx context.Context, args ContractArgs) (ContractNegotiationMessageType, error)
-	CheckContractAgreement(ctx context.Context, args ContractArgs) error
 	SendContractAgreementVerification(ctx context.Context, args ContractArgs) (
 		ContractNegotiationMessageType, error,
 	)
-	SendTerminationMessage(ctx context.Context) (ContractNegotiationMessageType, ContractNegotiationState, error)
+	SendTerminationMessage(ctx context.Context, args ContractArgs) (
+		ContractNegotiationMessageType, ContractNegotiationState, error)
 	SendErrorMessage(ctx context.Context, args ContractArgs) error
 }
 
 type providerContractTasksService interface {
-	CheckContractRequest(ctx context.Context, args ContractArgs) error
 	SendContractOffer(ctx context.Context, args ContractArgs) (ContractNegotiationMessageType, error)
-	CheckContractAccepted(ctx context.Context, args ContractArgs) error
 	SendContractAgreement(ctx context.Context, args ContractArgs) (ContractNegotiationMessageType, error)
-	CheckContractAgreementVerification(ctx context.Context, args ContractArgs)
-	SendNegotiationFinalized(ctx context.Context, args ContractArgs) (ContractNegotiationMessageType, error)
-	SendTerminationMessage(ctx context.Context) (ContractNegotiationMessageType, ContractNegotiationState, error)
+	SendNegotiationFinalized(ctx context.Context, args ContractArgs) (
+		ContractNegotiationMessageType, error)
+	SendTerminationMessage(ctx context.Context, args ContractArgs) (
+		ContractNegotiationMessageType, ContractNegotiationState, error)
 	SendErrorMessage(ctx context.Context, args ContractArgs) error
 }
 
-func checkFindNegotiationState(ctx context.Context, args ContractArgs, expectedState ContractNegotiationState) error {
+func checkFindNegotiationState(
+	ctx context.Context, args ContractArgs, expectedStates []ContractNegotiationState,
+) error {
 	logger := getLogger(ctx, args.BaseArgs)
 
 	processId := args.ConsumerProcessId
@@ -161,9 +164,9 @@ func checkFindNegotiationState(ctx context.Context, args ContractArgs, expectedS
 		logger.Error("Could not find state for contract negotiation", "uuid", processId)
 		return err
 	}
-	if negotiationState != expectedState {
+	if !slices.Contains(expectedStates, negotiationState) {
 		return &DSPContractNegotiationError{
-			42, fmt.Errorf("Contract negotiation state invalid. Got %s, expected %s", negotiationState, expectedState),
+			42, fmt.Errorf("Contract negotiation state invalid. Got %s, expected %s", negotiationState, expectedStates),
 		}
 	}
 
@@ -206,7 +209,6 @@ func checkMessageTypeAndStoreState(
 		if err != nil {
 			msg := fmt.Sprintf("Failed to store state %s, this is bad and will probably leak transactions remotely", asyncState)
 			logger.Error(msg)
-			// TODO: Should we send a termination message here instead?
 			args.StatusCode = 42
 			args.ErrorMessage = fmt.Sprintf("Failed to store %s state", asyncState)
 			args.Error = err
@@ -222,7 +224,6 @@ func checkMessageTypeAndStoreState(
 	if err != nil {
 		msg := fmt.Sprintf("Failed to store state %s, send ERROR response", syncState)
 		logger.Error(msg)
-		// TODO: Should we send a termination message here instead?
 		args.StatusCode = 42
 		args.ErrorMessage = fmt.Sprintf("Failed to store %s state", syncState)
 		args.Error = err
@@ -241,45 +242,39 @@ func sendContractErrorMessage(ctx context.Context, args ContractArgs) (ContractA
 	return ContractArgs{}, nil, nil
 }
 
-func terminateContractNegotiation(ctx context.Context, args ContractArgs) (
+func sendTerminateContractNegotiation(ctx context.Context, args ContractArgs) (
 	ContractArgs, DSPState[ContractArgs], error,
 ) {
-	logger := getLogger(ctx, args.BaseArgs)
-
-	negotiationID := args.ProviderProcessId
-	if args.ParticipantRole == Consumer {
-		negotiationID = args.ConsumerProcessId
-	}
-
-	err := args.StateStorage.StoreState(ctx, negotiationID, Terminated)
+	err := checkFindNegotiationState(ctx, args, []ContractNegotiationState{
+		Requested,
+		Offered,
+		Accepted,
+		Agreed,
+		Verified,
+	})
 	if err != nil {
-		logger.Error("Failed to store state TERMINATED")
 		return ContractArgs{}, nil, err
 	}
 
-	messageType, negotiationState, err := args.consumerService.SendTerminationMessage(ctx)
-	if err != nil {
-		logger.Error("Error sending termination message")
-		return ContractArgs{}, nil, err
+	var messageType ContractNegotiationMessageType
+	if args.BaseArgs.ParticipantRole == Consumer {
+		messageType, _, err = args.consumerService.SendTerminationMessage(ctx, args)
+	} else {
+		messageType, _, err = args.providerService.SendTerminationMessage(ctx, args)
 	}
-
-	if messageType != ContractNegotiationMessage || negotiationState != Terminated {
-		logger.Error("Unexpected response. Expected ContractNegotiationMessage and state TERMINATED")
-		return ContractArgs{}, nil, newDSPContractError(42, "Unexpected response when trying to terminate negotiation.")
-	}
-
-	if args.StatusCode > 0 {
-		logger.Info("Error message triggered by actual internal problem, returning exception")
-		return ContractArgs{}, nil, newDSPContractError(args.StatusCode, args.ErrorMessage)
-	}
-
-	logger.Info("Terminated contract negotiation in state TERMINATED")
-
-	return ContractArgs{}, nil, nil
+	return checkMessageTypeAndStoreState(
+		ctx,
+		args,
+		[]ContractNegotiationMessageType{ContractNegotiationMessage},
+		messageType,
+		err,
+		Terminated,
+		Terminated,
+		nil)
 }
 
 func sendContractRequest(ctx context.Context, args ContractArgs) (ContractArgs, DSPState[ContractArgs], error) {
-	err := checkFindNegotiationState(ctx, args, UndefinedState)
+	err := checkFindNegotiationState(ctx, args, []ContractNegotiationState{UndefinedState})
 	if err != nil {
 		return ContractArgs{}, nil, err
 	}
@@ -300,7 +295,7 @@ func sendContractAcceptedRequest(ctx context.Context, args ContractArgs) (Contra
 	logger := getLogger(ctx, args.BaseArgs)
 	logger.Debug("in sendContractAcceptedRequest")
 
-	err := checkFindNegotiationState(ctx, args, Offered)
+	err := checkFindNegotiationState(ctx, args, []ContractNegotiationState{Offered})
 	if err != nil {
 		return ContractArgs{}, nil, err
 	}
@@ -327,7 +322,7 @@ func sendContractVerifiedRequest(ctx context.Context, args ContractArgs) (Contra
 	logger := getLogger(ctx, args.BaseArgs)
 	logger.Debug("in sendContractVerifiedRequest")
 
-	err := checkFindNegotiationState(ctx, args, Agreed)
+	err := checkFindNegotiationState(ctx, args, []ContractNegotiationState{Agreed})
 	if err != nil {
 		return ContractArgs{}, nil, err
 	}

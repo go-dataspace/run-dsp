@@ -43,7 +43,7 @@ func TestSendContractVerifiedRequest(t *testing.T) {
 				},
 			},
 			wantErr:     true,
-			expectedErr: "status 42: err Contract negotiation state invalid. Got REQUESTED, expected AGREED",
+			expectedErr: "status 42: err Contract negotiation state invalid. Got REQUESTED, expected [AGREED]",
 		},
 		{
 			name:        "Error: consumerService.SendContractAgreementVerification() returns an error",

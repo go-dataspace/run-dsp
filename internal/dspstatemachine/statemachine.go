@@ -84,30 +84,6 @@ func getLogger(ctx context.Context, args BaseArgs) *slog.Logger {
 	).With("provider_pid", args.ProviderProcessId)
 }
 
-// func drainService(ctx context.Context, args Args) (Args, State[Args], error) {
-// 	l, err := args.Services.List(ctx)
-// 	if err != nil {
-// 		return args, nil, err
-// 	}
-
-// 	found := false
-// 	for _, entry := range l {
-// 		if entry == args.Name {
-// 			found = true
-// 			break
-// 		}
-// 	}
-// 	if !found {
-// 		return args, nil, fmt.Errorf("the service was not found")
-// 	}
-
-// 	if err := args.Services.Drain(ctx, args.Name); err != nil {
-// 		return args, nil, fmt.Errorf("problem draining the service: %w", err)
-// 	}
-
-// 	return args, removeService, nil
-// }
-
 func Run[T any](ctx context.Context, args T, start DSPState[T]) (T, error) {
 	var err error
 	current := start
