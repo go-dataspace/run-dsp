@@ -17,7 +17,6 @@ package dspstatemachine
 
 import (
 	"context"
-	"fmt"
 )
 
 type consumerContractTasksService interface {
@@ -86,7 +85,7 @@ func sendContractAcceptedRequest(ctx context.Context, args ContractArgs) (Contra
 		err,
 		Accepted,
 		Agreed,
-		sendContractAgreedRequest)
+		sendContractVerifiedRequest)
 }
 
 func checkContractAgreedRequest(ctx context.Context, args ContractArgs) (ContractArgs, DSPState[ContractArgs], error) {
@@ -94,12 +93,14 @@ func checkContractAgreedRequest(ctx context.Context, args ContractArgs) (Contrac
 	// if asynchronous -> send ack
 	// if valid and synchronous -> return send contract agreement verification
 	// if rejected -> return send contract termination
+
+	// FIXME: Add transition from REQUESTED state
 	return checkContractNegotiationRequest(
 		ctx,
 		args,
 		ContractAgreementMessage,
 		[]ContractNegotiationState{Accepted},
-		Agreed, false, sendContractAgreedRequest,
+		Agreed, false, sendContractVerifiedRequest,
 	)
 }
 
@@ -116,12 +117,6 @@ func checkContractFinalizedRequest(
 		[]ContractNegotiationState{Verified},
 		Finalized, true, nil,
 	)
-}
-
-func sendContractAgreedRequest(ctx context.Context, args ContractArgs) (ContractArgs, DSPState[ContractArgs], error) {
-	logger := getLogger(ctx, args.BaseArgs)
-	logger.Debug("in sendContractAgreedRequest")
-	return ContractArgs{}, nil, fmt.Errorf("Transaction failure. This point should not be reached")
 }
 
 func sendContractVerifiedRequest(ctx context.Context, args ContractArgs) (ContractArgs, DSPState[ContractArgs], error) {

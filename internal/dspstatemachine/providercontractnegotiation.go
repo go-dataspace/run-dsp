@@ -13,11 +13,17 @@
 // limitations under the License.
 package dspstatemachine
 
-import "context"
+import (
+	"context"
+	"fmt"
+)
 
 type providerContractTasksService interface {
 	SendContractOffer(ctx context.Context, args ContractArgs) (ContractNegotiationMessageType, error)
+	CheckContractRequest(ctx context.Context, args ContractArgs) (bool, error)
+	CheckContractAcceptedMessage(ctx context.Context, args ContractArgs) (bool, error)
 	SendContractAgreement(ctx context.Context, args ContractArgs) (ContractNegotiationMessageType, error)
+	CheckContractAgreementVerification(ctx context.Context, args ContractArgs) (bool, error)
 	SendNegotiationFinalized(ctx context.Context, args ContractArgs) (
 		ContractNegotiationMessageType, error)
 	SendContractNegotiationMessage(ctx context.Context, args ContractArgs) (
@@ -25,4 +31,39 @@ type providerContractTasksService interface {
 	SendTerminationMessage(ctx context.Context, args ContractArgs) (
 		ContractNegotiationMessageType, error)
 	SendErrorMessage(ctx context.Context, args ContractArgs) error
+}
+
+func sendContractOfferRequest(ctx context.Context, args ContractArgs) (ContractArgs, DSPState[ContractArgs], error) {
+	err := checkFindNegotiationState(ctx, args, []ContractNegotiationState{UndefinedState})
+	if err != nil {
+		return ContractArgs{}, nil, err
+	}
+
+	messageType, err := args.providerService.SendContractOffer(ctx, args)
+	return checkMessageTypeAndStoreState(
+		ctx,
+		args,
+		[]ContractNegotiationMessageType{ContractNegotiationMessage, ContractOfferMessage},
+		messageType,
+		err,
+		Offered,
+		Offered,
+		sendContractAcceptedRequest)
+}
+
+func checkContractRequestMessage(ctx context.Context, args ContractArgs) (ContractArgs, DSPState[ContractArgs], error) {
+	// NOTE: Going directly from
+	return checkContractNegotiationRequest(
+		ctx,
+		args,
+		ContractRequestMessage,
+		[]ContractNegotiationState{UndefinedState},
+		Agreed, false, sendContractAgreedRequest,
+	)
+}
+
+func sendContractAgreedRequest(ctx context.Context, args ContractArgs) (ContractArgs, DSPState[ContractArgs], error) {
+	logger := getLogger(ctx, args.BaseArgs)
+	logger.Debug("in sendContractAgreedRequest")
+	return ContractArgs{}, nil, fmt.Errorf("Transaction failure. This point should not be reached")
 }

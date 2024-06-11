@@ -102,7 +102,7 @@ func TestCheckContractAgreedRequest(t *testing.T) {
 				},
 			},
 			wantErr:   false,
-			wantState: sendContractAgreedRequest,
+			wantState: sendContractVerifiedRequest,
 		},
 		{
 			name:        "Terminated: Next state contract terminated",

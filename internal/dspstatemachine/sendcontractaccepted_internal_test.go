@@ -131,7 +131,7 @@ func TestSendAcceptedRequest(t *testing.T) {
 				},
 			},
 			wantErr:   false,
-			wantState: sendContractAgreedRequest,
+			wantState: sendContractVerifiedRequest,
 		},
 	}
 
