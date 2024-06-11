@@ -129,34 +129,6 @@ func (err *DSPContractNegotiationError) Error() string {
 	return fmt.Sprintf("status %d: err %v", err.StatusCode, err.Err)
 }
 
-type consumerContractTasksService interface {
-	SendContractRequest(ctx context.Context, args ContractArgs) (ContractNegotiationMessageType, error)
-	CheckContractOffer(ctx context.Context, args ContractArgs) (bool, error)
-	SendContractAccepted(ctx context.Context, args ContractArgs) (ContractNegotiationMessageType, error)
-	CheckContractAgreed(ctx context.Context, args ContractArgs) (bool, error)
-	SendContractAgreementVerification(ctx context.Context, args ContractArgs) (
-		ContractNegotiationMessageType, error,
-	)
-	CheckContractFinalized(ctx context.Context, args ContractArgs) (bool, error)
-	SendContractNegotiationMessage(ctx context.Context, args ContractArgs) (
-		ContractNegotiationMessageType, error)
-	SendTerminationMessage(ctx context.Context, args ContractArgs) (
-		ContractNegotiationMessageType, error)
-	SendErrorMessage(ctx context.Context, args ContractArgs) error
-}
-
-type providerContractTasksService interface {
-	SendContractOffer(ctx context.Context, args ContractArgs) (ContractNegotiationMessageType, error)
-	SendContractAgreement(ctx context.Context, args ContractArgs) (ContractNegotiationMessageType, error)
-	SendNegotiationFinalized(ctx context.Context, args ContractArgs) (
-		ContractNegotiationMessageType, error)
-	SendContractNegotiationMessage(ctx context.Context, args ContractArgs) (
-		ContractNegotiationMessageType, error)
-	SendTerminationMessage(ctx context.Context, args ContractArgs) (
-		ContractNegotiationMessageType, error)
-	SendErrorMessage(ctx context.Context, args ContractArgs) error
-}
-
 func checkFindNegotiationState(
 	ctx context.Context, args ContractArgs, expectedStates []ContractNegotiationState,
 ) error {
@@ -242,7 +214,13 @@ func checkMessageTypeAndStoreState(
 }
 
 func sendContractErrorMessage(ctx context.Context, args ContractArgs) (ContractArgs, DSPState[ContractArgs], error) {
-	err := args.consumerService.SendErrorMessage(ctx, args)
+	var err error
+
+	if args.BaseArgs.ParticipantRole == Consumer {
+		err = args.consumerService.SendErrorMessage(ctx, args)
+	} else {
+		err = args.providerService.SendErrorMessage(ctx, args)
+	}
 	if err != nil {
 		return ContractArgs{}, nil, err
 	}
@@ -278,88 +256,6 @@ func sendTerminateContractNegotiation(ctx context.Context, args ContractArgs) (
 		Terminated,
 		Terminated,
 		nil)
-}
-
-func sendContractRequest(ctx context.Context, args ContractArgs) (ContractArgs, DSPState[ContractArgs], error) {
-	err := checkFindNegotiationState(ctx, args, []ContractNegotiationState{UndefinedState})
-	if err != nil {
-		return ContractArgs{}, nil, err
-	}
-
-	messageType, err := args.consumerService.SendContractRequest(ctx, args)
-	return checkMessageTypeAndStoreState(
-		ctx,
-		args,
-		[]ContractNegotiationMessageType{ContractNegotiationMessage, ContractOfferMessage},
-		messageType,
-		err,
-		Requested,
-		Offered,
-		sendContractAcceptedRequest)
-}
-
-func checkContractOfferRequest(ctx context.Context, args ContractArgs) (ContractArgs, DSPState[ContractArgs], error) {
-	// check contract offer request
-	// if asynchronous -> send ack
-	// if valid and synchronous -> return send contract accepted
-	// if rejected -> return send contract termination
-	return checkContractNegotiationRequest(
-		ctx,
-		args,
-		ContractOfferMessage,
-		[]ContractNegotiationState{Requested},
-		Offered, false, sendContractAcceptedRequest,
-	)
-}
-
-func sendContractAcceptedRequest(ctx context.Context, args ContractArgs) (ContractArgs, DSPState[ContractArgs], error) {
-	logger := getLogger(ctx, args.BaseArgs)
-	logger.Debug("in sendContractAcceptedRequest")
-
-	err := checkFindNegotiationState(ctx, args, []ContractNegotiationState{Offered})
-	if err != nil {
-		return ContractArgs{}, nil, err
-	}
-
-	messageType, err := args.consumerService.SendContractAccepted(ctx, args)
-	return checkMessageTypeAndStoreState(
-		ctx,
-		args,
-		[]ContractNegotiationMessageType{ContractNegotiationMessage, ContractAgreementMessage},
-		messageType,
-		err,
-		Accepted,
-		Agreed,
-		sendContractAgreedRequest)
-}
-
-func checkContractAgreedRequest(ctx context.Context, args ContractArgs) (ContractArgs, DSPState[ContractArgs], error) {
-	// check contract agreed request
-	// if asynchronous -> send ack
-	// if valid and synchronous -> return send contract agreement verification
-	// if rejected -> return send contract termination
-	return checkContractNegotiationRequest(
-		ctx,
-		args,
-		ContractAgreementMessage,
-		[]ContractNegotiationState{Accepted},
-		Agreed, false, sendContractAgreedRequest,
-	)
-}
-
-func checkContractFinalizedRequest(
-	ctx context.Context, args ContractArgs,
-) (ContractArgs, DSPState[ContractArgs], error) {
-	// check contract finalized request
-	// if valid, always send ack
-	// if error, send error
-	return checkContractNegotiationRequest(
-		ctx,
-		args,
-		ContractNegotiationEventMessage,
-		[]ContractNegotiationState{Verified},
-		Finalized, true, nil,
-	)
 }
 
 //nolint:cyclop,funlen
@@ -431,54 +327,3 @@ func checkContractNegotiationRequest(
 
 	return args, nextState, nil
 }
-
-func sendContractAgreedRequest(ctx context.Context, args ContractArgs) (ContractArgs, DSPState[ContractArgs], error) {
-	logger := getLogger(ctx, args.BaseArgs)
-	logger.Debug("in sendContractAgreedRequest")
-	return ContractArgs{}, nil, fmt.Errorf("Transaction failure. This point should not be reached")
-}
-
-func sendContractVerifiedRequest(ctx context.Context, args ContractArgs) (ContractArgs, DSPState[ContractArgs], error) {
-	logger := getLogger(ctx, args.BaseArgs)
-	logger.Debug("in sendContractVerifiedRequest")
-
-	err := checkFindNegotiationState(ctx, args, []ContractNegotiationState{Agreed})
-	if err != nil {
-		return ContractArgs{}, nil, err
-	}
-
-	messageType, err := args.consumerService.SendContractAgreementVerification(ctx, args)
-	return checkMessageTypeAndStoreState(
-		ctx,
-		args,
-		[]ContractNegotiationMessageType{ContractNegotiationMessage, ContractNegotiationEventMessage},
-		messageType,
-		err,
-		Verified,
-		Finalized,
-		nil)
-}
-
-// func sendContractFinalizedRequest(ctx context.Context, args ContractArgs) (
-// 	ContractArgs, DSPState[ContractArgs], error,
-// ) {
-// 	logger := getLogger(ctx, args.BaseArgs)
-// 	logger.Debug("in sendContractFinalizedRequest")
-// 	return ContractArgs{}, nil, fmt.Errorf("Transaction failure. This point should not be reached")
-// }
-
-// func (a ContractArgs) validate() error {
-// 	if !slices.Contains(participantRoles, a.ParticipantRole) {
-// 		return fmt.Errorf("Invalid partipant role %d", a.ParticipantRole)
-// 	}
-
-// 	if !slices.Contains(transactionTypes, a.TransactionType) {
-// 		return fmt.Errorf("Invalid transaction role %d", a.TransactionType)
-// 	}
-
-// 	if a.StateStorage == nil {
-// 		return fmt.Errorf("State storage cannot be nil")
-// 	}
-
-// 	return nil
-// }
