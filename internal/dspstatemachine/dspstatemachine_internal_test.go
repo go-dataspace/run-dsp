@@ -48,6 +48,7 @@ type fakeConsumerContractTasksService struct {
 	sendContractAcceptedRequestError    error
 	checkContractAgreedRequestError     error
 	sendContractVerifiedRequestError    error
+	checkContractFinalizedRequestError  error
 	sendContractTerminationRequestError error
 	sendContractNegotiationRequestError error
 
@@ -87,6 +88,13 @@ func (f *fakeConsumerContractTasksService) SendContractAgreementVerification(
 	ContractNegotiationMessageType, error,
 ) {
 	return f.sendContractVerifiedRequestMessageType, f.sendContractVerifiedRequestError
+}
+
+func (f *fakeConsumerContractTasksService) CheckContractFinalized(
+	ctx context.Context, args ContractArgs) (
+	bool, error,
+) {
+	return true, f.checkContractFinalizedRequestError
 }
 
 func (f *fakeConsumerContractTasksService) SendTerminationMessage(
