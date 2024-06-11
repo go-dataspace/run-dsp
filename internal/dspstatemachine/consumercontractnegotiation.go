@@ -99,7 +99,7 @@ func checkContractAgreedRequest(ctx context.Context, args ContractArgs) (Contrac
 		ctx,
 		args,
 		ContractAgreementMessage,
-		[]ContractNegotiationState{Accepted},
+		[]ContractNegotiationState{Requested, Accepted},
 		Agreed, false, sendContractVerifiedRequest,
 	)
 }

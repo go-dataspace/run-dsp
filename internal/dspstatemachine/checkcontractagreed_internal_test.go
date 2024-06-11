@@ -35,15 +35,15 @@ func TestCheckContractAgreedRequest(t *testing.T) {
 			expectedErr: "no state",
 		},
 		{
-			name:        "Error: Initial state is not Accepted",
+			name:        "Error: Initial state is not Requested or Accepted",
 			stateMethod: checkContractAgreedRequest,
 			args: ContractArgs{
 				StateStorage: &fakeDSPStateStorageService{
-					negotiationState: Requested,
+					negotiationState: Finalized,
 				},
 			},
 			wantErr:     true,
-			expectedErr: "status 42: err Contract negotiation state invalid. Got REQUESTED, expected [ACCEPTED]",
+			expectedErr: "status 42: err Contract negotiation state invalid. Got FINALIZED, expected [REQUESTED ACCEPTED]",
 		},
 		{
 			name:        "Error: consumerService.CheckContractOffer() returns an error",
