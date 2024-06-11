@@ -25,7 +25,8 @@ import (
 func jsonHeaderMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Add("Content-Type", "application/json")
-		if r.Method == http.MethodPost && r.Header.Get("Content-Type") != "application/json" {
+		if r.Header.Get("Content-Length") != "" &&
+			r.Header.Get("Content-Type") != "application/json" {
 			w.WriteHeader(http.StatusBadGateway)
 			resp, err := json.Marshal(struct {
 				Error string

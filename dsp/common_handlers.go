@@ -15,6 +15,7 @@
 package dsp
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -41,13 +42,13 @@ func returnContent(w http.ResponseWriter, status int, content string) {
 	fmt.Fprint(w, content)
 }
 
-func returnMarshalContent[T any](w http.ResponseWriter, status int, s T) {
-	data, err := json.Marshal(s)
+func validateMarshalAndReturn[T any](ctx context.Context, w http.ResponseWriter, successStatus int, s T) {
+	respBody, err := validateAndMarshal(ctx, s)
 	if err != nil {
-		returnContent(w, http.StatusInternalServerError, "Unexpected error")
+		returnError(w, http.StatusInternalServerError, "Could not render response")
 		return
 	}
-	returnContent(w, status, string(data))
+	returnContent(w, successStatus, string(respBody))
 }
 
 func returnError(w http.ResponseWriter, status int, e string) {

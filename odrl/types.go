@@ -36,9 +36,11 @@ type MessageOffer struct {
 type PolicyClass struct {
 	AbstractPolicyRule
 	ID         string       `json:"@id" validate:"required"`
+	ProviderID string       `json:"dspace:providerId,omitempty"` // Got from an examole, not in standard.
 	Profile    []Reference  `json:"odrl:profile,omitempty" validate:"dive"`
 	Permission []Permission `json:"odrl:permission,omitempty" validate:"gte=1,dive"`
-	Obligation []Duty       `json:"odrl:obligation,omitempty" validate:"gte=1,dive"`
+	Obligation []Duty       `json:"odrl:obligation" validate:"gte=1,dive"`
+	Prohibiton []any        `json:"odrl:prohibiton"` // Spec for this was missing but is required, even if empty.
 }
 
 // AbstractPolicyRule defines an ODRL abstract policy rule.
@@ -49,7 +51,7 @@ type AbstractPolicyRule struct {
 
 // Reference is a reference.
 type Reference struct {
-	ID string `json:"@id" validate:"required"`
+	ID string `json:"@id,omitempty" validate:"required"`
 }
 
 // Permission is a permisson entry.
@@ -57,23 +59,23 @@ type Permission struct {
 	AbstractPolicyRule
 	Action     string       `json:"action" validate:"required,odrl_action"`
 	Constraint []Constraint `json:"constraint,omitempty" validate:"gte=1,dive"`
-	Duty       Duty         `json:"duty,omitempty" validate:"dive"`
+	Duty       Duty         `json:"duty,omitempty"`
 }
 
 // Duty is an ODRL duty.
 type Duty struct {
 	AbstractPolicyRule
-	ID         string       `json:"@id"`
-	Action     string       `json:"action" validate:"required,odrl_action"`
+	ID         string       `json:"@id,omitempty"`
+	Action     string       `json:"action,omitempty" validate:"required,odrl_action"`
 	Constraint []Constraint `json:"constraint,omitempty" validate:"gte=1,dive"`
 }
 
 // Constraint is an ODRL constraint.
 type Constraint struct {
-	RightOperand          map[string]any `json:"odrl:rightOperand"`
-	RightOperandReference Reference      `json:"odrl:rightOperandReference"`
-	LeftOperand           string         `json:"odrl:leftOperand" validate:"odrl_leftoperand"`
-	Operator              string         `json:"odrl:operator" validate:"odrl_operator"` // TODO: implment custom verifier.
+	RightOperand          string    `json:"odrl:rightOperand"`
+	RightOperandReference Reference `json:"odrl:rightOperandReference,omitempty"`
+	LeftOperand           string    `json:"odrl:leftOperand" validate:"odrl_leftoperand"`
+	Operator              string    `json:"odrl:operator" validate:"odrl_operator"` // TODO: implment custom verifier.
 }
 
 // Agreement is an ODRL agreement.
