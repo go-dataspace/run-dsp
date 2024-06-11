@@ -265,7 +265,7 @@ func checkContractNegotiationRequest(
 	messageType ContractNegotiationMessageType,
 	expectedNegotiationStates []ContractNegotiationState,
 	futureNegotationState ContractNegotiationState,
-	finalizedRequest bool,
+	ackLastRequest bool,
 	nextState DSPState[ContractArgs],
 ) (ContractArgs, DSPState[ContractArgs], error) {
 	logger := getLogger(ctx, args.BaseArgs)
@@ -284,11 +284,13 @@ func checkContractNegotiationRequest(
 		if args.BaseArgs.ParticipantRole == Consumer {
 			messageAccepted, err = args.consumerService.CheckContractFinalized(ctx, args)
 		} else {
-			return ContractArgs{}, nil, newDSPContractError(42, "Unexpected message type received when trying to respond")
+			messageAccepted, err = args.providerService.CheckContractAcceptedMessage(ctx, args)
 		}
-	case UndefinedMessage:
 	case ContractRequestMessage:
+		messageAccepted, err = args.providerService.CheckContractRequest(ctx, args)
+	case UndefinedMessage:
 	case ContractAgreementVerificationMessage:
+		messageAccepted, err = args.providerService.CheckContractAgreementVerification(ctx, args)
 	case ContractNegotiationTerminationMessage:
 	case ContractNegotiationMessage:
 	case ContractNegotiationError:
@@ -316,8 +318,13 @@ func checkContractNegotiationRequest(
 	if !messageAccepted {
 		nextState = sendTerminateContractNegotiation
 	}
-	if args.AsynchronousCommunication || finalizedRequest {
-		msgType, err := args.consumerService.SendContractNegotiationMessage(ctx, args)
+	if args.AsynchronousCommunication || ackLastRequest {
+		var msgType ContractNegotiationMessageType
+		if args.BaseArgs.ParticipantRole == Consumer {
+			msgType, err = args.consumerService.SendContractNegotiationMessage(ctx, args)
+		} else {
+			msgType, err = args.providerService.SendContractNegotiationMessage(ctx, args)
+		}
 		_, _, err = checkMessageTypeAndStoreState(ctx, args, []ContractNegotiationMessageType{ContractNegotiationMessage},
 			msgType, err, Agreed, Agreed, nil)
 		if err != nil {

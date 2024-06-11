@@ -15,7 +15,6 @@ package dspstatemachine
 
 import (
 	"context"
-	"fmt"
 )
 
 type providerContractTasksService interface {
@@ -52,12 +51,24 @@ func sendContractOfferRequest(ctx context.Context, args ContractArgs) (ContractA
 }
 
 func checkContractRequestMessage(ctx context.Context, args ContractArgs) (ContractArgs, DSPState[ContractArgs], error) {
-	// NOTE: Going directly from
+	// NOTE: Going directly from REQUESTED to AGREED
 	return checkContractNegotiationRequest(
 		ctx,
 		args,
 		ContractRequestMessage,
-		[]ContractNegotiationState{UndefinedState},
+		[]ContractNegotiationState{Requested},
+		Agreed, false, sendContractAgreedRequest,
+	)
+}
+
+func checkContractAcceptedMessage(
+	ctx context.Context, args ContractArgs,
+) (ContractArgs, DSPState[ContractArgs], error) {
+	return checkContractNegotiationRequest(
+		ctx,
+		args,
+		ContractNegotiationEventMessage,
+		[]ContractNegotiationState{Offered},
 		Agreed, false, sendContractAgreedRequest,
 	)
 }
@@ -65,5 +76,53 @@ func checkContractRequestMessage(ctx context.Context, args ContractArgs) (Contra
 func sendContractAgreedRequest(ctx context.Context, args ContractArgs) (ContractArgs, DSPState[ContractArgs], error) {
 	logger := getLogger(ctx, args.BaseArgs)
 	logger.Debug("in sendContractAgreedRequest")
-	return ContractArgs{}, nil, fmt.Errorf("Transaction failure. This point should not be reached")
+	err := checkFindNegotiationState(ctx, args, []ContractNegotiationState{Requested})
+	if err != nil {
+		return ContractArgs{}, nil, err
+	}
+
+	messageType, err := args.providerService.SendContractAgreement(ctx, args)
+	return checkMessageTypeAndStoreState(
+		ctx,
+		args,
+		[]ContractNegotiationMessageType{ContractNegotiationMessage, ContractAgreementMessage},
+		messageType,
+		err,
+		Agreed,
+		Agreed,
+		sendContractAcceptedRequest)
+}
+
+func sendContractFinalizedRequest(
+	ctx context.Context, args ContractArgs,
+) (ContractArgs, DSPState[ContractArgs], error) {
+	logger := getLogger(ctx, args.BaseArgs)
+	logger.Debug("in sendContractFinalizedRequest")
+	err := checkFindNegotiationState(ctx, args, []ContractNegotiationState{Verified})
+	if err != nil {
+		return ContractArgs{}, nil, err
+	}
+
+	messageType, err := args.providerService.SendNegotiationFinalized(ctx, args)
+	return checkMessageTypeAndStoreState(
+		ctx,
+		args,
+		[]ContractNegotiationMessageType{ContractNegotiationMessage},
+		messageType,
+		err,
+		Finalized,
+		Finalized,
+		nil)
+}
+
+func checkContractAgreeementVerificationMessage(
+	ctx context.Context, args ContractArgs,
+) (ContractArgs, DSPState[ContractArgs], error) {
+	return checkContractNegotiationRequest(
+		ctx,
+		args,
+		ContractAgreementVerificationMessage,
+		[]ContractNegotiationState{Agreed},
+		Verified, false, sendContractFinalizedRequest,
+	)
 }
