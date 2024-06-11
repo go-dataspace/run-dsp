@@ -35,15 +35,21 @@ func methodName(method any) string {
 
 type fakeConsumerContractTasksService struct {
 	sendContractRequestMessageType            ContractNegotiationMessageType
+	contractOfferAccepted                     bool
+	contractOfferAgreed                       bool
 	sendContractAcceptedRequestMessageType    ContractNegotiationMessageType
 	sendContractVerifiedRequestMessageType    ContractNegotiationMessageType
 	sendContractTerminationRequestMessageType ContractNegotiationMessageType
+	sendContractNegotiationRequestMessageType ContractNegotiationMessageType
 
 	// negotiationState                       ContractNegotiationState
 	sendContractRequestError            error
+	checkContractOfferRequestError      error
 	sendContractAcceptedRequestError    error
+	checkContractAgreedRequestError     error
 	sendContractVerifiedRequestError    error
 	sendContractTerminationRequestError error
+	sendContractNegotiationRequestError error
 
 	consumerContractTasksService
 }
@@ -55,11 +61,25 @@ func (f *fakeConsumerContractTasksService) SendContractRequest(
 	return f.sendContractRequestMessageType, f.sendContractRequestError
 }
 
+func (f *fakeConsumerContractTasksService) CheckContractOffer(
+	ctx context.Context, args ContractArgs) (
+	bool, error,
+) {
+	return f.contractOfferAccepted, f.checkContractOfferRequestError
+}
+
 func (f *fakeConsumerContractTasksService) SendContractAccepted(
 	ctx context.Context, args ContractArgs) (
 	ContractNegotiationMessageType, error,
 ) {
 	return f.sendContractAcceptedRequestMessageType, f.sendContractAcceptedRequestError
+}
+
+func (f *fakeConsumerContractTasksService) CheckContractAgreed(
+	ctx context.Context, args ContractArgs) (
+	bool, error,
+) {
+	return f.contractOfferAgreed, f.checkContractAgreedRequestError
 }
 
 func (f *fakeConsumerContractTasksService) SendContractAgreementVerification(
@@ -73,6 +93,12 @@ func (f *fakeConsumerContractTasksService) SendTerminationMessage(
 	ctx context.Context, args ContractArgs,
 ) (ContractNegotiationMessageType, error) {
 	return f.sendContractTerminationRequestMessageType, f.sendContractTerminationRequestError
+}
+
+func (f *fakeConsumerContractTasksService) SendContractNegotiationMessage(
+	ctx context.Context, args ContractArgs,
+) (ContractNegotiationMessageType, error) {
+	return f.sendContractNegotiationRequestMessageType, f.sendContractNegotiationRequestError
 }
 
 type fakeProviderContractTasksService struct {

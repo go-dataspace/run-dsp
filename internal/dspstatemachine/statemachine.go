@@ -50,6 +50,9 @@ type BaseArgs struct {
 	// Type of DSP transaction
 	TransactionType DSPTransactionType
 
+	// Is the communication asynchronous or not?
+	AsynchronousCommunication bool
+
 	// Error information
 	StatusCode   int
 	ErrorMessage string
