@@ -69,7 +69,7 @@ func TestSendAcceptedRequest(t *testing.T) {
 				consumerService: &fakeConsumerContractTasksService{},
 			},
 			wantErr:     true,
-			expectedErr: "status 42: err Unexpected message type received after sending contract request",
+			expectedErr: "status 42: err Unexpected message type. Expected [ContractNegotiationMessage ContractAgreementMessage], got UndefinedMessage.",
 		},
 		{
 			name:        "Error: Failing to store OFFERED state on ContractNegotiationMessage",

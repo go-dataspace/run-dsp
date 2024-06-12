@@ -59,14 +59,6 @@ type BaseArgs struct {
 	Error        error
 }
 
-type TransferArgs struct {
-	// ConsumerProcessID
-	ConsumerProcessID uuid.UUID
-
-	// ProviderProcessID
-	ProviderProcessID uuid.UUID
-}
-
 var (
 	participantRoles = []DSPParticipantRole{Consumer, Provider}
 	transactionTypes = []DSPTransactionType{Contract, Transaction}
@@ -75,8 +67,10 @@ var (
 type (
 	DSPState[T any]        func(ctx context.Context, args T) (T, DSPState[T], error)
 	DSPStateStorageService interface {
-		FindState(ctx context.Context, id uuid.UUID) (ContractNegotiationState, error)
-		StoreState(ctx context.Context, id uuid.UUID, negotationState ContractNegotiationState) error
+		FindContractNegotiationState(ctx context.Context, id uuid.UUID) (ContractNegotiationState, error)
+		StoreContractNegotiationState(ctx context.Context, id uuid.UUID, negotationState ContractNegotiationState) error
+		FindTransferProcessState(ctx context.Context, id uuid.UUID) (TransferProcessState, error)
+		StoreTransferProcessState(ctx context.Context, id uuid.UUID, processState TransferProcessState) error
 		GenerateProcessId(ctx context.Context) (processId uuid.UUID, error error)
 	}
 )

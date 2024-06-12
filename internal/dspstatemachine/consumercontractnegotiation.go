@@ -93,8 +93,6 @@ func checkContractAgreedRequest(ctx context.Context, args ContractArgs) (Contrac
 	// if asynchronous -> send ack
 	// if valid and synchronous -> return send contract agreement verification
 	// if rejected -> return send contract termination
-
-	// FIXME: Add transition from REQUESTED state
 	return checkContractNegotiationRequest(
 		ctx,
 		args,

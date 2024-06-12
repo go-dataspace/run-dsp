@@ -19,7 +19,7 @@ import (
 )
 
 //nolint:funlen,lll
-func TestSendContractRequest(t *testing.T) {
+func TestSendContractOfferRequest(t *testing.T) {
 	t.Parallel()
 
 	tests := []stateMachineTestCase{

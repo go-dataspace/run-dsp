@@ -138,7 +138,7 @@ func checkFindNegotiationState(
 	if args.ParticipantRole == Provider {
 		processId = args.ProviderProcessId
 	}
-	negotiationState, err := args.StateStorage.FindState(ctx, processId)
+	negotiationState, err := args.StateStorage.FindContractNegotiationState(ctx, processId)
 	if err != nil {
 		logger.Error("Could not find state for contract negotiation", "uuid", processId)
 		return err
@@ -171,10 +171,9 @@ func checkMessageTypeAndStoreState(
 		return ContractArgs{}, nil, newDSPContractError(42, "Remote returned error. Should set negotiation to failed?")
 	}
 	if !slices.Contains(expectedMessageTypes, messageType) {
-		// FIXME: Replace error message
-		logger.Error("Unexpected message type. Expected ContractOfferMessage or ContractNegotiationError.",
-			"message_type", messageType)
-		return ContractArgs{}, nil, newDSPContractError(42, "Unexpected message type received after sending contract request")
+		msg := fmt.Sprintf("Unexpected message type. Expected %s, got %s.", expectedMessageTypes, messageType)
+		logger.Error(msg)
+		return ContractArgs{}, nil, newDSPContractError(42, msg)
 	}
 
 	processId := args.ConsumerProcessId
@@ -184,7 +183,7 @@ func checkMessageTypeAndStoreState(
 
 	if messageType == ContractNegotiationMessage {
 		logger.Info("Got contract negotiation message, assuming this is an asynchronous negotiation or a response")
-		err := args.StateStorage.StoreState(ctx, args.ConsumerProcessId, asyncState)
+		err := args.StateStorage.StoreContractNegotiationState(ctx, args.ConsumerProcessId, asyncState)
 		if err != nil {
 			msg := fmt.Sprintf("Failed to store state %s, this is bad and will probably leak transactions remotely", asyncState)
 			logger.Error(msg)
@@ -199,7 +198,7 @@ func checkMessageTypeAndStoreState(
 	}
 
 	logger.Info("Got other message than ACK, this is a synchronous negotiation")
-	err = args.StateStorage.StoreState(ctx, processId, syncState)
+	err = args.StateStorage.StoreContractNegotiationState(ctx, processId, syncState)
 	if err != nil {
 		msg := fmt.Sprintf("Failed to store state %s, send ERROR response", syncState)
 		logger.Error(msg)
@@ -301,7 +300,7 @@ func checkContractNegotiationRequest(
 		return ContractArgs{}, nil, err
 	}
 
-	err = args.StateStorage.StoreState(ctx, args.ConsumerProcessId, futureNegotationState)
+	err = args.StateStorage.StoreContractNegotiationState(ctx, args.ConsumerProcessId, futureNegotationState)
 	if err != nil {
 		msg := fmt.Sprintf(
 			"Failed to store state %s, this is bad and will probably leak transactions remotely",
