@@ -68,7 +68,8 @@ func TestSendContractVerifiedRequest(t *testing.T) {
 				},
 				consumerService: &fakeConsumerContractTasksService{},
 			},
-			wantErr:     true,
+			wantErr: true,
+			//nolint:lll
 			expectedErr: "status 42: err Unexpected message type. Expected [ContractNegotiationMessage ContractNegotiationEventMessage], got UndefinedMessage.",
 		},
 		{

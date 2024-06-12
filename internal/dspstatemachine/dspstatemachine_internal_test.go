@@ -130,11 +130,15 @@ type fakeDSPStateStorageService struct {
 	DSPStateStorageService
 }
 
-func (f *fakeDSPStateStorageService) FindContractNegotiationState(ctx context.Context, id uuid.UUID) (ContractNegotiationState, error) {
+func (f *fakeDSPStateStorageService) FindContractNegotiationState(
+	ctx context.Context, id uuid.UUID,
+) (ContractNegotiationState, error) {
 	return f.negotiationState, f.findStateError
 }
 
-func (f *fakeDSPStateStorageService) StoreContractNegotiationState(ctx context.Context, id uuid.UUID, cns ContractNegotiationState) error {
+func (f *fakeDSPStateStorageService) StoreContractNegotiationState(
+	ctx context.Context, id uuid.UUID, cns ContractNegotiationState,
+) error {
 	return f.storeStateError
 }
 

@@ -19,6 +19,7 @@ import (
 	"context"
 )
 
+//nolint:dupl
 type consumerContractTasksService interface {
 	SendContractRequest(ctx context.Context, args ContractArgs) (ContractNegotiationMessageType, error)
 	CheckContractOffer(ctx context.Context, args ContractArgs) (bool, error)

@@ -17,6 +17,7 @@ import (
 	"context"
 )
 
+//nolint:dupl
 type providerContractTasksService interface {
 	SendContractOffer(ctx context.Context, args ContractArgs) (ContractNegotiationMessageType, error)
 	CheckContractRequest(ctx context.Context, args ContractArgs) (bool, error)
@@ -32,6 +33,7 @@ type providerContractTasksService interface {
 	SendErrorMessage(ctx context.Context, args ContractArgs) error
 }
 
+//nolint:unused
 func sendContractOfferRequest(ctx context.Context, args ContractArgs) (ContractArgs, DSPState[ContractArgs], error) {
 	err := checkFindNegotiationState(ctx, args, []ContractNegotiationState{UndefinedState})
 	if err != nil {
@@ -50,6 +52,7 @@ func sendContractOfferRequest(ctx context.Context, args ContractArgs) (ContractA
 		sendContractAcceptedRequest)
 }
 
+//nolint:unused
 func checkContractRequestMessage(ctx context.Context, args ContractArgs) (ContractArgs, DSPState[ContractArgs], error) {
 	// NOTE: Going directly from REQUESTED to AGREED
 	return checkContractNegotiationRequest(
@@ -61,6 +64,7 @@ func checkContractRequestMessage(ctx context.Context, args ContractArgs) (Contra
 	)
 }
 
+//nolint:unused
 func checkContractAcceptedMessage(
 	ctx context.Context, args ContractArgs,
 ) (ContractArgs, DSPState[ContractArgs], error) {
@@ -73,6 +77,7 @@ func checkContractAcceptedMessage(
 	)
 }
 
+//nolint:unused
 func sendContractAgreedRequest(ctx context.Context, args ContractArgs) (ContractArgs, DSPState[ContractArgs], error) {
 	logger := getLogger(ctx, args.BaseArgs)
 	logger.Debug("in sendContractAgreedRequest")
@@ -93,6 +98,7 @@ func sendContractAgreedRequest(ctx context.Context, args ContractArgs) (Contract
 		sendContractAcceptedRequest)
 }
 
+//nolint:unused
 func sendContractFinalizedRequest(
 	ctx context.Context, args ContractArgs,
 ) (ContractArgs, DSPState[ContractArgs], error) {
@@ -115,6 +121,7 @@ func sendContractFinalizedRequest(
 		nil)
 }
 
+//nolint:unused
 func checkContractAgreeementVerificationMessage(
 	ctx context.Context, args ContractArgs,
 ) (ContractArgs, DSPState[ContractArgs], error) {
