@@ -15,92 +15,51 @@
 package dsp
 
 import (
+	"fmt"
 	"io"
 	"net/http"
 
+	"github.com/go-dataspace/run-dsp/dsp/shared"
+	"github.com/go-dataspace/run-dsp/internal/auth"
 	"github.com/go-dataspace/run-dsp/internal/constants"
+	"github.com/go-dataspace/run-dsp/internal/fsprovider"
 	"github.com/go-dataspace/run-dsp/jsonld"
 	"github.com/go-dataspace/run-dsp/logging"
-	"github.com/go-dataspace/run-dsp/odrl"
 )
 
-// temporary data functions.
-func getCatalog() CatalogAcknowledgement {
-	return CatalogAcknowledgement{
-		Dataset: Dataset{
-			Resource: Resource{
-				ID:   "urn:uuid:3afeadd8-ed2d-569e-d634-8394a8836d57",
-				Type: "dcat:Catalog",
-				Keyword: []string{
-					"traffic",
-					"government",
-				},
-				Description: []Multilanguage{{
-					Value:    "A catalog of data items",
-					Language: "en",
-				}},
-			},
-		},
-		Context:  jsonld.NewRootContext([]jsonld.ContextEntry{{ID: constants.DSPContext}}),
-		Datasets: []Dataset{getDataset()},
-		Service: []DataService{{
-			Resource: Resource{
-				ID:   "urn:uuid:4aa2dcc8-4d2d-569e-d634-8394a8834d77",
-				Type: "dcat:DataService",
-			},
-			EndpointDescription: "dspace:connector",
-			EndpointURL:         "https://provider-a.com/connector",
-		}},
-		ParticipantID: "urn:example:DataProviderA",
-	}
+var dataService = DataService{
+	Resource: Resource{
+		ID:   "urn:uuid:7acb5d82-33b0-47c0-a22b-2fc470c8e3cb",
+		Type: "dcat:DataService",
+	},
+	EndpointURL: "https://insert-url-here.dsp/",
 }
 
-func getDataset() Dataset {
-	return Dataset{
+func fileSetToDataset(fs shared.Fileset, service DataService) Dataset {
+	ds := Dataset{
 		Resource: Resource{
-			ID:   "urn:uuid:3dd1add8-4d2d-569e-d634-8394a8836a88",
-			Type: "dcat:Dataset",
-			Keyword: []string{
-				"traffic",
-			},
+			ID:      fmt.Sprintf("urn:uuid:%s", fs.ID.String()),
+			Type:    "dcat:Dataset",
+			Keyword: fs.Keywords,
 			Description: []Multilanguage{{
-				Value:    "Traffic data sample extract",
+				Value:    fs.Description,
 				Language: "en",
 			}},
-			Title: "Traffic Data",
+			Title: fs.Title,
 		},
-		HasPolicy: []odrl.Offer{{
-			MessageOffer: odrl.MessageOffer{
-				PolicyClass: odrl.PolicyClass{
-					ID:         "urn:uuid:25d74620-8f65-427c-9fc3-04ad1e19dc50",
-					ProviderID: "http://example.com/Provider",
-					Profile:    []odrl.Reference{},
-					Permission: []odrl.Permission{{
-						Action: "odrl:use",
-						Constraint: []odrl.Constraint{{
-							RightOperand: "odrl:EU",
-							LeftOperand:  "odrl:spatial",
-							Operator:     "odrl:EQ",
-						}},
-					}},
-					Prohibiton: []any{},
-					Obligation: []odrl.Duty{},
-				},
-				Type: "odrl:Offer",
-			},
-		}},
-		Distribution: []Distribution{{
-			Type:   "dcat:Distribution",
-			Format: "dspace:s3+push",
-			AccessService: []DataService{{
-				Resource: Resource{
-					ID:   "urn:uuid:4aa2dcc8-4d2d-569e-d634-8394a8834d77",
-					Type: "dcat:DataService",
-				},
-				EndpointURL: "https://provider-a.com/connector",
-			}},
-		}},
 	}
+	dist := make([]Distribution, len(fs.Files))
+	for i, f := range fs.Files {
+		dist[i] = Distribution{
+			Type:          "dcat:Distribution",
+			Format:        "dspace:https+push",
+			Title:         f.Name,
+			Modified:      f.Modified,
+			AccessService: []DataService{service},
+		}
+	}
+	ds.Distribution = dist
+	return ds
 }
 
 func catalogRequestHandler(w http.ResponseWriter, req *http.Request) {
@@ -117,8 +76,34 @@ func catalogRequestHandler(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 	logger.Debug("Got catalog request", "req", catalogReq)
+	p := fsprovider.New("/home/daniel/tmp/dspfiles")
+	ui := auth.ExtractUserInfo(req.Context())
+	// As there's no filter option yet, we don't need anything from the catalog request.
+	fileSet, err := p.GetFileSet(req.Context(), &shared.CitizenData{
+		FirstName: ui.FirstName,
+		LastName:  ui.Lastname,
+		BirthDate: ui.BirthDate,
+	})
+	if err != nil {
+		returnError(w, http.StatusInternalServerError, "could not get catalog")
+		return
+	}
 
-	validateMarshalAndReturn(req.Context(), w, http.StatusOK, getCatalog())
+	validateMarshalAndReturn(req.Context(), w, http.StatusOK, CatalogAcknowledgement{
+		Dataset: Dataset{
+			Resource: Resource{
+				ID:   "urn:uuid:3afeadd8-ed2d-569e-d634-8394a8836d57",
+				Type: "dcat:Catalog",
+				Keyword: []string{
+					"dataspace",
+					"run-dsp",
+				},
+			},
+		},
+		Context:  jsonld.NewRootContext([]jsonld.ContextEntry{{ID: constants.DSPContext}}),
+		Datasets: []Dataset{fileSetToDataset(fileSet, dataService)},
+		Service:  []DataService{dataService},
+	})
 }
 
 func datasetRequestHandler(w http.ResponseWriter, req *http.Request) {
@@ -140,5 +125,20 @@ func datasetRequestHandler(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 	logger.Debug("Got dataset request", "req", datasetReq)
-	validateMarshalAndReturn(req.Context(), w, http.StatusOK, getDataset())
+	// Cheating a bit as we only have a single dataset for a user, this will be better in
+	// actual production code.
+	p := fsprovider.New("/home/daniel/tmp/dspfiles")
+	ui := auth.ExtractUserInfo(req.Context())
+	// As there's no filter option yet, we don't need anything from the catalog request.
+	fileSet, err := p.GetFileSet(req.Context(), &shared.CitizenData{
+		FirstName: ui.FirstName,
+		LastName:  ui.Lastname,
+		BirthDate: ui.BirthDate,
+	})
+	if err != nil {
+		returnError(w, http.StatusInternalServerError, "could not get dataset")
+		return
+	}
+
+	validateMarshalAndReturn(req.Context(), w, http.StatusOK, fileSetToDataset(fileSet, dataService))
 }
