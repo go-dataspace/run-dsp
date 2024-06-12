@@ -76,7 +76,7 @@ func catalogRequestHandler(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 	logger.Debug("Got catalog request", "req", catalogReq)
-	p := fsprovider.New("/home/daniel/tmp/dspfiles")
+	p := fsprovider.New("/tmp/run-dsp-pre-alpha-storage")
 	ui := auth.ExtractUserInfo(req.Context())
 	// As there's no filter option yet, we don't need anything from the catalog request.
 	fileSet, err := p.GetFileSet(req.Context(), &shared.CitizenData{
@@ -127,7 +127,7 @@ func datasetRequestHandler(w http.ResponseWriter, req *http.Request) {
 	logger.Debug("Got dataset request", "req", datasetReq)
 	// Cheating a bit as we only have a single dataset for a user, this will be better in
 	// actual production code.
-	p := fsprovider.New("/home/daniel/tmp/dspfiles")
+	p := fsprovider.New("/tmp/run-dsp-pre-alpha-storage")
 	ui := auth.ExtractUserInfo(req.Context())
 	// As there's no filter option yet, we don't need anything from the catalog request.
 	fileSet, err := p.GetFileSet(req.Context(), &shared.CitizenData{
