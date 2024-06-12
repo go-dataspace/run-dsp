@@ -19,6 +19,7 @@ import (
 	"net/http"
 
 	"github.com/go-dataspace/run-dsp/internal/constants"
+	"github.com/go-dataspace/run-dsp/internal/dspstatemachine"
 	"github.com/go-dataspace/run-dsp/jsonld"
 	"github.com/go-dataspace/run-dsp/logging"
 )
@@ -138,6 +139,15 @@ func providerContractVerificationHandler(w http.ResponseWriter, req *http.Reques
 		returnError(w, http.StatusBadRequest, "Invalid request")
 		return
 	}
+
+	// GetContractState would grab the  negotiation state from the store, and use a switch statement
+	// to ascertain what state function it returns.
+	negotiationState, stateFunc := dspstatemachine.GetNegotiationState(providerPID)
+	someStuff, err != stateFunc(contractState)
+	if err != nil {
+		// return ERR
+	}
+	// return ACK
 
 	logger.Debug("Got contract verification", "verification", verification)
 
