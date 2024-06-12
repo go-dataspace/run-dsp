@@ -88,7 +88,7 @@ func (a Adapter) GetFileSet(ctx context.Context, citizenData *shared.CitizenData
 	}
 	return shared.Fileset{
 		ID:          id,
-		Title:       fmt.Sprintf("Hosted files"),
+		Title:       "Hosted files",
 		Description: "Hosted files",
 		Keywords:    []string{"dataloft", "medical"},
 		Files:       files,

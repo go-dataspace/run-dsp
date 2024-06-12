@@ -35,7 +35,7 @@ type UserInfo struct {
 
 // NonsenseUserInjector is a temporary auth injector.
 // DO NOT USE IN PRODUCTION
-// The format for the auth header is FirstName;Lastname;YYYY-MM-DD
+// The format for the auth header is FirstName;Lastname;YYYY-MM-DD.
 func NonsenseUserInjector(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		if req.Header.Get("Authorization") == "" {
