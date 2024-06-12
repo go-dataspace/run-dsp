@@ -50,7 +50,7 @@ func (ce *ContextEntry) UnmarshalJSON(data []byte) error {
 
 // MarshalJSON will marshal the ContextEntry as an object if Type is not empty, and
 // as a string containing just the ID if Type is empty.
-func (ce *ContextEntry) MarshalJSON() ([]byte, error) {
+func (ce ContextEntry) MarshalJSON() ([]byte, error) {
 	if ce.Type != "" {
 		return json.Marshal(struct {
 			ID   string `json:"@id,omitempty"`
@@ -101,8 +101,8 @@ func (c *Context) UnmarshalJSON(data []byte) error {
 // MarshalJSON will first check if namedContext are available, and marshal those if they are.
 // If they are not, it will check if there's only a single rootContext and marshal that as a
 // string, else it will marshal the entire rootContexts list.
-func (c *Context) MarshalJSON() ([]byte, error) {
-	if len(c.namedContexts) == 0 {
+func (c Context) MarshalJSON() ([]byte, error) {
+	if len(c.namedContexts) != 0 {
 		return json.Marshal(c.namedContexts)
 	}
 	if len(c.rootContexts) == 1 {

@@ -31,7 +31,7 @@ type VersionResponse struct {
 // ProtocolVersion contains a version and the path to the endpoints.
 type ProtocolVersion struct {
 	Version string `json:"version" validate:"required"`
-	Path    string `json:"path" validate:"required,dirpath"`
+	Path    string `json:"path" validate:"required"`
 }
 
 // Multilanguage is a DCAT multilanguage set.

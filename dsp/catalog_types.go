@@ -37,13 +37,12 @@ type DatasetRequestMessage struct {
 
 // CatalogAcknowledgement is an acknowledgement for a catalog, containing a dataset.
 type CatalogAcknowledgement struct {
+	Context jsonld.Context `json:"@context"`
 	Dataset
-	Context       jsonld.Context `json:"@context"`
-	Type          string         `json:"@type" validate:"required,eq=dcat:Catalog"`
-	Datasets      []Dataset      `json:"dcat:dataset" validate:"gte=1,dive"`
-	Service       []DataService  `json:"dcat:service" validate:"gte=1,dive"`
-	ParticipantID string         `json:"dspace:participantID,omitempty"`
-	Homepage      string         `json:"foaf:homepage,omitempty"`
+	Datasets      []Dataset     `json:"dcat:dataset" validate:"gte=1"`
+	Service       []DataService `json:"dcat:service" validate:"gte=1"`
+	ParticipantID string        `json:"dspace:participantID,omitempty"`
+	Homepage      string        `json:"foaf:homepage,omitempty"`
 }
 
 // CatalogError is a standardised error for catalog requests.
@@ -57,17 +56,19 @@ type CatalogError struct {
 // Dataset is a DCAT dataset.
 type Dataset struct {
 	Resource
-	HasPolicy    []odrl.Offer   `json:"odrl:hasPolicy" validate:"required,gte=1,dive"`
-	Distribution []Distribution `json:"dcat:distribution" validate:"gte=1,dive"`
+	HasPolicy    []odrl.Offer   `json:"odrl:hasPolicy,omitempty"`
+	Distribution []Distribution `json:"dcat:distribution,omitempty"`
 }
 
 // Resource is a DCAT resource.
 type Resource struct {
+	ID          string          `json:"@id" validate:"required"`
+	Type        string          `json:"@type" validate:"required"`
 	Keyword     []string        `json:"dcat:keyword,omitempty"`
-	Theme       []Reference     `json:"dcat:them,omitempty" validate:"gte=1,dive"`
+	Theme       []Reference     `json:"dcat:theme,omitempty"`
 	ConformsTo  string          `json:"dct:conformsTo,omitempty"`
 	Creator     string          `json:"dct:creator,omitempty"`
-	Description []Multilanguage `json:"dct:description,omitempty" validate:"dive"`
+	Description []Multilanguage `json:"dct:description,omitempty"`
 	Identifier  string          `json:"dct:identifier,omitempty"`
 	Issued      string          `json:"dct:issued,omitempty"`
 	Modified    string          `json:"dct:modified,omitempty"`
@@ -76,12 +77,14 @@ type Resource struct {
 
 // Distribution is a DCAT distribution.
 type Distribution struct {
+	Type          string          `json:"@type" validate:"required,eq=dcat:Distribution"`
+	Format        string          `json:"dct:format,omitempty"`
 	Title         string          `json:"dct:title,omitempty"`
-	Description   []Multilanguage `json:"dct:description,omitempty" validate:"dive"`
+	Description   []Multilanguage `json:"dct:description,omitempty"`
 	Issued        string          `json:"dct:issued,omitempty"`
 	Modified      string          `json:"dct:modified,omitempty"`
-	HasPolicy     []odrl.Offer    `json:"odrl:hasPolicy" validate:"gte=1,dive"`
-	AccessService []DataService   `json:"dcat:accessService" validate:"required,gte=1,dive"`
+	HasPolicy     []odrl.Offer    `json:"odrl:hasPolicy,omitempty"`
+	AccessService []DataService   `json:"dcat:accessService" validate:"required,gte=1"`
 }
 
 // DataService is a DCAT dataservice.
