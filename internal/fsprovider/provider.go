@@ -18,6 +18,8 @@ package fsprovider
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -31,6 +33,10 @@ import (
 	"github.com/google/uuid"
 )
 
+const idDB = ".ids.json"
+
+var ErrNotFound = errors.New("File not found")
+
 type Adapter struct {
 	path string
 }
@@ -39,7 +45,7 @@ func New(path string) Adapter {
 	return Adapter{path: path}
 }
 
-func (a Adapter) GetFileSet(ctx context.Context, citizenData *shared.CitizenData) (shared.Fileset, error) {
+func (a Adapter) GetFileSet(ctx context.Context, citizenData *shared.CitizenData) ([]*shared.File, error) {
 	logger := logging.Extract(ctx)
 	userPath := path.Join(
 		a.path,
@@ -54,50 +60,81 @@ func (a Adapter) GetFileSet(ctx context.Context, citizenData *shared.CitizenData
 	dirInfo, err := os.Stat(userPath)
 	if err != nil {
 		logger.Error("Couldn't stat path", "error", err)
-		return shared.Fileset{}, err
+		return nil, err
 	}
 	if !dirInfo.IsDir() {
 		logger.Error("Path is not a directory")
-		return shared.Fileset{}, fmt.Errorf("Path is not a directory: %s", userPath)
+		return nil, fmt.Errorf("Path is not a directory: %s", userPath)
 	}
 
-	idPath := path.Join(userPath, ".id")
-	_, err = os.Stat(idPath)
-	if err != nil {
-		if os.IsNotExist(err) {
-			id := uuid.New()
-			if err := os.WriteFile(idPath, []byte(id.String()), 0o600); err != nil {
-				logger.Error("Could not write id file", "error", err)
-				return shared.Fileset{}, err
-			}
-		} else {
-			logger.Error("Could not stat ID file", "error", err)
-			return shared.Fileset{}, err
-		}
-	}
-	strId, err := os.ReadFile(idPath)
-	if err != nil {
-		logger.Error("Could not read id file", "error", err)
-		return shared.Fileset{}, err
-	}
-
-	id := uuid.MustParse(string(strId))
 	files, err := getFiles(logger, userPath)
 	if err != nil {
-		return shared.Fileset{}, err
+		return nil, err
 	}
-	return shared.Fileset{
-		ID:          id,
-		Title:       "Hosted files",
-		Description: "Hosted files",
-		Keywords:    []string{"dataloft", "medical"},
-		Files:       files,
-	}, err
+	return files, err
 }
 
-func getFiles(logger *slog.Logger, dir string) ([]shared.File, error) {
+// GetFile gets a file by ID. Now done by just checking if it's in the returned files. Super
+// inefficient.
+func (a Adapter) GetFile(ctx context.Context, citizenData *shared.CitizenData, id uuid.UUID) (*shared.File, error) {
+	files, err := a.GetFileSet(ctx, citizenData)
+	if err != nil {
+		return nil, err
+	}
+	for _, f := range files {
+		if f.ID == id {
+			return f, nil
+		}
+	}
+	return nil, ErrNotFound
+}
+
+func getIDs(logger *slog.Logger, userPath string) (map[string]uuid.UUID, error) {
+	idPath := path.Join(userPath, idDB)
+	_, err := os.Stat(idPath)
+	ids := make(map[string]uuid.UUID)
+	if err != nil {
+		if !os.IsNotExist(err) {
+			logger.Error("Could not stat ID file", "error", err)
+			return nil, err
+		}
+	} else {
+		idData, err := os.ReadFile(idPath)
+		if err != nil {
+			logger.Error("Could not read idFile", "error", err)
+			return nil, err
+		}
+		err = json.Unmarshal(idData, &ids)
+		if err != nil {
+			logger.Error("Could not unmarshal idFile", "error", err)
+			return nil, err
+		}
+	}
+	return ids, nil
+}
+
+func saveIDs(logger *slog.Logger, dir string, ids map[string]uuid.UUID) error {
+	j, err := json.Marshal(ids)
+	if err != nil {
+		logger.Error("Couldn't marshal IDs", "error", err)
+		return err
+	}
+	idPath := path.Join(dir, idDB)
+	err = os.WriteFile(idPath, j, 0o600)
+	if err != nil {
+		logger.Error("Couldn't write idDB", "error", err)
+		return err
+	}
+	return nil
+}
+
+func getFiles(logger *slog.Logger, dir string) ([]*shared.File, error) {
+	ids, err := getIDs(logger, dir)
+	if err != nil {
+		return nil, err
+	}
 	entries, err := os.ReadDir(dir)
-	files := make([]shared.File, 0)
+	files := make([]*shared.File, 0)
 	if err != nil {
 		return nil, err
 	}
@@ -105,8 +142,12 @@ func getFiles(logger *slog.Logger, dir string) ([]shared.File, error) {
 		if entry.IsDir() {
 			continue
 		}
-		if entry.Name() == ".id" {
+		if entry.Name() == idDB {
 			continue
+		}
+		id := uuid.New()
+		if existing, ok := ids[entry.Name()]; ok {
+			id = existing
 		}
 		info, err := entry.Info()
 		if err != nil {
@@ -118,11 +159,19 @@ func getFiles(logger *slog.Logger, dir string) ([]shared.File, error) {
 			logger.Error("Couldn't get file mimetype", "file", entry.Name(), "error", err)
 			return nil, err
 		}
-		files = append(files, shared.File{
+		files = append(files, &shared.File{
+			ID:       id,
 			Name:     entry.Name(),
 			Modified: info.ModTime().Format(time.RFC3339Nano),
 			Format:   mtype.String(),
 		})
+		ids[entry.Name()] = id
 	}
+
+	err = saveIDs(logger, dir, ids)
+	if err != nil {
+		return nil, err
+	}
+
 	return files, nil
 }
