@@ -25,6 +25,7 @@ import (
 	"github.com/go-dataspace/run-dsp/internal/fsprovider"
 	"github.com/go-dataspace/run-dsp/jsonld"
 	"github.com/go-dataspace/run-dsp/logging"
+	"github.com/google/uuid"
 )
 
 var dataService = DataService{
@@ -35,31 +36,30 @@ var dataService = DataService{
 	EndpointURL: "https://insert-url-here.dsp/",
 }
 
-func fileSetToDataset(fs shared.Fileset, service DataService) Dataset {
+func fileToDataset(file *shared.File, service DataService) Dataset {
 	ds := Dataset{
 		Resource: Resource{
-			ID:      fmt.Sprintf("urn:uuid:%s", fs.ID.String()),
-			Type:    "dcat:Dataset",
-			Keyword: fs.Keywords,
-			Description: []Multilanguage{{
-				Value:    fs.Description,
-				Language: "en",
-			}},
-			Title: fs.Title,
+			ID:         fmt.Sprintf("urn:uuid:%s", file.ID.String()),
+			Type:       "dcat:Dataset",
+			Title:      file.Name,
+			Modified:   file.Modified,
+			ConformsTo: file.Format,
 		},
-	}
-	dist := make([]Distribution, len(fs.Files))
-	for i, f := range fs.Files {
-		dist[i] = Distribution{
+		Distribution: []Distribution{{
 			Type:          "dcat:Distribution",
 			Format:        "dspace:https+push",
-			Title:         f.Name,
-			Modified:      f.Modified,
 			AccessService: []DataService{service},
-		}
+		}},
 	}
-	ds.Distribution = dist
 	return ds
+}
+
+func filesToDatasets(files []*shared.File, service DataService) []Dataset {
+	datasets := make([]Dataset, len(files))
+	for i, f := range files {
+		datasets[i] = fileToDataset(f, service)
+	}
+	return datasets
 }
 
 func catalogRequestHandler(w http.ResponseWriter, req *http.Request) {
@@ -101,24 +101,30 @@ func catalogRequestHandler(w http.ResponseWriter, req *http.Request) {
 			},
 		},
 		Context:  jsonld.NewRootContext([]jsonld.ContextEntry{{ID: constants.DSPContext}}),
-		Datasets: []Dataset{fileSetToDataset(fileSet, dataService)},
+		Datasets: filesToDatasets(fileSet, dataService),
 		Service:  []DataService{dataService},
 	})
 }
 
 func datasetRequestHandler(w http.ResponseWriter, req *http.Request) {
-	body, err := io.ReadAll(req.Body)
-	logger := logging.Extract(req.Context())
 	paramID := req.PathValue("id")
 	if paramID == "" {
 		returnError(w, http.StatusBadRequest, "No ID given in path")
 		return
 	}
+	ctx, logger := logging.InjectLabels(req.Context(), "paramID", paramID)
+	id, err := uuid.Parse(paramID)
+	if err != nil {
+		logger.Error("Misformed uuid in path", "error", err)
+		returnError(w, http.StatusBadRequest, "Invalid ID")
+		return
+	}
+	body, err := io.ReadAll(req.Body)
 	if err != nil {
 		returnError(w, http.StatusBadRequest, "Could not read body")
 		return
 	}
-	datasetReq, err := unmarshalAndValidate(req.Context(), body, DatasetRequestMessage{})
+	datasetReq, err := unmarshalAndValidate(ctx, body, DatasetRequestMessage{})
 	if err != nil {
 		logger.Error("Non validating dataset request", "error", err)
 		returnError(w, http.StatusBadRequest, "Request did not validate")
@@ -128,17 +134,17 @@ func datasetRequestHandler(w http.ResponseWriter, req *http.Request) {
 	// Cheating a bit as we only have a single dataset for a user, this will be better in
 	// actual production code.
 	p := fsprovider.New("/tmp/run-dsp-pre-alpha-storage")
-	ui := auth.ExtractUserInfo(req.Context())
+	ui := auth.ExtractUserInfo(ctx)
 	// As there's no filter option yet, we don't need anything from the catalog request.
-	fileSet, err := p.GetFileSet(req.Context(), &shared.CitizenData{
+	file, err := p.GetFile(ctx, &shared.CitizenData{
 		FirstName: ui.FirstName,
 		LastName:  ui.Lastname,
 		BirthDate: ui.BirthDate,
-	})
+	}, id)
 	if err != nil {
 		returnError(w, http.StatusInternalServerError, "could not get dataset")
 		return
 	}
 
-	validateMarshalAndReturn(req.Context(), w, http.StatusOK, fileSetToDataset(fileSet, dataService))
+	validateMarshalAndReturn(req.Context(), w, http.StatusOK, fileToDataset(file, dataService))
 }

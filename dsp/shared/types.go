@@ -25,18 +25,10 @@ import (
 
 // File represents a file and what we can use according to the dcat distribution type.
 type File struct {
+	ID       uuid.UUID
 	Name     string
 	Modified string
 	Format   string
-}
-
-// Fileset is the minimal information we need to construct a dtatset.
-type Fileset struct {
-	ID          uuid.UUID
-	Title       string
-	Description string
-	Keywords    []string
-	Files       []File
 }
 
 // CitizenData is the citizen data we will pass to the functions.
@@ -47,7 +39,7 @@ type CitizenData struct {
 }
 
 // Cataloger exposes functions to get catalog information.
-// As we only want a single dataset per citizen, we don't pass the dataset ID.
 type Cataloger interface {
-	GetFileSet(ctx context.Context, citizenData *CitizenData) (Fileset, error)
+	GetFileSet(ctx context.Context, citizenData *CitizenData) ([]*File, error)
+	GetFile(ctx context.Context, citizenData *CitizenData, id uuid.UUID) (*File, error)
 }
