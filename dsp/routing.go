@@ -59,5 +59,7 @@ func GetRoutes() http.Handler {
 	mux.HandleFunc("POST /callback/transfers/{consumerPID}/termination", consumerTransferTerminationHandler)
 	mux.HandleFunc("POST /callback/transfers/{consumerPID}/suspension", consumerTransferSuspensionHandler)
 
+	mux.HandleFunc("GET /types", returnAllTypes)
+
 	return mux
 }

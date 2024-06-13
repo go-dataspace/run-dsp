@@ -17,6 +17,8 @@ package dspstatemachine
 
 import (
 	"context"
+
+	"github.com/go-dataspace/run-dsp/dsp"
 )
 
 //nolint:dupl
@@ -36,105 +38,117 @@ type consumerContractTasksService interface {
 	SendErrorMessage(ctx context.Context, args ContractArgs) error
 }
 
-func sendContractRequest(ctx context.Context, args ContractArgs) (ContractArgs, DSPState[ContractArgs], error) {
-	err := checkFindNegotiationState(ctx, args, []ContractNegotiationState{UndefinedState})
-	if err != nil {
-		return ContractArgs{}, nil, err
-	}
+// func sendContractRequest(ctx context.Context, args ContractArgs) (ContractArgs, DSPState[ContractArgs], error) {
+// 	err := checkFindNegotiationState(ctx, args, []ContractNegotiationState{UndefinedState})
+// 	if err != nil {
+// 		return ContractArgs{}, nil, err
+// 	}
 
-	messageType, err := args.consumerService.SendContractRequest(ctx, args)
-	return checkMessageTypeAndStoreState(
-		ctx,
-		args,
-		[]ContractNegotiationMessageType{ContractNegotiationMessage, ContractOfferMessage},
-		messageType,
-		err,
-		Requested,
-		Offered,
-		sendContractAcceptedRequest)
-}
+// 	messageType, err := args.consumerService.SendContractRequest(ctx, args)
+// 	return checkMessageTypeAndStoreState(
+// 		ctx,
+// 		args,
+// 		[]ContractNegotiationMessageType{ContractNegotiationMessage, ContractOfferMessage},
+// 		messageType,
+// 		err,
+// 		Requested,
+// 		Offered,
+// 		sendContractAcceptedRequest)
+// }
 
-func checkContractOfferRequest(ctx context.Context, args ContractArgs) (ContractArgs, DSPState[ContractArgs], error) {
+func CheckContractOfferRequest(ctx context.Context, args ContractArgs) (dsp.ContractNegotiation, error) {
 	// check contract offer request
 	// if asynchronous -> send ack
 	// if valid and synchronous -> return send contract accepted
 	// if rejected -> return send contract termination
-	return checkContractNegotiationRequest(
-		ctx,
-		args,
-		ContractOfferMessage,
-		[]ContractNegotiationState{Requested},
-		Offered, false, sendContractAcceptedRequest,
-	)
-}
-
-func sendContractAcceptedRequest(ctx context.Context, args ContractArgs) (ContractArgs, DSPState[ContractArgs], error) {
-	logger := getLogger(ctx, args.BaseArgs)
-	logger.Debug("in sendContractAcceptedRequest")
-
-	err := checkFindNegotiationState(ctx, args, []ContractNegotiationState{Offered})
+	// logger := getLogger(ctx, args.BaseArgs)
+	state, err := checkFindNegotiationState(ctx, args, []ContractNegotiationState{Requested})
 	if err != nil {
-		return ContractArgs{}, nil, err
+		return dsp.ContractNegotiation{}, err
 	}
 
-	messageType, err := args.consumerService.SendContractAccepted(ctx, args)
-	return checkMessageTypeAndStoreState(
-		ctx,
-		args,
-		[]ContractNegotiationMessageType{ContractNegotiationMessage, ContractAgreementMessage},
-		messageType,
-		err,
-		Accepted,
-		Agreed,
-		sendContractVerifiedRequest)
+	// return checkContractNegotiationRequest(
+	// 	ctx,
+	// 	args,
+	// 	ContractOfferMessage,
+	// 	[]ContractNegotiationState{Requested},
+	// 	Offered, false, sendContractAcceptedRequest,
+	// )
+	return dsp.ContractNegotiation{
+		Type:        "dspace:ContractNegotiation",
+		ProviderPID: state.ProviderPID.String(),
+		ConsumerPID: state.ConsumerPID.String(),
+		State:       "dspace:REQUESTED",
+	}, err
 }
 
-func checkContractAgreedRequest(ctx context.Context, args ContractArgs) (ContractArgs, DSPState[ContractArgs], error) {
-	// check contract agreed request
-	// if asynchronous -> send ack
-	// if valid and synchronous -> return send contract agreement verification
-	// if rejected -> return send contract termination
-	return checkContractNegotiationRequest(
-		ctx,
-		args,
-		ContractAgreementMessage,
-		[]ContractNegotiationState{Requested, Accepted},
-		Agreed, false, sendContractVerifiedRequest,
-	)
-}
+// func sendContractAcceptedRequest(ctx context.Context, args ContractArgs) (ContractArgs, DSPState[ContractArgs], error) {
+// 	logger := getLogger(ctx, args.BaseArgs)
+// 	logger.Debug("in sendContractAcceptedRequest")
 
-func checkContractFinalizedRequest(
-	ctx context.Context, args ContractArgs,
-) (ContractArgs, DSPState[ContractArgs], error) {
-	// check contract finalized request
-	// if valid, always send ack
-	// if error, send error
-	return checkContractNegotiationRequest(
-		ctx,
-		args,
-		ContractNegotiationEventMessage,
-		[]ContractNegotiationState{Verified},
-		Finalized, true, nil,
-	)
-}
+// 	err := checkFindNegotiationState(ctx, args, []ContractNegotiationState{Offered})
+// 	if err != nil {
+// 		return ContractArgs{}, nil, err
+// 	}
 
-func sendContractVerifiedRequest(ctx context.Context, args ContractArgs) (ContractArgs, DSPState[ContractArgs], error) {
-	logger := getLogger(ctx, args.BaseArgs)
-	logger.Debug("in sendContractVerifiedRequest")
+// 	messageType, err := args.consumerService.SendContractAccepted(ctx, args)
+// 	return checkMessageTypeAndStoreState(
+// 		ctx,
+// 		args,
+// 		[]ContractNegotiationMessageType{ContractNegotiationMessage, ContractAgreementMessage},
+// 		messageType,
+// 		err,
+// 		Accepted,
+// 		Agreed,
+// 		sendContractVerifiedRequest)
+// }
 
-	err := checkFindNegotiationState(ctx, args, []ContractNegotiationState{Agreed})
-	if err != nil {
-		return ContractArgs{}, nil, err
-	}
+// func checkContractAgreedRequest(ctx context.Context, args ContractArgs) (ContractArgs, DSPState[ContractArgs], error) {
+// 	// check contract agreed request
+// 	// if asynchronous -> send ack
+// 	// if valid and synchronous -> return send contract agreement verification
+// 	// if rejected -> return send contract termination
+// 	return checkContractNegotiationRequest(
+// 		ctx,
+// 		args,
+// 		ContractAgreementMessage,
+// 		[]ContractNegotiationState{Requested, Accepted},
+// 		Agreed, false, sendContractVerifiedRequest,
+// 	)
+// }
 
-	messageType, err := args.consumerService.SendContractAgreementVerification(ctx, args)
-	return checkMessageTypeAndStoreState(
-		ctx,
-		args,
-		[]ContractNegotiationMessageType{ContractNegotiationMessage, ContractNegotiationEventMessage},
-		messageType,
-		err,
-		Verified,
-		Finalized,
-		nil)
-}
+// func checkContractFinalizedRequest(
+// 	ctx context.Context, args ContractArgs,
+// ) (ContractArgs, DSPState[ContractArgs], error) {
+// 	// check contract finalized request
+// 	// if valid, always send ack
+// 	// if error, send error
+// 	return checkContractNegotiationRequest(
+// 		ctx,
+// 		args,
+// 		ContractNegotiationEventMessage,
+// 		[]ContractNegotiationState{Verified},
+// 		Finalized, true, nil,
+// 	)
+// }
+
+// func sendContractVerifiedRequest(ctx context.Context, args ContractArgs) (ContractArgs, DSPState[ContractArgs], error) {
+// 	logger := getLogger(ctx, args.BaseArgs)
+// 	logger.Debug("in sendContractVerifiedRequest")
+
+// 	err := checkFindNegotiationState(ctx, args, []ContractNegotiationState{Agreed})
+// 	if err != nil {
+// 		return ContractArgs{}, nil, err
+// 	}
+
+// 	messageType, err := args.consumerService.SendContractAgreementVerification(ctx, args)
+// 	return checkMessageTypeAndStoreState(
+// 		ctx,
+// 		args,
+// 		[]ContractNegotiationMessageType{ContractNegotiationMessage, ContractNegotiationEventMessage},
+// 		messageType,
+// 		err,
+// 		Verified,
+// 		Finalized,
+// 		nil)
+// }

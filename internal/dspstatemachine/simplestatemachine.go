@@ -24,12 +24,22 @@ var contractStates map[uuid.UUID]DSPContractStateStorage
 
 type DSPContractStateStorage struct {
 	StateID         uuid.UUID
+	ProviderPID     uuid.UUID
+	ConsumerPID     uuid.UUID
 	State           ContractNegotiationState
 	CallbackAddress string
 	ParticipantRole DSPParticipantRole
 }
 
-type SimpleStateStorage struct{}
+type SimpleStateStorage struct {
+	contractStateStorage *map[uuid.UUID]DSPContractStateStorage
+}
+
+func GetStateStorage() *SimpleStateStorage {
+	return &SimpleStateStorage{
+		contractStateStorage: &contractStates,
+	}
+}
 
 func (s *SimpleStateStorage) FindContractNegotiationState(
 	ctx context.Context, id uuid.UUID,

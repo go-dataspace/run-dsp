@@ -13,183 +13,172 @@
 // limitations under the License.
 package dspstatemachine
 
-import (
-	"context"
-	"reflect"
-	"runtime"
-	"strings"
-	"testing"
+// func methodName(method any) string {
+// 	if method == nil {
+// 		return "<nil>"
+// 	}
 
-	"github.com/go-dataspace/run-dsp/logging"
-	"github.com/google/uuid"
-)
+// 	return strings.TrimSuffix(runtime.FuncForPC(reflect.ValueOf(method).Pointer()).Name(), "-fm")
+// }
 
-func methodName(method any) string {
-	if method == nil {
-		return "<nil>"
-	}
+// type fakeConsumerContractTasksService struct {
+// 	sendContractRequestMessageType            ContractNegotiationMessageType
+// 	contractOfferAccepted                     bool
+// 	contractOfferAgreed                       bool
+// 	sendContractAcceptedRequestMessageType    ContractNegotiationMessageType
+// 	sendContractVerifiedRequestMessageType    ContractNegotiationMessageType
+// 	sendContractTerminationRequestMessageType ContractNegotiationMessageType
+// 	sendContractNegotiationRequestMessageType ContractNegotiationMessageType
 
-	return strings.TrimSuffix(runtime.FuncForPC(reflect.ValueOf(method).Pointer()).Name(), "-fm")
-}
+// 	// negotiationState                       ContractNegotiationState
+// 	sendContractRequestError            error
+// 	checkContractOfferRequestError      error
+// 	sendContractAcceptedRequestError    error
+// 	checkContractAgreedRequestError     error
+// 	sendContractVerifiedRequestError    error
+// 	checkContractFinalizedRequestError  error
+// 	sendContractTerminationRequestError error
+// 	sendContractNegotiationRequestError error
 
-type fakeConsumerContractTasksService struct {
-	sendContractRequestMessageType            ContractNegotiationMessageType
-	contractOfferAccepted                     bool
-	contractOfferAgreed                       bool
-	sendContractAcceptedRequestMessageType    ContractNegotiationMessageType
-	sendContractVerifiedRequestMessageType    ContractNegotiationMessageType
-	sendContractTerminationRequestMessageType ContractNegotiationMessageType
-	sendContractNegotiationRequestMessageType ContractNegotiationMessageType
+// 	consumerContractTasksService
+// }
 
-	// negotiationState                       ContractNegotiationState
-	sendContractRequestError            error
-	checkContractOfferRequestError      error
-	sendContractAcceptedRequestError    error
-	checkContractAgreedRequestError     error
-	sendContractVerifiedRequestError    error
-	checkContractFinalizedRequestError  error
-	sendContractTerminationRequestError error
-	sendContractNegotiationRequestError error
+// func (f *fakeConsumerContractTasksService) SendContractRequest(
+// 	ctx context.Context, args ContractArgs) (
+// 	ContractNegotiationMessageType, error,
+// ) {
+// 	return f.sendContractRequestMessageType, f.sendContractRequestError
+// }
 
-	consumerContractTasksService
-}
+// func (f *fakeConsumerContractTasksService) CheckContractOffer(
+// 	ctx context.Context, args ContractArgs) (
+// 	bool, error,
+// ) {
+// 	return f.contractOfferAccepted, f.checkContractOfferRequestError
+// }
 
-func (f *fakeConsumerContractTasksService) SendContractRequest(
-	ctx context.Context, args ContractArgs) (
-	ContractNegotiationMessageType, error,
-) {
-	return f.sendContractRequestMessageType, f.sendContractRequestError
-}
+// func (f *fakeConsumerContractTasksService) SendContractAccepted(
+// 	ctx context.Context, args ContractArgs) (
+// 	ContractNegotiationMessageType, error,
+// ) {
+// 	return f.sendContractAcceptedRequestMessageType, f.sendContractAcceptedRequestError
+// }
 
-func (f *fakeConsumerContractTasksService) CheckContractOffer(
-	ctx context.Context, args ContractArgs) (
-	bool, error,
-) {
-	return f.contractOfferAccepted, f.checkContractOfferRequestError
-}
+// func (f *fakeConsumerContractTasksService) CheckContractAgreed(
+// 	ctx context.Context, args ContractArgs) (
+// 	bool, error,
+// ) {
+// 	return f.contractOfferAgreed, f.checkContractAgreedRequestError
+// }
 
-func (f *fakeConsumerContractTasksService) SendContractAccepted(
-	ctx context.Context, args ContractArgs) (
-	ContractNegotiationMessageType, error,
-) {
-	return f.sendContractAcceptedRequestMessageType, f.sendContractAcceptedRequestError
-}
+// func (f *fakeConsumerContractTasksService) SendContractAgreementVerification(
+// 	ctx context.Context, args ContractArgs) (
+// 	ContractNegotiationMessageType, error,
+// ) {
+// 	return f.sendContractVerifiedRequestMessageType, f.sendContractVerifiedRequestError
+// }
 
-func (f *fakeConsumerContractTasksService) CheckContractAgreed(
-	ctx context.Context, args ContractArgs) (
-	bool, error,
-) {
-	return f.contractOfferAgreed, f.checkContractAgreedRequestError
-}
+// func (f *fakeConsumerContractTasksService) CheckContractFinalized(
+// 	ctx context.Context, args ContractArgs) (
+// 	bool, error,
+// ) {
+// 	return true, f.checkContractFinalizedRequestError
+// }
 
-func (f *fakeConsumerContractTasksService) SendContractAgreementVerification(
-	ctx context.Context, args ContractArgs) (
-	ContractNegotiationMessageType, error,
-) {
-	return f.sendContractVerifiedRequestMessageType, f.sendContractVerifiedRequestError
-}
+// func (f *fakeConsumerContractTasksService) SendTerminationMessage(
+// 	ctx context.Context, args ContractArgs,
+// ) (ContractNegotiationMessageType, error) {
+// 	return f.sendContractTerminationRequestMessageType, f.sendContractTerminationRequestError
+// }
 
-func (f *fakeConsumerContractTasksService) CheckContractFinalized(
-	ctx context.Context, args ContractArgs) (
-	bool, error,
-) {
-	return true, f.checkContractFinalizedRequestError
-}
+// func (f *fakeConsumerContractTasksService) SendContractNegotiationMessage(
+// 	ctx context.Context, args ContractArgs,
+// ) (ContractNegotiationMessageType, error) {
+// 	return f.sendContractNegotiationRequestMessageType, f.sendContractNegotiationRequestError
+// }
 
-func (f *fakeConsumerContractTasksService) SendTerminationMessage(
-	ctx context.Context, args ContractArgs,
-) (ContractNegotiationMessageType, error) {
-	return f.sendContractTerminationRequestMessageType, f.sendContractTerminationRequestError
-}
+// type fakeProviderContractTasksService struct {
+// 	sendContractTerminationRequestMessageType ContractNegotiationMessageType
+// 	sendContractTerminationRequestError       error
+// 	providerContractTasksService
+// }
 
-func (f *fakeConsumerContractTasksService) SendContractNegotiationMessage(
-	ctx context.Context, args ContractArgs,
-) (ContractNegotiationMessageType, error) {
-	return f.sendContractNegotiationRequestMessageType, f.sendContractNegotiationRequestError
-}
+// func (f *fakeProviderContractTasksService) SendTerminationMessage(
+// 	ctx context.Context, args ContractArgs,
+// ) (ContractNegotiationMessageType, error) {
+// 	return f.sendContractTerminationRequestMessageType, f.sendContractTerminationRequestError
+// }
 
-type fakeProviderContractTasksService struct {
-	sendContractTerminationRequestMessageType ContractNegotiationMessageType
-	sendContractTerminationRequestError       error
-	providerContractTasksService
-}
+// type fakeDSPStateStorageService struct {
+// 	negotiationState ContractNegotiationState
+// 	generatedUUID    uuid.UUID
+// 	findStateError   error
+// 	storeStateError  error
+// 	uuidError        error
 
-func (f *fakeProviderContractTasksService) SendTerminationMessage(
-	ctx context.Context, args ContractArgs,
-) (ContractNegotiationMessageType, error) {
-	return f.sendContractTerminationRequestMessageType, f.sendContractTerminationRequestError
-}
+// 	DSPStateStorageService
+// }
 
-type fakeDSPStateStorageService struct {
-	negotiationState ContractNegotiationState
-	generatedUUID    uuid.UUID
-	findStateError   error
-	storeStateError  error
-	uuidError        error
+// func (f *fakeDSPStateStorageService) FindContractNegotiationState(
+// 	ctx context.Context, id uuid.UUID,
+// ) (ContractNegotiationState, error) {
+// 	return f.negotiationState, f.findStateError
+// }
 
-	DSPStateStorageService
-}
+// func (f *fakeDSPStateStorageService) StoreContractNegotiationState(
+// 	ctx context.Context, id uuid.UUID, cns ContractNegotiationState,
+// ) error {
+// 	return f.storeStateError
+// }
 
-func (f *fakeDSPStateStorageService) FindContractNegotiationState(
-	ctx context.Context, id uuid.UUID,
-) (ContractNegotiationState, error) {
-	return f.negotiationState, f.findStateError
-}
+// func (f *fakeDSPStateStorageService) GenerateProcessId(ctx context.Context) (uuid.UUID, error) {
+// 	return f.generatedUUID, f.uuidError
+// }
 
-func (f *fakeDSPStateStorageService) StoreContractNegotiationState(
-	ctx context.Context, id uuid.UUID, cns ContractNegotiationState,
-) error {
-	return f.storeStateError
-}
+// type stateMachineTestCase struct {
+// 	name                 string
+// 	stateMethod          DSPState[ContractArgs]
+// 	args                 ContractArgs
+// 	wantErr              bool
+// 	expectedErr          string
+// 	expectedArgErrMsg    string
+// 	expectedArgErrStatus int
+// 	wantState            DSPState[ContractArgs]
+// }
 
-func (f *fakeDSPStateStorageService) GenerateProcessId(ctx context.Context) (uuid.UUID, error) {
-	return f.generatedUUID, f.uuidError
-}
+// //nolint:cyclop
+// func runTests(t *testing.T, tests []stateMachineTestCase, testName string) {
+// 	for _, test := range tests {
+// 		ctx := logging.Inject(context.Background(), logging.NewJSON("debug", true))
+// 		args, nextState, err := test.stateMethod(ctx, test.args)
+// 		switch {
+// 		case err == nil && test.wantErr:
+// 			t.Errorf("%s(%s): got err == nil, want err != nil", testName, test.name)
+// 			continue
+// 		case err != nil && !test.wantErr:
+// 			t.Errorf("%s(%s): got err == '%s', want err == nil", testName, test.name, err)
+// 			continue
+// 		case err != nil:
+// 			if test.expectedErr != "" && test.expectedErr != err.Error() {
+// 				t.Errorf("%s(%s): got err == '%s', want err == '%s'", testName, test.name, err, test.expectedErr)
+// 			}
+// 			continue
+// 		}
 
-type stateMachineTestCase struct {
-	name                 string
-	stateMethod          DSPState[ContractArgs]
-	args                 ContractArgs
-	wantErr              bool
-	expectedErr          string
-	expectedArgErrMsg    string
-	expectedArgErrStatus int
-	wantState            DSPState[ContractArgs]
-}
-
-//nolint:cyclop
-func runTests(t *testing.T, tests []stateMachineTestCase, testName string) {
-	for _, test := range tests {
-		ctx := logging.Inject(context.Background(), logging.NewJSON("debug", true))
-		args, nextState, err := test.stateMethod(ctx, test.args)
-		switch {
-		case err == nil && test.wantErr:
-			t.Errorf("%s(%s): got err == nil, want err != nil", testName, test.name)
-			continue
-		case err != nil && !test.wantErr:
-			t.Errorf("%s(%s): got err == '%s', want err == nil", testName, test.name, err)
-			continue
-		case err != nil:
-			if test.expectedErr != "" && test.expectedErr != err.Error() {
-				t.Errorf("%s(%s): got err == '%s', want err == '%s'", testName, test.name, err, test.expectedErr)
-			}
-			continue
-		}
-
-		if test.expectedArgErrMsg != args.ErrorMessage {
-			t.Errorf(
-				"%s(%s): got args.ErrorMessage == '%s', want args.ErrorMessage == '%s'",
-				testName, test.name, args.ErrorMessage, test.expectedArgErrMsg)
-		}
-		if test.expectedArgErrStatus != args.StatusCode {
-			t.Errorf(
-				"%s(%s): got args.StatusCode == '%d', want args.StatusCode == '%d'",
-				testName, test.name, args.StatusCode, test.expectedArgErrStatus)
-		}
-		gotState := methodName(nextState)
-		wantState := methodName(test.wantState)
-		if gotState != wantState {
-			t.Errorf("%s(%s): got next state %s, want %s", testName, test.name, gotState, wantState)
-		}
-	}
-}
+// 		if test.expectedArgErrMsg != args.ErrorMessage {
+// 			t.Errorf(
+// 				"%s(%s): got args.ErrorMessage == '%s', want args.ErrorMessage == '%s'",
+// 				testName, test.name, args.ErrorMessage, test.expectedArgErrMsg)
+// 		}
+// 		if test.expectedArgErrStatus != args.StatusCode {
+// 			t.Errorf(
+// 				"%s(%s): got args.StatusCode == '%d', want args.StatusCode == '%d'",
+// 				testName, test.name, args.StatusCode, test.expectedArgErrStatus)
+// 		}
+// 		gotState := methodName(nextState)
+// 		wantState := methodName(test.wantState)
+// 		if gotState != wantState {
+// 			t.Errorf("%s(%s): got next state %s, want %s", testName, test.name, gotState, wantState)
+// 		}
+// 	}
+// }

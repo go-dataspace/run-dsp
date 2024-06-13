@@ -67,6 +67,13 @@ func providerContractRequestHandler(w http.ResponseWriter, req *http.Request) {
 	}
 	logger.Debug("Got contract request", "req", contractReq)
 
+	// contractArgs := dspstatemachine.ContractArgs{
+	// 	BaseArgs:         dspstatemachine.BaseArgs{},
+	// 	NegotiationState: 0,
+	// 	MessageType:      0,
+	// 	StateStorage:     nil,
+	// }
+
 	validateMarshalAndReturn(req.Context(), w, http.StatusCreated, getContractNegoReq())
 }
 

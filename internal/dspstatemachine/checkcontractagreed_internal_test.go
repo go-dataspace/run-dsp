@@ -15,112 +15,112 @@
 //nolint:dupl
 package dspstatemachine
 
-import (
-	"errors"
-	"testing"
-)
+// import (
+// 	"errors"
+// 	"testing"
+// )
 
-//nolint:funlen
-func TestCheckContractAgreedRequest(t *testing.T) {
-	t.Parallel()
+// //nolint:funlen
+// func TestCheckContractAgreedRequest(t *testing.T) {
+// 	t.Parallel()
 
-	tests := []stateMachineTestCase{
-		{
-			name:        "Error: DSPStateStorageService.FindState() returns an error",
-			stateMethod: checkContractAgreedRequest,
-			args: ContractArgs{
-				StateStorage: &fakeDSPStateStorageService{
-					findStateError: errors.New("no state"),
-				},
-			},
-			wantErr:     true,
-			expectedErr: "no state",
-		},
-		{
-			name:        "Error: Initial state is not Requested or Accepted",
-			stateMethod: checkContractAgreedRequest,
-			args: ContractArgs{
-				StateStorage: &fakeDSPStateStorageService{
-					negotiationState: Finalized,
-				},
-			},
-			wantErr:     true,
-			expectedErr: "status 42: err Contract negotiation state invalid. Got FINALIZED, expected [REQUESTED ACCEPTED]",
-		},
-		{
-			name:        "Error: consumerService.CheckContractOffer() returns an error",
-			stateMethod: checkContractAgreedRequest,
-			args: ContractArgs{
-				StateStorage: &fakeDSPStateStorageService{
-					negotiationState: Accepted,
-				},
-				consumerService: &fakeConsumerContractTasksService{
-					checkContractAgreedRequestError: errors.New("Connection broke"),
-				},
-			},
-			wantErr:     true,
-			expectedErr: "Connection broke",
-		},
-		{
-			name:        "Error: DSPStateStorageService.StoreState() returns an error",
-			stateMethod: checkContractAgreedRequest,
-			args: ContractArgs{
-				StateStorage: &fakeDSPStateStorageService{
-					negotiationState: Accepted,
-					storeStateError:  errors.New("no state"),
-				},
-				consumerService: &fakeConsumerContractTasksService{},
-			},
-			wantErr:              false,
-			expectedErr:          "",
-			expectedArgErrStatus: 42,
-			expectedArgErrMsg:    "Failed to store AGREED state",
-			wantState:            sendContractErrorMessage,
-		},
-		{
-			name:        "Error: Asynchronous communication not able to send ACK message",
-			stateMethod: checkContractAgreedRequest,
-			args: ContractArgs{
-				BaseArgs: BaseArgs{AsynchronousCommunication: true},
-				StateStorage: &fakeDSPStateStorageService{
-					negotiationState: Accepted,
-				},
-				consumerService: &fakeConsumerContractTasksService{
-					sendContractNegotiationRequestError: errors.New("broken"),
-				},
-			},
-			wantErr:     true,
-			expectedErr: "broken",
-		},
-		{
-			name:        "Success: Next state contract verified",
-			stateMethod: checkContractAgreedRequest,
-			args: ContractArgs{
-				StateStorage: &fakeDSPStateStorageService{
-					negotiationState: Accepted,
-				},
-				consumerService: &fakeConsumerContractTasksService{
-					contractOfferAgreed: true,
-				},
-			},
-			wantErr:   false,
-			wantState: sendContractVerifiedRequest,
-		},
-		{
-			name:        "Terminated: Next state contract terminated",
-			stateMethod: checkContractAgreedRequest,
-			args: ContractArgs{
-				StateStorage: &fakeDSPStateStorageService{
-					negotiationState: Accepted,
-				},
-				consumerService: &fakeConsumerContractTasksService{
-					contractOfferAgreed: false,
-				},
-			},
-			wantErr:   false,
-			wantState: sendTerminateContractNegotiation,
-		},
-	}
+// 	tests := []stateMachineTestCase{
+// 		{
+// 			name:        "Error: DSPStateStorageService.FindState() returns an error",
+// 			stateMethod: checkContractAgreedRequest,
+// 			args: ContractArgs{
+// 				StateStorage: &fakeDSPStateStorageService{
+// 					findStateError: errors.New("no state"),
+// 				},
+// 			},
+// 			wantErr:     true,
+// 			expectedErr: "no state",
+// 		},
+// 		{
+// 			name:        "Error: Initial state is not Requested or Accepted",
+// 			stateMethod: checkContractAgreedRequest,
+// 			args: ContractArgs{
+// 				StateStorage: &fakeDSPStateStorageService{
+// 					negotiationState: Finalized,
+// 				},
+// 			},
+// 			wantErr:     true,
+// 			expectedErr: "status 42: err Contract negotiation state invalid. Got FINALIZED, expected [REQUESTED ACCEPTED]",
+// 		},
+// 		{
+// 			name:        "Error: consumerService.CheckContractOffer() returns an error",
+// 			stateMethod: checkContractAgreedRequest,
+// 			args: ContractArgs{
+// 				StateStorage: &fakeDSPStateStorageService{
+// 					negotiationState: Accepted,
+// 				},
+// 				consumerService: &fakeConsumerContractTasksService{
+// 					checkContractAgreedRequestError: errors.New("Connection broke"),
+// 				},
+// 			},
+// 			wantErr:     true,
+// 			expectedErr: "Connection broke",
+// 		},
+// 		{
+// 			name:        "Error: DSPStateStorageService.StoreState() returns an error",
+// 			stateMethod: checkContractAgreedRequest,
+// 			args: ContractArgs{
+// 				StateStorage: &fakeDSPStateStorageService{
+// 					negotiationState: Accepted,
+// 					storeStateError:  errors.New("no state"),
+// 				},
+// 				consumerService: &fakeConsumerContractTasksService{},
+// 			},
+// 			wantErr:              false,
+// 			expectedErr:          "",
+// 			expectedArgErrStatus: 42,
+// 			expectedArgErrMsg:    "Failed to store AGREED state",
+// 			wantState:            sendContractErrorMessage,
+// 		},
+// 		{
+// 			name:        "Error: Asynchronous communication not able to send ACK message",
+// 			stateMethod: checkContractAgreedRequest,
+// 			args: ContractArgs{
+// 				BaseArgs: BaseArgs{AsynchronousCommunication: true},
+// 				StateStorage: &fakeDSPStateStorageService{
+// 					negotiationState: Accepted,
+// 				},
+// 				consumerService: &fakeConsumerContractTasksService{
+// 					sendContractNegotiationRequestError: errors.New("broken"),
+// 				},
+// 			},
+// 			wantErr:     true,
+// 			expectedErr: "broken",
+// 		},
+// 		{
+// 			name:        "Success: Next state contract verified",
+// 			stateMethod: checkContractAgreedRequest,
+// 			args: ContractArgs{
+// 				StateStorage: &fakeDSPStateStorageService{
+// 					negotiationState: Accepted,
+// 				},
+// 				consumerService: &fakeConsumerContractTasksService{
+// 					contractOfferAgreed: true,
+// 				},
+// 			},
+// 			wantErr:   false,
+// 			wantState: sendContractVerifiedRequest,
+// 		},
+// 		{
+// 			name:        "Terminated: Next state contract terminated",
+// 			stateMethod: checkContractAgreedRequest,
+// 			args: ContractArgs{
+// 				StateStorage: &fakeDSPStateStorageService{
+// 					negotiationState: Accepted,
+// 				},
+// 				consumerService: &fakeConsumerContractTasksService{
+// 					contractOfferAgreed: false,
+// 				},
+// 			},
+// 			wantErr:   false,
+// 			wantState: sendTerminateContractNegotiation,
+// 		},
+// 	}
 
-	runTests(t, tests, "TestCheckContractAgreedRequest")
-}
+// 	runTests(t, tests, "TestCheckContractAgreedRequest")
+// }

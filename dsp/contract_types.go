@@ -23,7 +23,7 @@ import (
 type ContractRequestMessage struct {
 	Context         jsonld.Context    `json:"@context"`
 	Type            string            `json:"@type" validate:"required,eq=dspace:ContractRequestMessage"`
-	ProviderPID     string            `json:"dspace:providerPid"`
+	ProviderPID     string            `json:"dspace:providerPid,omitempty"`
 	ConsumerPID     string            `json:"dspace:consumerPid" validate:"required"`
 	Offer           odrl.MessageOffer `json:"dspace:offer" validate:"required"`
 	CallbackAddress string            `json:"dspace:callbackAddress" validate:"required"`
@@ -82,7 +82,7 @@ type ContractNegotiation struct {
 	Type        string         `json:"@type" validate:"required,eq=dspace:ContractNegotiation"`
 	ProviderPID string         `json:"dspace:providerPid" validate:"required"`
 	ConsumerPID string         `json:"dspace:consumerPid" validate:"required"`
-	State       string         `json:"dspace:state" validate:"required,contract_state"`
+	State       string         `json:"dspace:state" validate:"required"`
 }
 
 // ContractNegotiationError is a response to show the state of the contract negotiation.

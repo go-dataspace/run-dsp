@@ -13,9 +13,7 @@
 // limitations under the License.
 package dspstatemachine
 
-import (
-	"context"
-)
+import "context"
 
 //nolint:dupl
 type providerContractTasksService interface {
@@ -33,103 +31,103 @@ type providerContractTasksService interface {
 	SendErrorMessage(ctx context.Context, args ContractArgs) error
 }
 
-//nolint:unused
-func sendContractOfferRequest(ctx context.Context, args ContractArgs) (ContractArgs, DSPState[ContractArgs], error) {
-	err := checkFindNegotiationState(ctx, args, []ContractNegotiationState{UndefinedState})
-	if err != nil {
-		return ContractArgs{}, nil, err
-	}
+// //nolint:unused
+// func sendContractOfferRequest(ctx context.Context, args ContractArgs) (ContractArgs, DSPState[ContractArgs], error) {
+// 	err := checkFindNegotiationState(ctx, args, []ContractNegotiationState{UndefinedState})
+// 	if err != nil {
+// 		return ContractArgs{}, nil, err
+// 	}
 
-	messageType, err := args.providerService.SendContractOffer(ctx, args)
-	return checkMessageTypeAndStoreState(
-		ctx,
-		args,
-		[]ContractNegotiationMessageType{ContractNegotiationMessage, ContractOfferMessage},
-		messageType,
-		err,
-		Offered,
-		Offered,
-		sendContractAcceptedRequest)
-}
+// 	messageType, err := args.providerService.SendContractOffer(ctx, args)
+// 	return checkMessageTypeAndStoreState(
+// 		ctx,
+// 		args,
+// 		[]ContractNegotiationMessageType{ContractNegotiationMessage, ContractOfferMessage},
+// 		messageType,
+// 		err,
+// 		Offered,
+// 		Offered,
+// 		sendContractAcceptedRequest)
+// }
 
-//nolint:unused
-func checkContractRequestMessage(ctx context.Context, args ContractArgs) (ContractArgs, DSPState[ContractArgs], error) {
-	// NOTE: Going directly from REQUESTED to AGREED
-	return checkContractNegotiationRequest(
-		ctx,
-		args,
-		ContractRequestMessage,
-		[]ContractNegotiationState{Requested},
-		Agreed, false, sendContractAgreedRequest,
-	)
-}
+// //nolint:unused
+// func checkContractRequestMessage(ctx context.Context, args ContractArgs) (ContractArgs, DSPState[ContractArgs], error) {
+// 	// NOTE: Going directly from REQUESTED to AGREED
+// 	return checkContractNegotiationRequest(
+// 		ctx,
+// 		args,
+// 		ContractRequestMessage,
+// 		[]ContractNegotiationState{Requested},
+// 		Agreed, false, sendContractAgreedRequest,
+// 	)
+// }
 
-//nolint:unused
-func checkContractAcceptedMessage(
-	ctx context.Context, args ContractArgs,
-) (ContractArgs, DSPState[ContractArgs], error) {
-	return checkContractNegotiationRequest(
-		ctx,
-		args,
-		ContractNegotiationEventMessage,
-		[]ContractNegotiationState{Offered},
-		Agreed, false, sendContractAgreedRequest,
-	)
-}
+// //nolint:unused
+// func checkContractAcceptedMessage(
+// 	ctx context.Context, args ContractArgs,
+// ) (ContractArgs, DSPState[ContractArgs], error) {
+// 	return checkContractNegotiationRequest(
+// 		ctx,
+// 		args,
+// 		ContractNegotiationEventMessage,
+// 		[]ContractNegotiationState{Offered},
+// 		Agreed, false, sendContractAgreedRequest,
+// 	)
+// }
 
-//nolint:unused
-func sendContractAgreedRequest(ctx context.Context, args ContractArgs) (ContractArgs, DSPState[ContractArgs], error) {
-	logger := getLogger(ctx, args.BaseArgs)
-	logger.Debug("in sendContractAgreedRequest")
-	err := checkFindNegotiationState(ctx, args, []ContractNegotiationState{Requested})
-	if err != nil {
-		return ContractArgs{}, nil, err
-	}
+// //nolint:unused
+// func sendContractAgreedRequest(ctx context.Context, args ContractArgs) (ContractArgs, DSPState[ContractArgs], error) {
+// 	logger := getLogger(ctx, args.BaseArgs)
+// 	logger.Debug("in sendContractAgreedRequest")
+// 	err := checkFindNegotiationState(ctx, args, []ContractNegotiationState{Requested})
+// 	if err != nil {
+// 		return ContractArgs{}, nil, err
+// 	}
 
-	messageType, err := args.providerService.SendContractAgreement(ctx, args)
-	return checkMessageTypeAndStoreState(
-		ctx,
-		args,
-		[]ContractNegotiationMessageType{ContractNegotiationMessage, ContractAgreementMessage},
-		messageType,
-		err,
-		Agreed,
-		Agreed,
-		sendContractAcceptedRequest)
-}
+// 	messageType, err := args.providerService.SendContractAgreement(ctx, args)
+// 	return checkMessageTypeAndStoreState(
+// 		ctx,
+// 		args,
+// 		[]ContractNegotiationMessageType{ContractNegotiationMessage, ContractAgreementMessage},
+// 		messageType,
+// 		err,
+// 		Agreed,
+// 		Agreed,
+// 		sendContractAcceptedRequest)
+// }
 
-//nolint:unused
-func sendContractFinalizedRequest(
-	ctx context.Context, args ContractArgs,
-) (ContractArgs, DSPState[ContractArgs], error) {
-	logger := getLogger(ctx, args.BaseArgs)
-	logger.Debug("in sendContractFinalizedRequest")
-	err := checkFindNegotiationState(ctx, args, []ContractNegotiationState{Verified})
-	if err != nil {
-		return ContractArgs{}, nil, err
-	}
+// //nolint:unused
+// func sendContractFinalizedRequest(
+// 	ctx context.Context, args ContractArgs,
+// ) (ContractArgs, DSPState[ContractArgs], error) {
+// 	logger := getLogger(ctx, args.BaseArgs)
+// 	logger.Debug("in sendContractFinalizedRequest")
+// 	err := checkFindNegotiationState(ctx, args, []ContractNegotiationState{Verified})
+// 	if err != nil {
+// 		return ContractArgs{}, nil, err
+// 	}
 
-	messageType, err := args.providerService.SendNegotiationFinalized(ctx, args)
-	return checkMessageTypeAndStoreState(
-		ctx,
-		args,
-		[]ContractNegotiationMessageType{ContractNegotiationMessage},
-		messageType,
-		err,
-		Finalized,
-		Finalized,
-		nil)
-}
+// 	messageType, err := args.providerService.SendNegotiationFinalized(ctx, args)
+// 	return checkMessageTypeAndStoreState(
+// 		ctx,
+// 		args,
+// 		[]ContractNegotiationMessageType{ContractNegotiationMessage},
+// 		messageType,
+// 		err,
+// 		Finalized,
+// 		Finalized,
+// 		nil)
+// }
 
-//nolint:unused
-func checkContractAgreeementVerificationMessage(
-	ctx context.Context, args ContractArgs,
-) (ContractArgs, DSPState[ContractArgs], error) {
-	return checkContractNegotiationRequest(
-		ctx,
-		args,
-		ContractAgreementVerificationMessage,
-		[]ContractNegotiationState{Agreed},
-		Verified, false, sendContractFinalizedRequest,
-	)
-}
+// //nolint:unused
+// func checkContractAgreeementVerificationMessage(
+// 	ctx context.Context, args ContractArgs,
+// ) (ContractArgs, DSPState[ContractArgs], error) {
+// 	return checkContractNegotiationRequest(
+// 		ctx,
+// 		args,
+// 		ContractAgreementVerificationMessage,
+// 		[]ContractNegotiationState{Agreed},
+// 		Verified, false, sendContractFinalizedRequest,
+// 	)
+// }
