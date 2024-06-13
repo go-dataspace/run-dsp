@@ -109,13 +109,16 @@ func (s *SimpleStateStorage) AllowStateToProgress(idChan chan StateStorageChanne
 	}
 }
 
-func (s *SimpleStateStorage) triggerNextConsumerState(ctx context.Context, contractState DSPContractStateStorage) error {
-	logger := logging.Extract(ctx)
-	logger.Info("In SimpleStorage.triggerNextConsumerState")
+func (s *SimpleStateStorage) triggerNextConsumerState(
+	ctx context.Context, contractState DSPContractStateStorage,
+) error {
+	httpService := getHttpContractService(ctx, contractState)
 	var err error
 	switch contractState.State {
-	case Requested:
 	case UndefinedState:
+		contractState.State = Requested
+		err = httpService.ConsumerSendContractRequest(ctx)
+	case Requested:
 	case Offered:
 	case Accepted:
 	case Agreed:
@@ -123,6 +126,11 @@ func (s *SimpleStateStorage) triggerNextConsumerState(ctx context.Context, contr
 	case Finalized:
 	case Terminated:
 	}
+
+	if err == nil {
+		err = s.StoreContractNegotiationState(ctx, contractState.StateID, contractState)
+	}
+
 	return err
 }
 
@@ -132,7 +140,7 @@ func (s *SimpleStateStorage) triggerNextProviderState(ctx context.Context, contr
 	switch contractState.State {
 	case Requested:
 		contractState.State = Agreed
-		err = httpService.SendContractAgreement(ctx)
+		err = httpService.ProviderSendContractAgreement(ctx)
 	case UndefinedState:
 	case Offered:
 	case Accepted:

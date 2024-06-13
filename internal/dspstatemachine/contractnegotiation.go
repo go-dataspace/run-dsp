@@ -253,7 +253,6 @@ func checkFindNegotiationState(
 // 		messageType,
 // 		err,
 // 		Terminated,
-//nolint:dupword
 // 		Terminated,
 // 		nil)
 // }

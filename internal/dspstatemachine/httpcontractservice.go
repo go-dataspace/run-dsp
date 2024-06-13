@@ -71,9 +71,56 @@ func (h *httpContractService) sendPostRequest(ctx context.Context, url string, r
 	return respBody, nil
 }
 
-func (h *httpContractService) SendContractAgreement(ctx context.Context) error {
+func (h *httpContractService) ConsumerSendContractRequest(ctx context.Context) error {
 	logger := logging.Extract(ctx)
-	logger.Debug("In SendContractAgreement")
+	logger.Debug("In ConsumerSendContractRequest")
+
+	contractRequest := shared.ContractRequestMessage{
+		Context:     jsonld.NewRootContext([]jsonld.ContextEntry{{ID: constants.DSPContext}}),
+		Type:        "dspace:ContractRequestMessage",
+		ConsumerPID: fmt.Sprintf("urn:uuid:%s", h.ContractState.ConsumerPID),
+		Offer: odrl.MessageOffer{
+			PolicyClass: odrl.PolicyClass{
+				AbstractPolicyRule: odrl.AbstractPolicyRule{},
+				ID:                 fmt.Sprintf("urn:uuid:%s", uuid.New()),
+			},
+			Type:   "odrl:Offer",
+			Target: fmt.Sprintf("urn:uuid:%s", uuid.New()),
+		},
+		CallbackAddress: h.ContractState.ConsumerCallbackAddress,
+	}
+
+	reqBody, err := shared.ValidateAndMarshal(ctx, contractRequest)
+	if err != nil {
+		return err
+	}
+
+	targetUrl := fmt.Sprintf("%s/negotiations/request", h.ContractState.ProviderCallbackAddress)
+	logger.Debug("Sending ContractAgreement", "target_url", targetUrl, "contract_request", contractRequest)
+	responseBody, err := h.sendPostRequest(ctx, targetUrl, reqBody)
+	if err != nil {
+		return err
+	}
+
+	// This should have the state OFFERED in ACK, if not empty
+	if len(responseBody) != 0 {
+		contractNegotiation, err := shared.UnmarshalAndValidate(ctx, responseBody, shared.ContractNegotiation{})
+		if err != nil {
+			return err
+		}
+
+		logger.Debug("Got ContractNegotiation", "contract_negotiation", contractNegotiation)
+		if contractNegotiation.State != "dspace:AGREED" {
+			return errors.New("Invalid state returned")
+		}
+	}
+
+	return nil
+}
+
+func (h *httpContractService) ProviderSendContractAgreement(ctx context.Context) error {
+	logger := logging.Extract(ctx)
+	logger.Debug("In ProviderSendContractAgreement")
 	agreement := shared.ContractAgreementMessage{
 		Context:     jsonld.NewRootContext([]jsonld.ContextEntry{{ID: constants.DSPContext}}),
 		Type:        "dspace:ContractAgreementMessage",

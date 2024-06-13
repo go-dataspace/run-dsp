@@ -15,6 +15,7 @@
 package dsp
 
 import (
+	"fmt"
 	"io"
 	"net/http"
 	"strings"
@@ -24,6 +25,7 @@ import (
 	"github.com/go-dataspace/run-dsp/internal/dspstatemachine"
 	"github.com/go-dataspace/run-dsp/jsonld"
 	"github.com/go-dataspace/run-dsp/logging"
+	"github.com/go-dataspace/run-dsp/odrl"
 	"github.com/google/uuid"
 )
 
@@ -390,4 +392,72 @@ func consumerContractTerminationHandler(w http.ResponseWriter, req *http.Request
 
 	// If all goes well, we just return a 200
 	w.WriteHeader(http.StatusOK)
+}
+
+func triggerConsumerContractRequestHandler(w http.ResponseWriter, req *http.Request) {
+	logger := logging.Extract(req.Context())
+	consumerPID := uuid.New()
+
+	logger.Debug("Got trigger request to start contract negotiation")
+	contractState := dspstatemachine.DSPContractStateStorage{
+		StateID:                 consumerPID,
+		ProviderPID:             uuid.New(),
+		ConsumerPID:             consumerPID,
+		State:                   dspstatemachine.UndefinedState,
+		ConsumerCallbackAddress: "http://localhost:8080/callback",
+		ProviderCallbackAddress: "http://localhost:8080",
+		ParticipantRole:         dspstatemachine.Consumer,
+	}
+
+	stateStorage := dspstatemachine.GetStateStorage(req.Context())
+	err := stateStorage.StoreContractNegotiationState(req.Context(), consumerPID, contractState)
+	if err != nil {
+		returnError(w, http.StatusBadRequest, "Failed to store initial state")
+		return
+	}
+	// If all goes well, we just return a 200
+	w.WriteHeader(http.StatusOK)
+
+	channel := dspstatemachine.ExtractChannel(req.Context())
+	channel <- dspstatemachine.StateStorageChannelMessage{
+		Context:   req.Context(),
+		ProcessID: consumerPID,
+	}
+}
+
+func getConsumerContractRequestHandler(w http.ResponseWriter, req *http.Request) {
+	consumerPID := uuid.New()
+	contractRequest := shared.ContractRequestMessage{
+		Context:     jsonld.NewRootContext([]jsonld.ContextEntry{{ID: constants.DSPContext}}),
+		Type:        "dspace:ContractRequestMessage",
+		ConsumerPID: fmt.Sprintf("urn:uuid:%s", consumerPID),
+		Offer: odrl.MessageOffer{
+			PolicyClass: odrl.PolicyClass{
+				AbstractPolicyRule: odrl.AbstractPolicyRule{},
+				ID:                 fmt.Sprintf("urn:uuid:%s", uuid.New()),
+			},
+			Type:   "odrl:Offer",
+			Target: fmt.Sprintf("urn:uuid:%s", uuid.New()),
+		},
+		CallbackAddress: "http://localhost:8080/callback",
+	}
+
+	contractState := dspstatemachine.DSPContractStateStorage{
+		StateID:                 consumerPID,
+		ProviderPID:             uuid.New(),
+		ConsumerPID:             consumerPID,
+		State:                   dspstatemachine.UndefinedState,
+		ConsumerCallbackAddress: "http://localhost:8080/callback",
+		ProviderCallbackAddress: "http://localhost:8080",
+		ParticipantRole:         dspstatemachine.Consumer,
+	}
+
+	stateStorage := dspstatemachine.GetStateStorage(req.Context())
+	err := stateStorage.StoreContractNegotiationState(req.Context(), consumerPID, contractState)
+	if err != nil {
+		returnError(w, http.StatusBadRequest, "Failed to store initial state")
+		return
+	}
+
+	validateMarshalAndReturn(req.Context(), w, http.StatusOK, contractRequest)
 }
