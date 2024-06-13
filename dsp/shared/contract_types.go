@@ -86,7 +86,7 @@ type ContractNegotiation struct {
 }
 
 // ContractNegotiationError is a response to show the state of the contract negotiation.
-type ContractNegotiationERror struct {
+type ContractNegotiationError struct {
 	Context     jsonld.Context   `json:"@context,omitempty"`
 	Type        string           `json:"@type,omitempty" validate:"required,eq=dspace:ContractNegotiation"`
 	ProviderPID string           `json:"dspace:providerPid,omitempty" validate:"required"`

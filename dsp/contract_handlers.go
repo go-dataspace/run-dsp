@@ -20,6 +20,7 @@ import (
 
 	"github.com/go-dataspace/run-dsp/dsp/shared"
 	"github.com/go-dataspace/run-dsp/internal/constants"
+	"github.com/go-dataspace/run-dsp/internal/dspstatemachine"
 	"github.com/go-dataspace/run-dsp/jsonld"
 	"github.com/go-dataspace/run-dsp/logging"
 )
@@ -50,12 +51,6 @@ func providerContractStateHandler(w http.ResponseWriter, req *http.Request) {
 		returnError(w, http.StatusBadRequest, "Missing provider PID")
 		return
 	}
-	// contractArgs := dspstatemachine.ContractArgs{
-	// 	BaseArgs:         dspstatemachine.BaseArgs{},
-	// 	NegotiationState: 0,
-	// 	MessageType:      0,
-	// 	StateStorage:     nil,
-	// }
 
 	validateMarshalAndReturn(req.Context(), w, http.StatusOK, getContractNegoReq())
 }
@@ -74,14 +69,18 @@ func providerContractRequestHandler(w http.ResponseWriter, req *http.Request) {
 	}
 	logger.Debug("Got contract request", "req", contractReq)
 
-	// contractArgs := dspstatemachine.ContractArgs{
-	// 	BaseArgs:         dspstatemachine.BaseArgs{},
-	// 	NegotiationState: 0,
-	// 	MessageType:      0,
-	// 	StateStorage:     nil,
-	// }
+	contractArgs := dspstatemachine.ContractArgs{
+		BaseArgs:         dspstatemachine.BaseArgs{},
+		NegotiationState: 0,
+		MessageType:      0,
+		StateStorage:     dspstatemachine.GetStateStorage(),
+	}
+	contractNegotiation, err := dspstatemachine.ProviderCheckContractRequestMessage(req.Context(), contractArgs)
+	if err != nil {
+		returnError(w, http.StatusInternalServerError, err.Error())
+	}
 
-	validateMarshalAndReturn(req.Context(), w, http.StatusCreated, getContractNegoReq())
+	validateMarshalAndReturn(req.Context(), w, http.StatusOK, contractNegotiation)
 }
 
 func providerContractSpecificRequestHandler(w http.ResponseWriter, req *http.Request) {

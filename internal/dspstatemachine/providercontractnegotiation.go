@@ -13,7 +13,13 @@
 // limitations under the License.
 package dspstatemachine
 
-import "context"
+import (
+	"context"
+
+	"github.com/go-dataspace/run-dsp/dsp/shared"
+	"github.com/go-dataspace/run-dsp/internal/constants"
+	"github.com/go-dataspace/run-dsp/jsonld"
+)
 
 //nolint:dupl
 type providerContractTasksService interface {
@@ -50,17 +56,21 @@ type providerContractTasksService interface {
 // 		sendContractAcceptedRequest)
 // }
 
-// //nolint:unused
-// func checkContractRequestMessage(ctx context.Context, args ContractArgs) (ContractArgs, DSPState[ContractArgs], error) {
-// 	// NOTE: Going directly from REQUESTED to AGREED
-// 	return checkContractNegotiationRequest(
-// 		ctx,
-// 		args,
-// 		ContractRequestMessage,
-// 		[]ContractNegotiationState{Requested},
-// 		Agreed, false, sendContractAgreedRequest,
-// 	)
-// }
+func ProviderCheckContractRequestMessage(ctx context.Context, args ContractArgs) (shared.ContractNegotiation, error) {
+	// NOTE: Going directly from REQUESTED to AGREED
+	state, err := checkFindNegotiationState(ctx, args, []ContractNegotiationState{UndefinedState})
+	if err != nil {
+		return shared.ContractNegotiation{}, err
+	}
+
+	return shared.ContractNegotiation{
+		Context:     jsonld.NewRootContext([]jsonld.ContextEntry{{ID: constants.DSPContext}}),
+		Type:        "dspace:ContractNegotiation",
+		ProviderPID: state.ProviderPID.String(),
+		ConsumerPID: state.ConsumerPID.String(),
+		State:       "dspace:REQUESTED",
+	}, err
+}
 
 // //nolint:unused
 // func checkContractAcceptedMessage(

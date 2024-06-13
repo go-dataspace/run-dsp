@@ -64,7 +64,12 @@ func CheckContractOfferRequest(ctx context.Context, args ContractArgs) (shared.C
 	// logger := getLogger(ctx, args.BaseArgs)
 	state, err := checkFindNegotiationState(ctx, args, []ContractNegotiationState{Requested})
 	if err != nil {
-		return shared.ContractNegotiation{}, err
+		return shared.ContractNegotiation{
+			Type:        "dspace:ContractNegotiation",
+			ProviderPID: state.ProviderPID.String(),
+			ConsumerPID: state.ConsumerPID.String(),
+			State:       "dspace:REQUESTED",
+		}, err
 	}
 
 	// return checkContractNegotiationRequest(
