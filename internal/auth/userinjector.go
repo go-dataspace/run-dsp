@@ -17,6 +17,7 @@ package auth
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"strings"
 	"time"
@@ -24,13 +25,20 @@ import (
 
 type contextKeyType string
 
-const contextKey contextKeyType = "userinfo"
+const (
+	contextKey contextKeyType = "userinfo"
+	dateFormat string         = "2006-01-02"
+)
 
 // UserInfo struct that will be injected into the context.
 type UserInfo struct {
 	FirstName string
 	Lastname  string
 	BirthDate time.Time
+}
+
+func (ui UserInfo) String() string {
+	return fmt.Sprintf("%s;%s;%s", ui.FirstName, ui.Lastname, ui.BirthDate.Format(dateFormat))
 }
 
 // NonsenseUserInjector is a temporary auth injector.
@@ -47,7 +55,8 @@ func NonsenseUserInjector(next http.Handler) http.Handler {
 			w.WriteHeader(http.StatusUnauthorized)
 			return
 		}
-		bday, err := time.Parse("2006-01-02", parts[2])
+
+		bday, err := time.Parse(dateFormat, parts[2])
 		if err != nil {
 			w.WriteHeader(http.StatusUnauthorized)
 			return

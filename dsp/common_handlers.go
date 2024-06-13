@@ -22,7 +22,9 @@ import (
 
 	"github.com/go-dataspace/run-dsp/dsp/shared"
 	"github.com/go-dataspace/run-dsp/internal/constants"
+	"github.com/go-dataspace/run-dsp/internal/dspstatemachine"
 	"github.com/go-dataspace/run-dsp/jsonld"
+	"github.com/google/uuid"
 )
 
 type errorResponse struct {
@@ -44,7 +46,7 @@ func returnContent(w http.ResponseWriter, status int, content string) {
 }
 
 func validateMarshalAndReturn[T any](ctx context.Context, w http.ResponseWriter, successStatus int, s T) {
-	respBody, err := validateAndMarshal(ctx, s)
+	respBody, err := shared.ValidateAndMarshal(ctx, s)
 	if err != nil {
 		returnError(w, http.StatusInternalServerError, "Could not render response")
 		return
@@ -73,12 +75,19 @@ func dspaceVersionHandler(w http.ResponseWriter, req *http.Request) {
 			},
 		},
 	}
-	data, err := validateAndMarshal(req.Context(), vResp)
+	data, err := shared.ValidateAndMarshal(req.Context(), vResp)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		fmt.Fprint(w, errorString("Error while trying to fetch dataspace versions"))
 		return
 	}
+
+	message := dspstatemachine.StateStorageChannelMessage{
+		Context:   req.Context(),
+		ProcessID: uuid.New(),
+	}
+	channel := dspstatemachine.ExtractChannel(req.Context())
+	channel <- message
 
 	w.WriteHeader(http.StatusOK)
 	fmt.Fprint(w, string(data))

@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package dsp
+package shared
 
 import (
 	"context"
@@ -35,7 +35,7 @@ func init() {
 	}
 }
 
-func transferProcessState(fl validator.FieldLevel) bool {
+func TransferProcessState(fl validator.FieldLevel) bool {
 	states := []string{
 		"dspace:REQUESTED",
 		"dspace:STARTED",
@@ -46,7 +46,7 @@ func transferProcessState(fl validator.FieldLevel) bool {
 	return slices.Contains(states, fl.Field().String())
 }
 
-func contractNegotiationState(fl validator.FieldLevel) bool {
+func ContractNegotiationState(fl validator.FieldLevel) bool {
 	states := []string{
 		"dspace:REQUESTED",
 		"dspace:OFFERED",
@@ -59,7 +59,7 @@ func contractNegotiationState(fl validator.FieldLevel) bool {
 	return slices.Contains(states, fl.Field().String())
 }
 
-func validateAndMarshal[T any](ctx context.Context, s T) ([]byte, error) {
+func ValidateAndMarshal[T any](ctx context.Context, s T) ([]byte, error) {
 	logger := logging.Extract(ctx)
 	if err := validate.Struct(s); err != nil {
 		err := handleValidationError(err, logger)
@@ -68,7 +68,7 @@ func validateAndMarshal[T any](ctx context.Context, s T) ([]byte, error) {
 	return json.Marshal(s)
 }
 
-func unmarshalAndValidate[T any](ctx context.Context, b []byte, s T) (T, error) {
+func UnmarshalAndValidate[T any](ctx context.Context, b []byte, s T) (T, error) {
 	logger := logging.Extract(ctx)
 	err := json.Unmarshal(b, &s)
 	if err != nil {
@@ -112,10 +112,10 @@ func handleValidationError(err error, logger *slog.Logger) error {
 // This registers all the validators of this package, and also calls the odrl register function
 // as this package uses the odrl structs as well.
 func RegisterValidators(v *validator.Validate) error {
-	if err := v.RegisterValidation("transfer_state", transferProcessState); err != nil {
+	if err := v.RegisterValidation("transfer_state", TransferProcessState); err != nil {
 		return err
 	}
-	if err := v.RegisterValidation("contract_state", contractNegotiationState); err != nil {
+	if err := v.RegisterValidation("contract_state", ContractNegotiationState); err != nil {
 		return err
 	}
 	return odrl.RegisterValidators(v)

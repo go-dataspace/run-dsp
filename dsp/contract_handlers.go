@@ -17,12 +17,14 @@ package dsp
 import (
 	"io"
 	"net/http"
+	"strings"
 
 	"github.com/go-dataspace/run-dsp/dsp/shared"
 	"github.com/go-dataspace/run-dsp/internal/constants"
 	"github.com/go-dataspace/run-dsp/internal/dspstatemachine"
 	"github.com/go-dataspace/run-dsp/jsonld"
 	"github.com/go-dataspace/run-dsp/logging"
+	"github.com/google/uuid"
 )
 
 func getContractNegoReq() shared.ContractNegotiation {
@@ -62,18 +64,28 @@ func providerContractRequestHandler(w http.ResponseWriter, req *http.Request) {
 		returnError(w, http.StatusBadRequest, "Could not read body")
 		return
 	}
-	contractReq, err := unmarshalAndValidate(req.Context(), reqBody, shared.ContractRequestMessage{})
+	contractReq, err := shared.UnmarshalAndValidate(req.Context(), reqBody, shared.ContractRequestMessage{})
 	if err != nil {
 		returnError(w, http.StatusBadRequest, "Invalid request")
 		return
 	}
 	logger.Debug("Got contract request", "req", contractReq)
 
+	parts := strings.Split(contractReq.ConsumerPID, ":")
+	uuidPart := parts[len(parts)-1]
+	consumerPID, err := uuid.Parse(uuidPart)
+	if err != nil {
+		returnError(w, http.StatusBadRequest, "Invalid request: ConsumerPID is not a UUID")
+		return
+	}
+
 	contractArgs := dspstatemachine.ContractArgs{
-		BaseArgs:         dspstatemachine.BaseArgs{},
-		NegotiationState: 0,
-		MessageType:      0,
-		StateStorage:     dspstatemachine.GetStateStorage(),
+		BaseArgs: dspstatemachine.BaseArgs{
+			ParticipantRole:         dspstatemachine.Provider,
+			ConsumerProcessId:       consumerPID,
+			ConsumerCallbackAddress: contractReq.CallbackAddress,
+		},
+		StateStorage: dspstatemachine.GetStateStorage(req.Context()),
 	}
 	contractNegotiation, err := dspstatemachine.ProviderCheckContractRequestMessage(req.Context(), contractArgs)
 	if err != nil {
@@ -81,6 +93,11 @@ func providerContractRequestHandler(w http.ResponseWriter, req *http.Request) {
 	}
 
 	validateMarshalAndReturn(req.Context(), w, http.StatusOK, contractNegotiation)
+	channel := dspstatemachine.ExtractChannel(req.Context())
+	channel <- dspstatemachine.StateStorageChannelMessage{
+		Context:   req.Context(),
+		ProcessID: consumerPID,
+	}
 }
 
 func providerContractSpecificRequestHandler(w http.ResponseWriter, req *http.Request) {
@@ -95,7 +112,7 @@ func providerContractSpecificRequestHandler(w http.ResponseWriter, req *http.Req
 		returnError(w, http.StatusBadRequest, "Could not read body")
 		return
 	}
-	contractReq, err := unmarshalAndValidate(req.Context(), reqBody, shared.ContractRequestMessage{})
+	contractReq, err := shared.UnmarshalAndValidate(req.Context(), reqBody, shared.ContractRequestMessage{})
 	if err != nil {
 		returnError(w, http.StatusBadRequest, "Invalid request")
 		return
@@ -122,7 +139,7 @@ func providerContractEventHandler(w http.ResponseWriter, req *http.Request) {
 		returnError(w, http.StatusBadRequest, "Could not read body")
 		return
 	}
-	event, err := unmarshalAndValidate(req.Context(), reqBody, shared.ContractNegotiationEventMessage{})
+	event, err := shared.UnmarshalAndValidate(req.Context(), reqBody, shared.ContractNegotiationEventMessage{})
 	if err != nil {
 		returnError(w, http.StatusBadRequest, "Invalid request")
 		return
@@ -130,8 +147,47 @@ func providerContractEventHandler(w http.ResponseWriter, req *http.Request) {
 
 	logger.Debug("Got contract event", "event", event)
 
-	// If all goes well, we just return a 200
-	w.WriteHeader(http.StatusOK)
+	parts := strings.Split(event.ConsumerPID, ":")
+	uuidPart := parts[len(parts)-1]
+	consumerPID, err := uuid.Parse(uuidPart)
+	if err != nil {
+		returnError(w, http.StatusBadRequest, "Invalid request: ConsumerPID is not a UUID")
+		return
+	}
+	parts = strings.Split(event.ProviderPID, ":")
+	uuidPart = parts[len(parts)-1]
+
+	if providerPID != uuidPart {
+		returnError(w, http.StatusBadRequest, "Invalid request: ProviderPID in message does not match path parameter")
+		return
+	}
+
+	uuidProviderPID, err := uuid.Parse(uuidPart)
+	if err != nil {
+		returnError(w, http.StatusBadRequest, "Invalid request: ProviderPID is not a UUID")
+		return
+	}
+
+	if event.EventType != "dspace:ACCEPTED" {
+		returnError(w, http.StatusBadRequest, "Invalid request: Event type not 'dspace:ACCEPTED'")
+		return
+	}
+
+	contractArgs := dspstatemachine.ContractArgs{
+		BaseArgs: dspstatemachine.BaseArgs{
+			ParticipantRole:   dspstatemachine.Provider,
+			ConsumerProcessId: consumerPID,
+			ProviderProcessId: uuidProviderPID,
+		},
+		NegotiationState: dspstatemachine.Accepted,
+		StateStorage:     dspstatemachine.GetStateStorage(req.Context()),
+	}
+	contractNegotiation, err := dspstatemachine.ProviderCheckContractAcceptedMessage(req.Context(), contractArgs)
+	if err != nil {
+		returnError(w, http.StatusInternalServerError, err.Error())
+	}
+
+	validateMarshalAndReturn(req.Context(), w, http.StatusOK, contractNegotiation)
 }
 
 func providerContractVerificationHandler(w http.ResponseWriter, req *http.Request) {
@@ -146,7 +202,7 @@ func providerContractVerificationHandler(w http.ResponseWriter, req *http.Reques
 		returnError(w, http.StatusBadRequest, "Could not read body")
 		return
 	}
-	verification, err := unmarshalAndValidate(req.Context(), reqBody, shared.ContractAgreementVerificationMessage{})
+	verification, err := shared.UnmarshalAndValidate(req.Context(), reqBody, shared.ContractAgreementVerificationMessage{})
 	if err != nil {
 		returnError(w, http.StatusBadRequest, "Invalid request")
 		return
@@ -154,6 +210,43 @@ func providerContractVerificationHandler(w http.ResponseWriter, req *http.Reques
 
 	logger.Debug("Got contract verification", "verification", verification)
 
+	parts := strings.Split(verification.ConsumerPID, ":")
+	uuidPart := parts[len(parts)-1]
+	consumerPID, err := uuid.Parse(uuidPart)
+	if err != nil {
+		returnError(w, http.StatusBadRequest, "Invalid request: ConsumerPID is not a UUID")
+		return
+	}
+	parts = strings.Split(verification.ProviderPID, ":")
+	uuidPart = parts[len(parts)-1]
+
+	if providerPID != uuidPart {
+		returnError(w, http.StatusBadRequest, "Invalid request: ProviderPID in message does not match path parameter")
+		return
+	}
+
+	uuidProviderPID, err := uuid.Parse(uuidPart)
+	if err != nil {
+		returnError(w, http.StatusBadRequest, "Invalid request: ProviderPID is not a UUID")
+		return
+	}
+
+	contractArgs := dspstatemachine.ContractArgs{
+		BaseArgs: dspstatemachine.BaseArgs{
+			ParticipantRole:   dspstatemachine.Provider,
+			ConsumerProcessId: consumerPID,
+			ProviderProcessId: uuidProviderPID,
+		},
+		NegotiationState: dspstatemachine.Accepted,
+		StateStorage:     dspstatemachine.GetStateStorage(req.Context()),
+	}
+	contractNegotiation, err := dspstatemachine.ProviderCheckContractAgreeementVerificationMessage(
+		req.Context(), contractArgs)
+	if err != nil {
+		returnError(w, http.StatusInternalServerError, err.Error())
+	}
+
+	validateMarshalAndReturn(req.Context(), w, http.StatusOK, contractNegotiation)
 	// If all goes well, we just return a 200
 	w.WriteHeader(http.StatusOK)
 }
@@ -170,7 +263,7 @@ func providerContractTerminationHandler(w http.ResponseWriter, req *http.Request
 		returnError(w, http.StatusBadRequest, "Could not read body")
 		return
 	}
-	verification, err := unmarshalAndValidate(req.Context(), reqBody, shared.ContractNegotiationTerminationMessage{})
+	verification, err := shared.UnmarshalAndValidate(req.Context(), reqBody, shared.ContractNegotiationTerminationMessage{})
 	if err != nil {
 		returnError(w, http.StatusBadRequest, "Invalid request")
 		return
@@ -189,7 +282,7 @@ func consumerContractOfferHandler(w http.ResponseWriter, req *http.Request) {
 		returnError(w, http.StatusBadRequest, "Could not read body")
 		return
 	}
-	contractOffer, err := unmarshalAndValidate(req.Context(), reqBody, shared.ContractOfferMessage{})
+	contractOffer, err := shared.UnmarshalAndValidate(req.Context(), reqBody, shared.ContractOfferMessage{})
 	if err != nil {
 		returnError(w, http.StatusBadRequest, "Invalid request")
 		return
@@ -211,7 +304,7 @@ func consumerContractSpecificOfferHandler(w http.ResponseWriter, req *http.Reque
 		returnError(w, http.StatusBadRequest, "Could not read body")
 		return
 	}
-	offer, err := unmarshalAndValidate(req.Context(), reqBody, shared.ContractOfferMessage{})
+	offer, err := shared.UnmarshalAndValidate(req.Context(), reqBody, shared.ContractOfferMessage{})
 	if err != nil {
 		returnError(w, http.StatusBadRequest, "Invalid request")
 		return
@@ -235,7 +328,7 @@ func consumerContractAgreementHandler(w http.ResponseWriter, req *http.Request) 
 		returnError(w, http.StatusBadRequest, "Could not read body")
 		return
 	}
-	agreement, err := unmarshalAndValidate(req.Context(), reqBody, shared.ContractAgreementMessage{})
+	agreement, err := shared.UnmarshalAndValidate(req.Context(), reqBody, shared.ContractAgreementMessage{})
 	if err != nil {
 		returnError(w, http.StatusBadRequest, "Invalid request")
 		return
@@ -261,7 +354,7 @@ func consumerContractEventHandler(w http.ResponseWriter, req *http.Request) {
 	}
 
 	// This should have the event FINALIZED
-	event, err := unmarshalAndValidate(req.Context(), reqBody, shared.ContractNegotiationEventMessage{})
+	event, err := shared.UnmarshalAndValidate(req.Context(), reqBody, shared.ContractNegotiationEventMessage{})
 	if err != nil {
 		returnError(w, http.StatusBadRequest, "Invalid request")
 		return
@@ -287,7 +380,7 @@ func consumerContractTerminationHandler(w http.ResponseWriter, req *http.Request
 	}
 
 	// This should have the event FINALIZED
-	termination, err := unmarshalAndValidate(req.Context(), reqBody, shared.ContractNegotiationTerminationMessage{})
+	termination, err := shared.UnmarshalAndValidate(req.Context(), reqBody, shared.ContractNegotiationTerminationMessage{})
 	if err != nil {
 		returnError(w, http.StatusBadRequest, "Invalid request")
 		return

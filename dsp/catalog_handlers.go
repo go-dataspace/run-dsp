@@ -69,7 +69,7 @@ func catalogRequestHandler(w http.ResponseWriter, req *http.Request) {
 		returnError(w, http.StatusBadRequest, "Could not read body")
 		return
 	}
-	catalogReq, err := unmarshalAndValidate(req.Context(), body, shared.CatalogRequestMessage{})
+	catalogReq, err := shared.UnmarshalAndValidate(req.Context(), body, shared.CatalogRequestMessage{})
 	if err != nil {
 		logger.Error("Non validating catalog request", "error", err)
 		returnError(w, http.StatusBadRequest, "Request did not validate")
@@ -124,7 +124,7 @@ func datasetRequestHandler(w http.ResponseWriter, req *http.Request) {
 		returnError(w, http.StatusBadRequest, "Could not read body")
 		return
 	}
-	datasetReq, err := unmarshalAndValidate(ctx, body, shared.DatasetRequestMessage{})
+	datasetReq, err := shared.UnmarshalAndValidate(ctx, body, shared.DatasetRequestMessage{})
 	if err != nil {
 		logger.Error("Non validating dataset request", "error", err)
 		returnError(w, http.StatusBadRequest, "Request did not validate")

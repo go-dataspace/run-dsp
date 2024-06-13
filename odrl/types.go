@@ -36,7 +36,7 @@ type MessageOffer struct {
 // PolicyClass is an ODRL PolicyClass.
 type PolicyClass struct {
 	AbstractPolicyRule
-	ID          string       `json:"@id" validate:"required"`
+	ID          string       `json:"@id"`                         // FIXME: Maybe re-add the required validation?
 	ProviderID  string       `json:"dspace:providerId,omitempty"` // Got from an example, not in standard.
 	Profile     []Reference  `json:"odrl:profile,omitempty" validate:"dive"`
 	Permission  []Permission `json:"odrl:permission,omitempty" validate:"dive"`

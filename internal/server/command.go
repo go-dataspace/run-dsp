@@ -23,6 +23,7 @@ import (
 	"github.com/go-dataspace/run-dsp/dsp"
 	"github.com/go-dataspace/run-dsp/internal/auth"
 	"github.com/go-dataspace/run-dsp/internal/cli"
+	"github.com/go-dataspace/run-dsp/internal/dspstatemachine"
 	"github.com/go-dataspace/run-dsp/logging"
 
 	sloghttp "github.com/samber/slog-http"
@@ -41,12 +42,17 @@ func (c *Command) Run(p cli.Params) error {
 
 	logger.Info("Starting server", "listenAddr", c.ListenAddr, "port", c.Port)
 
+	idChannel := make(chan dspstatemachine.StateStorageChannelMessage)
+	stateStorage := dspstatemachine.GetStateStorage(ctx)
+	go stateStorage.AllowStateToProgress(idChannel)
+
 	mux := dsp.GetRoutes()
 	handler := sloghttp.Recovery(mux)
 	handler = sloghttp.New(logger)(handler)
 	handler = logging.NewMiddleware(logger)(handler)
 	handler = auth.NonsenseUserInjector(handler)
 	handler = jsonHeaderMiddleware(handler)
+	handler = dspstatemachine.NewMiddleware(idChannel)(handler)
 
 	srv := &http.Server{
 		Addr:              fmt.Sprintf("%s:%d", c.ListenAddr, c.Port),

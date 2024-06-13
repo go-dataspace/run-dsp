@@ -50,8 +50,9 @@ type BaseArgs struct {
 	// Type of DSP transaction
 	TransactionType DSPTransactionType
 
-	// Is the communication asynchronous or not?
-	AsynchronousCommunication bool
+	// Callback urls for request
+	ConsumerCallbackAddress string
+	ProviderCallbackAddress string
 
 	// Error information
 	StatusCode   int

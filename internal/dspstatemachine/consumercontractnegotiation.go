@@ -21,7 +21,7 @@ import (
 	"github.com/go-dataspace/run-dsp/dsp/shared"
 )
 
-//nolint:dupl
+//nolint:unused
 type consumerContractTasksService interface {
 	SendContractRequest(ctx context.Context, args ContractArgs) (ContractNegotiationMessageType, error)
 	CheckContractOffer(ctx context.Context, args ContractArgs) (bool, error)
@@ -62,7 +62,8 @@ func CheckContractOfferRequest(ctx context.Context, args ContractArgs) (shared.C
 	// if valid and synchronous -> return send contract accepted
 	// if rejected -> return send contract termination
 	// logger := getLogger(ctx, args.BaseArgs)
-	state, err := checkFindNegotiationState(ctx, args, []ContractNegotiationState{Requested})
+	state, err := checkFindNegotiationState(
+		ctx, args, args.BaseArgs.ConsumerProcessId, []ContractNegotiationState{Requested})
 	if err != nil {
 		return shared.ContractNegotiation{
 			Type:        "dspace:ContractNegotiation",
@@ -87,7 +88,8 @@ func CheckContractOfferRequest(ctx context.Context, args ContractArgs) (shared.C
 	}, err
 }
 
-// func sendContractAcceptedRequest(ctx context.Context, args ContractArgs) (ContractArgs, DSPState[ContractArgs], error) {
+// func sendContractAcceptedRequest(
+// ctx context.Context, args ContractArgs) (ContractArgs, DSPState[ContractArgs], error) {
 // 	logger := getLogger(ctx, args.BaseArgs)
 // 	logger.Debug("in sendContractAcceptedRequest")
 
@@ -108,7 +110,8 @@ func CheckContractOfferRequest(ctx context.Context, args ContractArgs) (shared.C
 // 		sendContractVerifiedRequest)
 // }
 
-// func checkContractAgreedRequest(ctx context.Context, args ContractArgs) (ContractArgs, DSPState[ContractArgs], error) {
+// func checkContractAgreedRequest(
+// ctx context.Context, args ContractArgs) (ContractArgs, DSPState[ContractArgs], error) {
 // 	// check contract agreed request
 // 	// if asynchronous -> send ack
 // 	// if valid and synchronous -> return send contract agreement verification
@@ -137,7 +140,8 @@ func CheckContractOfferRequest(ctx context.Context, args ContractArgs) (shared.C
 // 	)
 // }
 
-// func sendContractVerifiedRequest(ctx context.Context, args ContractArgs) (ContractArgs, DSPState[ContractArgs], error) {
+// func sendContractVerifiedRequest(
+// ctx context.Context, args ContractArgs) (ContractArgs, DSPState[ContractArgs], error) {
 // 	logger := getLogger(ctx, args.BaseArgs)
 // 	logger.Debug("in sendContractVerifiedRequest")
 
