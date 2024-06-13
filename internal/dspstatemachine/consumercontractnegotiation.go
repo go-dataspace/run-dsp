@@ -18,7 +18,7 @@ package dspstatemachine
 import (
 	"context"
 
-	"github.com/go-dataspace/run-dsp/dsp"
+	"github.com/go-dataspace/run-dsp/dsp/shared"
 )
 
 //nolint:dupl
@@ -56,7 +56,7 @@ type consumerContractTasksService interface {
 // 		sendContractAcceptedRequest)
 // }
 
-func CheckContractOfferRequest(ctx context.Context, args ContractArgs) (dsp.ContractNegotiation, error) {
+func CheckContractOfferRequest(ctx context.Context, args ContractArgs) (shared.ContractNegotiation, error) {
 	// check contract offer request
 	// if asynchronous -> send ack
 	// if valid and synchronous -> return send contract accepted
@@ -64,7 +64,7 @@ func CheckContractOfferRequest(ctx context.Context, args ContractArgs) (dsp.Cont
 	// logger := getLogger(ctx, args.BaseArgs)
 	state, err := checkFindNegotiationState(ctx, args, []ContractNegotiationState{Requested})
 	if err != nil {
-		return dsp.ContractNegotiation{}, err
+		return shared.ContractNegotiation{}, err
 	}
 
 	// return checkContractNegotiationRequest(
@@ -74,7 +74,7 @@ func CheckContractOfferRequest(ctx context.Context, args ContractArgs) (dsp.Cont
 	// 	[]ContractNegotiationState{Requested},
 	// 	Offered, false, sendContractAcceptedRequest,
 	// )
-	return dsp.ContractNegotiation{
+	return shared.ContractNegotiation{
 		Type:        "dspace:ContractNegotiation",
 		ProviderPID: state.ProviderPID.String(),
 		ConsumerPID: state.ConsumerPID.String(),

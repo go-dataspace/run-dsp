@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/go-dataspace/run-dsp/dsp/shared"
 	"github.com/go-dataspace/run-dsp/internal/constants"
 	"github.com/go-dataspace/run-dsp/jsonld"
 )
@@ -63,9 +64,9 @@ func routeNotImplemented(w http.ResponseWriter, req *http.Request) {
 }
 
 func dspaceVersionHandler(w http.ResponseWriter, req *http.Request) {
-	vResp := VersionResponse{
+	vResp := shared.VersionResponse{
 		Context: jsonld.NewRootContext([]jsonld.ContextEntry{{ID: constants.DSPContext}}),
-		ProtocolVersions: []ProtocolVersion{
+		ProtocolVersions: []shared.ProtocolVersion{
 			{
 				Version: constants.DSPVersion,
 				Path:    constants.APIPath,

@@ -28,34 +28,34 @@ import (
 	"github.com/google/uuid"
 )
 
-var dataService = DataService{
-	Resource: Resource{
+var dataService = shared.DataService{
+	Resource: shared.Resource{
 		ID:   "urn:uuid:7acb5d82-33b0-47c0-a22b-2fc470c8e3cb",
 		Type: "dcat:DataService",
 	},
 	EndpointURL: "https://insert-url-here.dsp/",
 }
 
-func fileToDataset(file *shared.File, service DataService) Dataset {
-	ds := Dataset{
-		Resource: Resource{
+func fileToDataset(file *shared.File, service shared.DataService) shared.Dataset {
+	ds := shared.Dataset{
+		Resource: shared.Resource{
 			ID:         fmt.Sprintf("urn:uuid:%s", file.ID.String()),
 			Type:       "dcat:Dataset",
 			Title:      file.Name,
 			Modified:   file.Modified,
 			ConformsTo: file.Format,
 		},
-		Distribution: []Distribution{{
+		Distribution: []shared.Distribution{{
 			Type:          "dcat:Distribution",
 			Format:        "dspace:https+push",
-			AccessService: []DataService{service},
+			AccessService: []shared.DataService{service},
 		}},
 	}
 	return ds
 }
 
-func filesToDatasets(files []*shared.File, service DataService) []Dataset {
-	datasets := make([]Dataset, len(files))
+func filesToDatasets(files []*shared.File, service shared.DataService) []shared.Dataset {
+	datasets := make([]shared.Dataset, len(files))
 	for i, f := range files {
 		datasets[i] = fileToDataset(f, service)
 	}
@@ -69,7 +69,7 @@ func catalogRequestHandler(w http.ResponseWriter, req *http.Request) {
 		returnError(w, http.StatusBadRequest, "Could not read body")
 		return
 	}
-	catalogReq, err := unmarshalAndValidate(req.Context(), body, CatalogRequestMessage{})
+	catalogReq, err := unmarshalAndValidate(req.Context(), body, shared.CatalogRequestMessage{})
 	if err != nil {
 		logger.Error("Non validating catalog request", "error", err)
 		returnError(w, http.StatusBadRequest, "Request did not validate")
@@ -89,9 +89,9 @@ func catalogRequestHandler(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	validateMarshalAndReturn(req.Context(), w, http.StatusOK, CatalogAcknowledgement{
-		Dataset: Dataset{
-			Resource: Resource{
+	validateMarshalAndReturn(req.Context(), w, http.StatusOK, shared.CatalogAcknowledgement{
+		Dataset: shared.Dataset{
+			Resource: shared.Resource{
 				ID:   "urn:uuid:3afeadd8-ed2d-569e-d634-8394a8836d57",
 				Type: "dcat:Catalog",
 				Keyword: []string{
@@ -102,7 +102,7 @@ func catalogRequestHandler(w http.ResponseWriter, req *http.Request) {
 		},
 		Context:  jsonld.NewRootContext([]jsonld.ContextEntry{{ID: constants.DSPContext}}),
 		Datasets: filesToDatasets(fileSet, dataService),
-		Service:  []DataService{dataService},
+		Service:  []shared.DataService{dataService},
 	})
 }
 
@@ -124,7 +124,7 @@ func datasetRequestHandler(w http.ResponseWriter, req *http.Request) {
 		returnError(w, http.StatusBadRequest, "Could not read body")
 		return
 	}
-	datasetReq, err := unmarshalAndValidate(ctx, body, DatasetRequestMessage{})
+	datasetReq, err := unmarshalAndValidate(ctx, body, shared.DatasetRequestMessage{})
 	if err != nil {
 		logger.Error("Non validating dataset request", "error", err)
 		returnError(w, http.StatusBadRequest, "Request did not validate")

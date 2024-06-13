@@ -18,13 +18,14 @@ import (
 	"io"
 	"net/http"
 
+	"github.com/go-dataspace/run-dsp/dsp/shared"
 	"github.com/go-dataspace/run-dsp/internal/constants"
 	"github.com/go-dataspace/run-dsp/jsonld"
 	"github.com/go-dataspace/run-dsp/logging"
 )
 
-func getContractNegoReq() ContractNegotiation {
-	return ContractNegotiation{
+func getContractNegoReq() shared.ContractNegotiation {
+	return shared.ContractNegotiation{
 		Context:     jsonld.NewRootContext([]jsonld.ContextEntry{{ID: constants.DSPContext}}),
 		Type:        "dspace:ContractNegotiation",
 		ProviderPID: "urn:uuid:dcbf434c-eacf-4582-9a02-f8dd50120fd3",
@@ -33,8 +34,8 @@ func getContractNegoReq() ContractNegotiation {
 	}
 }
 
-func getContractNegOff() ContractNegotiation {
-	return ContractNegotiation{
+func getContractNegOff() shared.ContractNegotiation {
+	return shared.ContractNegotiation{
 		Context:     jsonld.NewRootContext([]jsonld.ContextEntry{{ID: constants.DSPContext}}),
 		Type:        "dspace:ContractNegotiation",
 		ProviderPID: "urn:uuid:dcbf434c-eacf-4582-9a02-f8dd50120fd3",
@@ -49,6 +50,12 @@ func providerContractStateHandler(w http.ResponseWriter, req *http.Request) {
 		returnError(w, http.StatusBadRequest, "Missing provider PID")
 		return
 	}
+	// contractArgs := dspstatemachine.ContractArgs{
+	// 	BaseArgs:         dspstatemachine.BaseArgs{},
+	// 	NegotiationState: 0,
+	// 	MessageType:      0,
+	// 	StateStorage:     nil,
+	// }
 
 	validateMarshalAndReturn(req.Context(), w, http.StatusOK, getContractNegoReq())
 }
@@ -60,7 +67,7 @@ func providerContractRequestHandler(w http.ResponseWriter, req *http.Request) {
 		returnError(w, http.StatusBadRequest, "Could not read body")
 		return
 	}
-	contractReq, err := unmarshalAndValidate(req.Context(), reqBody, ContractRequestMessage{})
+	contractReq, err := unmarshalAndValidate(req.Context(), reqBody, shared.ContractRequestMessage{})
 	if err != nil {
 		returnError(w, http.StatusBadRequest, "Invalid request")
 		return
@@ -89,7 +96,7 @@ func providerContractSpecificRequestHandler(w http.ResponseWriter, req *http.Req
 		returnError(w, http.StatusBadRequest, "Could not read body")
 		return
 	}
-	contractReq, err := unmarshalAndValidate(req.Context(), reqBody, ContractRequestMessage{})
+	contractReq, err := unmarshalAndValidate(req.Context(), reqBody, shared.ContractRequestMessage{})
 	if err != nil {
 		returnError(w, http.StatusBadRequest, "Invalid request")
 		return
@@ -116,7 +123,7 @@ func providerContractEventHandler(w http.ResponseWriter, req *http.Request) {
 		returnError(w, http.StatusBadRequest, "Could not read body")
 		return
 	}
-	event, err := unmarshalAndValidate(req.Context(), reqBody, ContractNegotiationEventMessage{})
+	event, err := unmarshalAndValidate(req.Context(), reqBody, shared.ContractNegotiationEventMessage{})
 	if err != nil {
 		returnError(w, http.StatusBadRequest, "Invalid request")
 		return
@@ -140,7 +147,7 @@ func providerContractVerificationHandler(w http.ResponseWriter, req *http.Reques
 		returnError(w, http.StatusBadRequest, "Could not read body")
 		return
 	}
-	verification, err := unmarshalAndValidate(req.Context(), reqBody, ContractAgreementVerificationMessage{})
+	verification, err := unmarshalAndValidate(req.Context(), reqBody, shared.ContractAgreementVerificationMessage{})
 	if err != nil {
 		returnError(w, http.StatusBadRequest, "Invalid request")
 		return
@@ -164,7 +171,7 @@ func providerContractTerminationHandler(w http.ResponseWriter, req *http.Request
 		returnError(w, http.StatusBadRequest, "Could not read body")
 		return
 	}
-	verification, err := unmarshalAndValidate(req.Context(), reqBody, ContractNegotiationTerminationMessage{})
+	verification, err := unmarshalAndValidate(req.Context(), reqBody, shared.ContractNegotiationTerminationMessage{})
 	if err != nil {
 		returnError(w, http.StatusBadRequest, "Invalid request")
 		return
@@ -183,7 +190,7 @@ func consumerContractOfferHandler(w http.ResponseWriter, req *http.Request) {
 		returnError(w, http.StatusBadRequest, "Could not read body")
 		return
 	}
-	contractOffer, err := unmarshalAndValidate(req.Context(), reqBody, ContractOfferMessage{})
+	contractOffer, err := unmarshalAndValidate(req.Context(), reqBody, shared.ContractOfferMessage{})
 	if err != nil {
 		returnError(w, http.StatusBadRequest, "Invalid request")
 		return
@@ -205,7 +212,7 @@ func consumerContractSpecificOfferHandler(w http.ResponseWriter, req *http.Reque
 		returnError(w, http.StatusBadRequest, "Could not read body")
 		return
 	}
-	offer, err := unmarshalAndValidate(req.Context(), reqBody, ContractOfferMessage{})
+	offer, err := unmarshalAndValidate(req.Context(), reqBody, shared.ContractOfferMessage{})
 	if err != nil {
 		returnError(w, http.StatusBadRequest, "Invalid request")
 		return
@@ -229,7 +236,7 @@ func consumerContractAgreementHandler(w http.ResponseWriter, req *http.Request) 
 		returnError(w, http.StatusBadRequest, "Could not read body")
 		return
 	}
-	agreement, err := unmarshalAndValidate(req.Context(), reqBody, ContractAgreementMessage{})
+	agreement, err := unmarshalAndValidate(req.Context(), reqBody, shared.ContractAgreementMessage{})
 	if err != nil {
 		returnError(w, http.StatusBadRequest, "Invalid request")
 		return
@@ -255,7 +262,7 @@ func consumerContractEventHandler(w http.ResponseWriter, req *http.Request) {
 	}
 
 	// This should have the event FINALIZED
-	event, err := unmarshalAndValidate(req.Context(), reqBody, ContractNegotiationEventMessage{})
+	event, err := unmarshalAndValidate(req.Context(), reqBody, shared.ContractNegotiationEventMessage{})
 	if err != nil {
 		returnError(w, http.StatusBadRequest, "Invalid request")
 		return
@@ -281,7 +288,7 @@ func consumerContractTerminationHandler(w http.ResponseWriter, req *http.Request
 	}
 
 	// This should have the event FINALIZED
-	termination, err := unmarshalAndValidate(req.Context(), reqBody, ContractNegotiationTerminationMessage{})
+	termination, err := unmarshalAndValidate(req.Context(), reqBody, shared.ContractNegotiationTerminationMessage{})
 	if err != nil {
 		returnError(w, http.StatusBadRequest, "Invalid request")
 		return

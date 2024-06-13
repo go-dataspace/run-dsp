@@ -17,21 +17,22 @@ import (
 	"encoding/json"
 	"net/http"
 
+	"github.com/go-dataspace/run-dsp/dsp/shared"
 	"github.com/go-dataspace/run-dsp/internal/constants"
 	"github.com/go-dataspace/run-dsp/jsonld"
 	"github.com/go-dataspace/run-dsp/odrl"
 )
 
 type AllTypes struct {
-	ContractRequest            ContractRequestMessage   `json:"contract_request"`
-	ContractOffer              ContractOfferMessage     `json:"contract_offer"`
-	ContractAgreement          ContractAgreementMessage `json:"contract_agreement"`
-	ContractNegotiationMessage ContractNegotiation      `json:"contract_negotiation"`
+	ContractRequest            shared.ContractRequestMessage   `json:"contract_request"`
+	ContractOffer              shared.ContractOfferMessage     `json:"contract_offer"`
+	ContractAgreement          shared.ContractAgreementMessage `json:"contract_agreement"`
+	ContractNegotiationMessage shared.ContractNegotiation      `json:"contract_negotiation"`
 }
 
 func getAllTypes() AllTypes {
 	return AllTypes{
-		ContractRequest: ContractRequestMessage{
+		ContractRequest: shared.ContractRequestMessage{
 			Context:     jsonld.NewRootContext([]jsonld.ContextEntry{{ID: constants.DSPContext}}),
 			Type:        "dspace:ContractRequestMessage",
 			ConsumerPID: "urn:uuid:32541fe6-c580-409e-85a8-8a9a32fbe833",
@@ -45,7 +46,7 @@ func getAllTypes() AllTypes {
 			},
 			CallbackAddress: "http:/localhost/",
 		},
-		ContractOffer: ContractOfferMessage{
+		ContractOffer: shared.ContractOfferMessage{
 			Context:         jsonld.NewRootContext([]jsonld.ContextEntry{{ID: constants.DSPContext}}),
 			Type:            "",
 			ProviderPID:     "urn:uuid:dcbf434c-eacf-4582-9a02-f8dd50120fd3",
@@ -53,8 +54,8 @@ func getAllTypes() AllTypes {
 			Offer:           odrl.MessageOffer{},
 			CallbackAddress: "",
 		},
-		ContractAgreement: ContractAgreementMessage{},
-		ContractNegotiationMessage: ContractNegotiation{
+		ContractAgreement: shared.ContractAgreementMessage{},
+		ContractNegotiationMessage: shared.ContractNegotiation{
 			Context:     jsonld.NewRootContext([]jsonld.ContextEntry{{ID: constants.DSPContext}}),
 			Type:        "dspace:ContractNegotiation",
 			ProviderPID: "urn:uuid:dcbf434c-eacf-4582-9a02-f8dd50120fd3",
