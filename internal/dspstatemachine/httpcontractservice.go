@@ -51,6 +51,8 @@ func (h *httpContractService) configureRequest(r *http.Request) {
 }
 
 func (h *httpContractService) sendPostRequest(ctx context.Context, url string, reqBody []byte) ([]byte, error) {
+	logger := logging.Extract(ctx)
+	logger.Debug("Going to send POST request", "target_url", url)
 	req, err := http.NewRequest("POST", url, bytes.NewBuffer(reqBody))
 	if err != nil {
 		return nil, err

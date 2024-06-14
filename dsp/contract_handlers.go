@@ -147,7 +147,6 @@ func providerContractEventHandler(w http.ResponseWriter, req *http.Request) {
 	}
 
 	logger.Debug("Got contract event", "event", event)
-
 	parts := strings.Split(event.ConsumerPID, ":")
 	uuidPart := parts[len(parts)-1]
 	consumerPID, err := uuid.Parse(uuidPart)
@@ -262,7 +261,8 @@ func providerContractTerminationHandler(w http.ResponseWriter, req *http.Request
 		returnError(w, http.StatusBadRequest, "Could not read body")
 		return
 	}
-	verification, err := shared.UnmarshalAndValidate(req.Context(), reqBody, shared.ContractNegotiationTerminationMessage{})
+	verification, err := shared.UnmarshalAndValidate(
+		req.Context(), reqBody, shared.ContractNegotiationTerminationMessage{})
 	if err != nil {
 		returnError(w, http.StatusBadRequest, "Invalid request")
 		return
