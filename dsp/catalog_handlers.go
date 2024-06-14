@@ -22,7 +22,6 @@ import (
 	"github.com/go-dataspace/run-dsp/dsp/shared"
 	"github.com/go-dataspace/run-dsp/internal/auth"
 	"github.com/go-dataspace/run-dsp/internal/constants"
-	"github.com/go-dataspace/run-dsp/internal/fsprovider"
 	"github.com/go-dataspace/run-dsp/jsonld"
 	"github.com/go-dataspace/run-dsp/logging"
 	"github.com/google/uuid"
@@ -34,6 +33,10 @@ var dataService = shared.DataService{
 		Type: "dcat:DataService",
 	},
 	EndpointURL: "https://insert-url-here.dsp/",
+}
+
+type catalogHandlers struct {
+	provider shared.FileProvider
 }
 
 func fileToDataset(file *shared.File, service shared.DataService) shared.Dataset {
@@ -62,7 +65,7 @@ func filesToDatasets(files []*shared.File, service shared.DataService) []shared.
 	return datasets
 }
 
-func catalogRequestHandler(w http.ResponseWriter, req *http.Request) {
+func (ch *catalogHandlers) catalogRequestHandler(w http.ResponseWriter, req *http.Request) {
 	logger := logging.Extract(req.Context())
 	body, err := io.ReadAll(req.Body)
 	if err != nil {
@@ -76,10 +79,9 @@ func catalogRequestHandler(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 	logger.Debug("Got catalog request", "req", catalogReq)
-	p := fsprovider.New("/tmp/run-dsp-pre-alpha-storage")
 	ui := auth.ExtractUserInfo(req.Context())
 	// As there's no filter option yet, we don't need anything from the catalog request.
-	fileSet, err := p.GetFileSet(req.Context(), &shared.CitizenData{
+	fileSet, err := ch.provider.GetFileSet(req.Context(), &shared.CitizenData{
 		FirstName: ui.FirstName,
 		LastName:  ui.Lastname,
 		BirthDate: ui.BirthDate,
@@ -106,7 +108,7 @@ func catalogRequestHandler(w http.ResponseWriter, req *http.Request) {
 	})
 }
 
-func datasetRequestHandler(w http.ResponseWriter, req *http.Request) {
+func (ch *catalogHandlers) datasetRequestHandler(w http.ResponseWriter, req *http.Request) {
 	paramID := req.PathValue("id")
 	if paramID == "" {
 		returnError(w, http.StatusBadRequest, "No ID given in path")
@@ -131,12 +133,9 @@ func datasetRequestHandler(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 	logger.Debug("Got dataset request", "req", datasetReq)
-	// Cheating a bit as we only have a single dataset for a user, this will be better in
-	// actual production code.
-	p := fsprovider.New("/tmp/run-dsp-pre-alpha-storage")
 	ui := auth.ExtractUserInfo(ctx)
 	// As there's no filter option yet, we don't need anything from the catalog request.
-	file, err := p.GetFile(ctx, &shared.CitizenData{
+	file, err := ch.provider.GetFile(ctx, &shared.CitizenData{
 		FirstName: ui.FirstName,
 		LastName:  ui.Lastname,
 		BirthDate: ui.BirthDate,

@@ -21,9 +21,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/fs"
 	"log/slog"
 	"os"
 	"path"
+	"path/filepath"
 	"strconv"
 	"time"
 
@@ -38,10 +40,11 @@ const idDB = ".ids.json"
 var ErrNotFound = errors.New("File not found")
 
 type Adapter struct {
-	path string
+	path      string
+	publisher *Publisher
 }
 
-func New(path string) Adapter {
+func New(path string, publisher *Publisher) Adapter {
 	return Adapter{path: path}
 }
 
@@ -89,6 +92,30 @@ func (a Adapter) GetFile(ctx context.Context, citizenData *shared.CitizenData, i
 	return nil, ErrNotFound
 }
 
+// PublishFile publishes a file by its ID and returns upload data.
+// The process ID is the ID of the process that's publishing the data.
+func (a Adapter) PublishFile(
+	ctx context.Context, citizenData *shared.CitizenData, fileID, processID uuid.UUID,
+) (shared.PublishInfo, error) {
+	file, err := a.GetFile(ctx, citizenData, fileID)
+	if err != nil {
+		return shared.PublishInfo{}, err
+	}
+	path, token, err := a.publisher.Publish(processID, file.FullPath)
+	if err != nil {
+		return shared.PublishInfo{}, err
+	}
+	return shared.PublishInfo{
+		URL:   path,
+		Token: token,
+	}, nil
+}
+
+// UnpublishFile unpublishes a file associated with the processID.
+func (a Adapter) UnpublishFile(ctx context.Context, processID uuid.UUID) {
+	a.publisher.Unpublish(processID)
+}
+
 func getIDs(logger *slog.Logger, userPath string) (map[string]uuid.UUID, error) {
 	idPath := path.Join(userPath, idDB)
 	_, err := os.Stat(idPath)
@@ -134,37 +161,19 @@ func getFiles(logger *slog.Logger, dir string) ([]*shared.File, error) {
 		return nil, err
 	}
 	entries, err := os.ReadDir(dir)
-	files := make([]*shared.File, 0)
+	files := make([]*shared.File, len(entries))
 	if err != nil {
 		return nil, err
 	}
-	for _, entry := range entries {
-		if entry.IsDir() {
-			continue
-		}
-		if entry.Name() == idDB {
-			continue
-		}
-		id := uuid.New()
-		if existing, ok := ids[entry.Name()]; ok {
-			id = existing
-		}
-		info, err := entry.Info()
+	for i, entry := range entries {
+		id, f, err := newFunction(entry, ids, dir, logger)
 		if err != nil {
-			logger.Error("Couldn't get file info", "file", entry.Name(), "error", err)
 			return nil, err
 		}
-		mtype, err := mimetype.DetectFile(path.Join(dir, entry.Name()))
-		if err != nil {
-			logger.Error("Couldn't get file mimetype", "file", entry.Name(), "error", err)
-			return nil, err
+		if f == nil {
+			continue
 		}
-		files = append(files, &shared.File{
-			ID:       id,
-			Name:     entry.Name(),
-			Modified: info.ModTime().Format(time.RFC3339Nano),
-			Format:   mtype.String(),
-		})
+		files[i] = f
 		ids[entry.Name()] = id
 	}
 
@@ -174,4 +183,39 @@ func getFiles(logger *slog.Logger, dir string) ([]*shared.File, error) {
 	}
 
 	return files, nil
+}
+
+func newFunction(entry fs.DirEntry, ids map[string]uuid.UUID, dir string, logger *slog.Logger) (
+	uuid.UUID, *shared.File, error,
+) {
+	if entry.IsDir() || entry.Name() == idDB {
+		return uuid.UUID{}, nil, nil
+	}
+	id := uuid.New()
+	if existing, ok := ids[entry.Name()]; ok {
+		id = existing
+	}
+	fullPath, err := filepath.Abs(path.Join(dir, entry.Name()))
+	if err != nil {
+		logger.Error("Couldn't get absolute path", "file", entry.Name(), "error", err)
+		return uuid.UUID{}, nil, err
+	}
+	info, err := entry.Info()
+	if err != nil {
+		logger.Error("Couldn't get file info", "file", entry.Name(), "error", err)
+		return uuid.UUID{}, nil, err
+	}
+	mtype, err := mimetype.DetectFile(fullPath)
+	if err != nil {
+		logger.Error("Couldn't get file mimetype", "file", entry.Name(), "error", err)
+		return uuid.UUID{}, nil, err
+	}
+	f := &shared.File{
+		ID:       id,
+		Name:     entry.Name(),
+		Modified: info.ModTime().Format(time.RFC3339Nano),
+		Format:   mtype.String(),
+		FullPath: fullPath,
+	}
+	return id, f, nil
 }
