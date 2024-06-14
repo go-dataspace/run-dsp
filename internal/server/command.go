@@ -28,6 +28,7 @@ import (
 	"github.com/go-dataspace/run-dsp/internal/dspstatemachine"
 	"github.com/go-dataspace/run-dsp/internal/fsprovider"
 	"github.com/go-dataspace/run-dsp/logging"
+	"github.com/justinas/alice"
 
 	sloghttp "github.com/samber/slog-http"
 )
@@ -58,23 +59,32 @@ func (c *Command) Run(p cli.Params) error {
 	provider := fsprovider.New(c.ServePath, publisher)
 
 	mux := http.NewServeMux()
-	wellKnown := dsp.GetWellKnownRoutes()
-	dspRoutes := auth.NonsenseUserInjector(dsp.GetDSPRoutes(provider))
-	publisherRoutes := publisher.Mux()
 
-	mux.Handle("/.well-known/", http.StripPrefix("/.well-known", wellKnown))
-	mux.Handle(constants.APIPath+"/", http.StripPrefix(constants.APIPath, dspRoutes))
-	mux.Handle(constants.FileServePath+"/", http.StripPrefix(constants.FileServePath, publisherRoutes))
-
-	handler := sloghttp.Recovery(mux)
-	handler = sloghttp.New(logger)(handler)
-	handler = logging.NewMiddleware(logger)(handler)
-	handler = jsonHeaderMiddleware(handler)
-	handler = dspstatemachine.NewMiddleware(idChannel)(handler)
+	baseMW := alice.New(
+		sloghttp.Recovery,
+		sloghttp.New(logger),
+		logging.NewMiddleware(logger),
+	)
+	mux.Handle(constants.FileServePath+"/", http.StripPrefix(
+		constants.FileServePath,
+		baseMW.Then(publisher.Mux()),
+	))
+	mux.Handle("/.well-known/", http.StripPrefix(
+		"/.well-known",
+		baseMW.Append(jsonHeaderMiddleware).Then(dsp.GetWellKnownRoutes()),
+	))
+	mux.Handle(constants.APIPath+"/", http.StripPrefix(
+		constants.APIPath,
+		baseMW.Append(
+			jsonHeaderMiddleware,
+			auth.NonsenseUserInjector,
+			dspstatemachine.NewMiddleware(idChannel),
+		).Then(dsp.GetDSPRoutes(provider)),
+	))
 
 	srv := &http.Server{
 		Addr:              fmt.Sprintf("%s:%d", c.ListenAddr, c.Port),
-		Handler:           handler,
+		Handler:           mux,
 		ReadHeaderTimeout: 2 * time.Second,
 	}
 	return srv.ListenAndServe()
