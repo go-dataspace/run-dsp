@@ -418,6 +418,20 @@ func consumerContractEventHandler(w http.ResponseWriter, req *http.Request) {
 	}
 
 	validateMarshalAndReturn(req.Context(), w, http.StatusOK, contractNegotiation)
+
+	// FIXME: This is only for testing purposed
+	state, _ := contractArgs.StateStorage.FindContractNegotiationState(req.Context(), consumerPID)
+	statePID := uuid.New()
+	transferState := dspstatemachine.DSPTransferStateStorage{
+		StateID:         statePID,
+		ConsumerPID:     statePID,
+		State:           dspstatemachine.UndefinedTransferState,
+		ParticipantRole: dspstatemachine.Consumer,
+		AgreementID:     state.Agreement.ID,
+	}
+	//nolint:errcheck
+	contractArgs.StateStorage.StoreTransferNegotiationState(req.Context(), statePID, transferState)
+	go sendUUID(req.Context(), statePID, dspstatemachine.Transfer)
 }
 
 func consumerContractTerminationHandler(w http.ResponseWriter, req *http.Request) {
@@ -535,9 +549,6 @@ func triggerProviderContractOfferRequestHandler(w http.ResponseWriter, req *http
 	go sendUUID(req.Context(), providerPID, dspstatemachine.Contract)
 }
 
-// Adding linting exception because of intermediary commit.
-//
-//nolint:unparam
 func sendUUID(ctx context.Context, id uuid.UUID, transactionType dspstatemachine.DSPTransactionType) {
 	channel := dspstatemachine.ExtractChannel(ctx)
 	channel <- dspstatemachine.StateStorageChannelMessage{

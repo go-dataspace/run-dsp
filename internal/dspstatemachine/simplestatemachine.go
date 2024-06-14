@@ -68,6 +68,7 @@ type DSPTransferStateStorage struct {
 	ConsumerCallbackAddress string
 	ProviderCallbackAddress string
 	ParticipantRole         DSPParticipantRole
+	AgreementID             string
 }
 
 type SimpleStateStorage struct {
