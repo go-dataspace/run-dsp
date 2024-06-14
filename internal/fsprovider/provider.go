@@ -38,14 +38,21 @@ const idDB = ".ids.json"
 var ErrNotFound = errors.New("File not found")
 
 type Adapter struct {
-	path string
+	path      string
+	publisher *Publisher
 }
 
-func New(path string) Adapter {
+// TODO: Move this to shared
+type PublishInfo struct {
+	URL   string
+	Token string
+}
+
+func New(path string, publisher *Publisher) Adapter {
 	return Adapter{path: path}
 }
 
-func (a Adapter) GetFileSet(ctx context.Context, citizenData *shared.CitizenData) ([]*shared.File, error) {
+func (a *Adapter) GetFileSet(ctx context.Context, citizenData *shared.CitizenData) ([]*shared.File, error) {
 	logger := logging.Extract(ctx)
 	userPath := path.Join(
 		a.path,
@@ -76,7 +83,7 @@ func (a Adapter) GetFileSet(ctx context.Context, citizenData *shared.CitizenData
 
 // GetFile gets a file by ID. Now done by just checking if it's in the returned files. Super
 // inefficient.
-func (a Adapter) GetFile(ctx context.Context, citizenData *shared.CitizenData, id uuid.UUID) (*shared.File, error) {
+func (a *Adapter) GetFile(ctx context.Context, citizenData *shared.CitizenData, id uuid.UUID) (*shared.File, error) {
 	files, err := a.GetFileSet(ctx, citizenData)
 	if err != nil {
 		return nil, err
@@ -87,6 +94,25 @@ func (a Adapter) GetFile(ctx context.Context, citizenData *shared.CitizenData, i
 		}
 	}
 	return nil, ErrNotFound
+}
+
+// PublishFile publishes a file by its ID and returns upload data.
+// The process ID is the ID of the process that's publishing the data.
+func (a *Adapter) PublishFile(
+	ctx context.Context, citizenData *shared.CitizenData, fileID, processID uuid.UUID,
+) (PublishInfo, error) {
+	file, err := a.GetFile(ctx, citizenData, fileID)
+	if err != nil {
+		return PublishInfo{}, err
+	}
+	path, token, err := a.publisher.Publish(processID, file.Fullpath)
+	if err != nil {
+		return PublishInfo{}, err
+	}
+	return PublishInfo{
+		URL:   path,
+		Token: token,
+	}, nil
 }
 
 func getIDs(logger *slog.Logger, userPath string) (map[string]uuid.UUID, error) {
