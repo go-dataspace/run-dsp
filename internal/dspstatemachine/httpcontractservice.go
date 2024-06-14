@@ -100,7 +100,7 @@ func (h *httpContractService) ConsumerSendContractRequest(ctx context.Context) e
 	}
 
 	targetUrl := fmt.Sprintf("%s/negotiations/request", h.ContractState.ProviderCallbackAddress)
-	logger.Debug("Sending ContractAgreement", "target_url", targetUrl, "contract_request", contractRequest)
+	logger.Debug("Sending ContractRequest", "target_url", targetUrl, "contract_request", contractRequest)
 	responseBody, err := h.sendPostRequest(ctx, targetUrl, reqBody)
 	if err != nil {
 		return err
@@ -114,7 +114,7 @@ func (h *httpContractService) ConsumerSendContractRequest(ctx context.Context) e
 		}
 
 		logger.Debug("Got ContractNegotiation", "contract_negotiation", contractNegotiation)
-		if contractNegotiation.State != "dspace:AGREED" {
+		if contractNegotiation.State != "dspace:REQUESTED" {
 			return errors.New("Invalid state returned")
 		}
 	}

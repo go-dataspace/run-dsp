@@ -42,7 +42,7 @@ func (c *Command) Run(p cli.Params) error {
 
 	logger.Info("Starting server", "listenAddr", c.ListenAddr, "port", c.Port)
 
-	idChannel := make(chan dspstatemachine.StateStorageChannelMessage)
+	idChannel := make(chan dspstatemachine.StateStorageChannelMessage, 10)
 	stateStorage := dspstatemachine.GetStateStorage(ctx)
 	go stateStorage.AllowStateToProgress(idChannel)
 

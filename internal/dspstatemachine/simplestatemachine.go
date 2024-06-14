@@ -16,6 +16,7 @@ package dspstatemachine
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"time"
 
@@ -29,10 +30,10 @@ var (
 	mutex          = &sync.RWMutex{}
 )
 
-type contractStateStore struct {
-	contractState map[uuid.UUIDs]DSPContractStateStorage
-	sync.RWMutex
-}
+// type contractStateStore struct {
+// 	contractState map[uuid.UUIDs]DSPContractStateStorage
+// 	sync.RWMutex
+// }
 
 // func (c contractStateStore) Get(u uuid.UUID) DSPContractStateStorage {
 // 	defer c.Unlock()
@@ -105,25 +106,47 @@ func (s *SimpleStateStorage) AllowStateToProgress(idChan chan StateStorageChanne
 				continue
 			}
 
-			logger.Info("Delaying triggering next state for one second")
-			time.Sleep(time.Second)
-
-			var err error
 			if state.ParticipantRole == Consumer {
-				err = s.triggerNextConsumerState(message.Context, state)
+				go s.triggerNextConsumerState(message.Context, state)
 			} else {
-				err = s.triggerNextProviderState(message.Context, state)
-			}
-			if err != nil {
-				logger.Error("Failed to trigger next state for processId", "process_id", message.ProcessID)
+				go s.triggerNextProviderState(message.Context, state)
 			}
 		}
 	}
 }
 
+func (s *SimpleStateStorage) checkErrorAndStoreState(
+	ctx context.Context, contractState DSPContractStateStorage, err error,
+) {
+	logger := logging.Extract(ctx)
+
+	var msg string
+	if err != nil {
+		msg = fmt.Sprintf("Failed to trigger next state for processId. Error: %s", err.Error())
+		logger.Error(msg,
+			"process_id", contractState.StateID,
+			"next_state", contractState.State,
+			"role", contractState.ParticipantRole,
+			"error", err)
+		return
+	}
+
+	err = s.StoreContractNegotiationState(ctx, contractState.StateID, contractState)
+	if err != nil {
+		msg = fmt.Sprintf("Failed to store state for processId. Error: %s", err.Error())
+		logger.Error(msg,
+			"process_id", contractState.StateID,
+			"next_state", contractState.State,
+			"role", contractState.ParticipantRole,
+			"error", err)
+	}
+}
+
 func (s *SimpleStateStorage) triggerNextConsumerState(
 	ctx context.Context, contractState DSPContractStateStorage,
-) error {
+) {
+	logger := logging.Extract(ctx)
+	logger.Info("Delaying triggering next state for one second")
 	httpService := getHttpContractService(ctx, contractState)
 	var err error
 	switch contractState.State {
@@ -139,15 +162,14 @@ func (s *SimpleStateStorage) triggerNextConsumerState(
 	case Terminated:
 	}
 
-	if err == nil {
-		err = s.StoreContractNegotiationState(ctx, contractState.StateID, contractState)
-	}
-
-	return err
+	s.checkErrorAndStoreState(ctx, contractState, err)
 }
 
-func (s *SimpleStateStorage) triggerNextProviderState(ctx context.Context, contractState DSPContractStateStorage) error {
+func (s *SimpleStateStorage) triggerNextProviderState(ctx context.Context, contractState DSPContractStateStorage) {
+	logger := logging.Extract(ctx)
+	logger.Info("Delaying triggering next state for one second")
 	httpService := getHttpContractService(ctx, contractState)
+	time.Sleep(time.Second)
 	var err error
 	switch contractState.State {
 	case Requested:
@@ -162,9 +184,5 @@ func (s *SimpleStateStorage) triggerNextProviderState(ctx context.Context, contr
 	case Terminated:
 	}
 
-	if err == nil {
-		err = s.StoreContractNegotiationState(ctx, contractState.StateID, contractState)
-	}
-
-	return err
+	s.checkErrorAndStoreState(ctx, contractState, err)
 }
