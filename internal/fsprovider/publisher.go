@@ -99,7 +99,7 @@ type Publisher struct {
 }
 
 func NewPublisher(ctx context.Context, prefix string, serverURL *url.URL) *Publisher {
-	pub := &Publisher{
+	return &Publisher{
 		ctx: ctx,
 		store: offers{
 			u: make(map[uuid.UUID]*fileOffer),
@@ -108,16 +108,6 @@ func NewPublisher(ctx context.Context, prefix string, serverURL *url.URL) *Publi
 		prefix:    prefix,
 		serverURL: serverURL,
 	}
-	path, token, err := pub.Publish(
-		uuid.New(),
-		"/var/tmp/run-dsp/fileserver/1981/10/26/Franke/Daniël/Get_Started_With_Smallpdf.pdf",
-	)
-	if err != nil {
-		panic(err.Error())
-	}
-	l := logging.Extract(ctx)
-	l.Info("Publish info", "path", path, "token", token)
-	return pub
 }
 
 // Mux returns a mux that is ready to serve the files.
