@@ -12,7 +12,7 @@
             "program": "${workspaceFolder}/cmd/",
             "args": [
                 "server",
-                "--debug"
+                "--debug",
             ]
         }
     ]

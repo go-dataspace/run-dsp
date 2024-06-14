@@ -29,6 +29,7 @@ type File struct {
 	Name     string
 	Modified string
 	Format   string
+	FullPath string
 }
 
 // CitizenData is the citizen data we will pass to the functions.
@@ -38,8 +39,15 @@ type CitizenData struct {
 	BirthDate time.Time
 }
 
-// Cataloger exposes functions to get catalog information.
-type Cataloger interface {
+type PublishInfo struct {
+	URL   string
+	Token string
+}
+
+// FileProvider exposes functions to get catalog information.
+type FileProvider interface {
 	GetFileSet(ctx context.Context, citizenData *CitizenData) ([]*File, error)
 	GetFile(ctx context.Context, citizenData *CitizenData, id uuid.UUID) (*File, error)
+	PublishFile(ctx context.Context, citizenData *CitizenData, fileID, processID uuid.UUID) (PublishInfo, error)
+	UnpublishFile(ctx context.Context, processID uuid.UUID)
 }

@@ -15,7 +15,8 @@
 package constants
 
 const (
-	DSPVersion = "2024-1"
-	APIPath    = "/run-dsp/v2024-1"
-	DSPContext = "https://w3id.org/dspace/2024/1/context.json"
+	DSPVersion    = "2024-1"
+	APIPath       = "/run-dsp/v2024-1"
+	DSPContext    = "https://w3id.org/dspace/2024/1/context.json"
+	FileServePath = "/files"
 )

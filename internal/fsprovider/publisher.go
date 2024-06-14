@@ -21,6 +21,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"os"
 	"path"
 	"strconv"
@@ -91,20 +92,32 @@ func generateRandomString(length int) (string, error) {
 
 // Publisher handles all the file serving operations.
 type Publisher struct {
-	ctx    context.Context
-	store  offers
-	prefix string
+	ctx       context.Context
+	store     offers
+	prefix    string
+	serverURL *url.URL
 }
 
-func NewPublisher(ctx context.Context, prefix string) *Publisher {
-	return &Publisher{
+func NewPublisher(ctx context.Context, prefix string, serverURL *url.URL) *Publisher {
+	pub := &Publisher{
 		ctx: ctx,
 		store: offers{
 			u: make(map[uuid.UUID]*fileOffer),
 			p: make(map[string]*fileOffer),
 		},
-		prefix: prefix,
+		prefix:    prefix,
+		serverURL: serverURL,
 	}
+	path, token, err := pub.Publish(
+		uuid.New(),
+		"/var/tmp/run-dsp/fileserver/1981/10/26/Franke/Daniël/Get_Started_With_Smallpdf.pdf",
+	)
+	if err != nil {
+		panic(err.Error())
+	}
+	l := logging.Extract(ctx)
+	l.Info("Publish info", "path", path, "token", token)
+	return pub
 }
 
 // Mux returns a mux that is ready to serve the files.
@@ -133,8 +146,10 @@ func (p *Publisher) Publish(id uuid.UUID, filePath string) (string, string, erro
 		Token:          token,
 		PathIdentifier: identifier,
 	})
+	url := p.serverURL
+	url.Path = path.Join(url.Path, p.prefix, identifier, path.Base(filePath))
 
-	return path.Join(p.prefix, identifier, path.Base(filePath)), token, err
+	return url.String(), token, err
 }
 
 func (p *Publisher) Unpublish(id uuid.UUID) {

@@ -21,9 +21,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/fs"
 	"log/slog"
 	"os"
 	"path"
+	"path/filepath"
 	"strconv"
 	"time"
 
@@ -42,17 +44,11 @@ type Adapter struct {
 	publisher *Publisher
 }
 
-// TODO: Move this to shared
-type PublishInfo struct {
-	URL   string
-	Token string
-}
-
 func New(path string, publisher *Publisher) Adapter {
 	return Adapter{path: path}
 }
 
-func (a *Adapter) GetFileSet(ctx context.Context, citizenData *shared.CitizenData) ([]*shared.File, error) {
+func (a Adapter) GetFileSet(ctx context.Context, citizenData *shared.CitizenData) ([]*shared.File, error) {
 	logger := logging.Extract(ctx)
 	userPath := path.Join(
 		a.path,
@@ -83,7 +79,7 @@ func (a *Adapter) GetFileSet(ctx context.Context, citizenData *shared.CitizenDat
 
 // GetFile gets a file by ID. Now done by just checking if it's in the returned files. Super
 // inefficient.
-func (a *Adapter) GetFile(ctx context.Context, citizenData *shared.CitizenData, id uuid.UUID) (*shared.File, error) {
+func (a Adapter) GetFile(ctx context.Context, citizenData *shared.CitizenData, id uuid.UUID) (*shared.File, error) {
 	files, err := a.GetFileSet(ctx, citizenData)
 	if err != nil {
 		return nil, err
@@ -98,21 +94,26 @@ func (a *Adapter) GetFile(ctx context.Context, citizenData *shared.CitizenData, 
 
 // PublishFile publishes a file by its ID and returns upload data.
 // The process ID is the ID of the process that's publishing the data.
-func (a *Adapter) PublishFile(
+func (a Adapter) PublishFile(
 	ctx context.Context, citizenData *shared.CitizenData, fileID, processID uuid.UUID,
-) (PublishInfo, error) {
+) (shared.PublishInfo, error) {
 	file, err := a.GetFile(ctx, citizenData, fileID)
 	if err != nil {
-		return PublishInfo{}, err
+		return shared.PublishInfo{}, err
 	}
-	path, token, err := a.publisher.Publish(processID, file.Fullpath)
+	path, token, err := a.publisher.Publish(processID, file.FullPath)
 	if err != nil {
-		return PublishInfo{}, err
+		return shared.PublishInfo{}, err
 	}
-	return PublishInfo{
+	return shared.PublishInfo{
 		URL:   path,
 		Token: token,
 	}, nil
+}
+
+// UnpublishFile unpublishes a file associated with the processID.
+func (a Adapter) UnpublishFile(ctx context.Context, processID uuid.UUID) {
+	a.publisher.Unpublish(processID)
 }
 
 func getIDs(logger *slog.Logger, userPath string) (map[string]uuid.UUID, error) {
@@ -160,37 +161,19 @@ func getFiles(logger *slog.Logger, dir string) ([]*shared.File, error) {
 		return nil, err
 	}
 	entries, err := os.ReadDir(dir)
-	files := make([]*shared.File, 0)
+	files := make([]*shared.File, len(entries))
 	if err != nil {
 		return nil, err
 	}
-	for _, entry := range entries {
-		if entry.IsDir() {
-			continue
-		}
-		if entry.Name() == idDB {
-			continue
-		}
-		id := uuid.New()
-		if existing, ok := ids[entry.Name()]; ok {
-			id = existing
-		}
-		info, err := entry.Info()
+	for i, entry := range entries {
+		id, f, err := newFunction(entry, ids, dir, logger)
 		if err != nil {
-			logger.Error("Couldn't get file info", "file", entry.Name(), "error", err)
 			return nil, err
 		}
-		mtype, err := mimetype.DetectFile(path.Join(dir, entry.Name()))
-		if err != nil {
-			logger.Error("Couldn't get file mimetype", "file", entry.Name(), "error", err)
-			return nil, err
+		if f == nil {
+			continue
 		}
-		files = append(files, &shared.File{
-			ID:       id,
-			Name:     entry.Name(),
-			Modified: info.ModTime().Format(time.RFC3339Nano),
-			Format:   mtype.String(),
-		})
+		files[i] = f
 		ids[entry.Name()] = id
 	}
 
@@ -200,4 +183,39 @@ func getFiles(logger *slog.Logger, dir string) ([]*shared.File, error) {
 	}
 
 	return files, nil
+}
+
+func newFunction(entry fs.DirEntry, ids map[string]uuid.UUID, dir string, logger *slog.Logger) (
+	uuid.UUID, *shared.File, error,
+) {
+	if entry.IsDir() || entry.Name() == idDB {
+		return uuid.UUID{}, nil, nil
+	}
+	id := uuid.New()
+	if existing, ok := ids[entry.Name()]; ok {
+		id = existing
+	}
+	fullPath, err := filepath.Abs(path.Join(dir, entry.Name()))
+	if err != nil {
+		logger.Error("Couldn't get absolute path", "file", entry.Name(), "error", err)
+		return uuid.UUID{}, nil, err
+	}
+	info, err := entry.Info()
+	if err != nil {
+		logger.Error("Couldn't get file info", "file", entry.Name(), "error", err)
+		return uuid.UUID{}, nil, err
+	}
+	mtype, err := mimetype.DetectFile(fullPath)
+	if err != nil {
+		logger.Error("Couldn't get file mimetype", "file", entry.Name(), "error", err)
+		return uuid.UUID{}, nil, err
+	}
+	f := &shared.File{
+		ID:       id,
+		Name:     entry.Name(),
+		Modified: info.ModTime().Format(time.RFC3339Nano),
+		Format:   mtype.String(),
+		FullPath: fullPath,
+	}
+	return id, f, nil
 }

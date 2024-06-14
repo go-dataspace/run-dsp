@@ -18,12 +18,15 @@ package server
 import (
 	"fmt"
 	"net/http"
+	"net/url"
 	"time"
 
 	"github.com/go-dataspace/run-dsp/dsp"
 	"github.com/go-dataspace/run-dsp/internal/auth"
 	"github.com/go-dataspace/run-dsp/internal/cli"
+	"github.com/go-dataspace/run-dsp/internal/constants"
 	"github.com/go-dataspace/run-dsp/internal/dspstatemachine"
+	"github.com/go-dataspace/run-dsp/internal/fsprovider"
 	"github.com/go-dataspace/run-dsp/logging"
 
 	sloghttp "github.com/samber/slog-http"
@@ -33,6 +36,8 @@ import (
 type Command struct {
 	ListenAddr string `help:"Listen address" default:"0.0.0.0" env:"LISTEN_ADDR"`
 	Port       int    `help:"Listen port" default:"8080" env:"PORT"`
+	ServerURL  string `help:"External URL of the server, e.g. https://example.org" default:"http://127.0.0.1:8080/" env:"SERVER_URL"` //nolint:lll
+	ServePath  string `help:"Path for fileserver" default:"/var/tmp/run-dsp/fileserver" env:"SERVE_PATH"`                             //nolint:lll
 }
 
 // Run starts the server.
@@ -45,12 +50,25 @@ func (c *Command) Run(p cli.Params) error {
 	idChannel := make(chan dspstatemachine.StateStorageChannelMessage, 10)
 	stateStorage := dspstatemachine.GetStateStorage(ctx)
 	go stateStorage.AllowStateToProgress(idChannel)
+	url, err := url.Parse(c.ServerURL)
+	if err != nil {
+		return fmt.Errorf("Invalid URL: %s", c.ServerURL)
+	}
+	publisher := fsprovider.NewPublisher(ctx, constants.FileServePath, url)
+	provider := fsprovider.New(c.ServePath, publisher)
 
-	mux := dsp.GetRoutes()
+	mux := http.NewServeMux()
+	wellKnown := dsp.GetWellKnownRoutes()
+	dspRoutes := auth.NonsenseUserInjector(dsp.GetDSPRoutes(provider))
+	publisherRoutes := publisher.Mux()
+
+	mux.Handle("/.well-known/", http.StripPrefix("/.well-known", wellKnown))
+	mux.Handle(constants.APIPath+"/", http.StripPrefix(constants.APIPath, dspRoutes))
+	mux.Handle(constants.FileServePath+"/", http.StripPrefix(constants.FileServePath, publisherRoutes))
+
 	handler := sloghttp.Recovery(mux)
 	handler = sloghttp.New(logger)(handler)
 	handler = logging.NewMiddleware(logger)(handler)
-	handler = auth.NonsenseUserInjector(handler)
 	handler = jsonHeaderMiddleware(handler)
 	handler = dspstatemachine.NewMiddleware(idChannel)(handler)
 

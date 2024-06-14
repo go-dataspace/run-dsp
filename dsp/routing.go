@@ -17,19 +17,27 @@ package dsp
 
 import (
 	"net/http"
+
+	"github.com/go-dataspace/run-dsp/dsp/shared"
 )
 
 // GetRoutes gets all the dataspace routes.
-func GetRoutes() http.Handler {
+func GetWellKnownRoutes() http.Handler {
 	mux := http.NewServeMux()
 
-	mux.HandleFunc("GET /.well-known/dspace-version", dspaceVersionHandler)
+	mux.HandleFunc("GET /dspace-version", dspaceVersionHandler)
 	// This is an optional proof endpoint for protected datasets.
-	mux.HandleFunc("GET /.well-known/dspace-trust", routeNotImplemented)
+	mux.HandleFunc("GET /dspace-trust", routeNotImplemented)
+	return mux
+}
 
+func GetDSPRoutes(provider shared.FileProvider) http.Handler {
+	mux := http.NewServeMux()
+
+	ch := catalogHandlers{provider: provider}
 	// Catalog endpoints
-	mux.HandleFunc("POST /catalog/request", catalogRequestHandler)
-	mux.HandleFunc("GET /catalog/datasets/{id}", datasetRequestHandler)
+	mux.HandleFunc("POST /catalog/request", ch.catalogRequestHandler)
+	mux.HandleFunc("GET /catalog/datasets/{id}", ch.datasetRequestHandler)
 
 	// Contract negotiation endpoints
 	mux.HandleFunc("GET /negotiations/{providerPID}", providerContractStateHandler)
