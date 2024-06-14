@@ -30,8 +30,16 @@ import (
 
 type httpContractService struct {
 	httpService
-	Context       context.Context
 	ContractState DSPContractStateStorage
+}
+
+func getHttpContractService(ctx context.Context, contractState DSPContractStateStorage) *httpContractService {
+	return &httpContractService{
+		httpService: httpService{
+			Context: ctx,
+		},
+		ContractState: contractState,
+	}
 }
 
 func (h *httpContractService) ConsumerSendContractRequest(ctx context.Context) error {
@@ -72,7 +80,7 @@ func (h *httpContractService) ConsumerSendContractRequest(ctx context.Context) e
 			return err
 		}
 
-		logger.Debug("Got ContractNegotiation", "cloontract_negotiation", contractNegotiation)
+		logger.Debug("Got ContractNegotiation", "contract_negotiation", contractNegotiation)
 		if contractNegotiation.State != "dspace:REQUESTED" {
 			return errors.New("Invalid state returned")
 		}
@@ -81,6 +89,7 @@ func (h *httpContractService) ConsumerSendContractRequest(ctx context.Context) e
 	return nil
 }
 
+//nolint:dupl
 func (h *httpContractService) ConsumerSendAgreementVerificationRequest(ctx context.Context) error {
 	logger := logging.Extract(ctx)
 	logger.Debug("In ConsumerAgreementVerificationRequest")

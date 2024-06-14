@@ -338,16 +338,22 @@ func (s *SimpleStateStorage) triggerNextConsumerTransferState(
 ) {
 	logger := logging.Extract(ctx)
 	logger.Info("Delaying triggering next consumer transfer state for one second")
+	httpService := getHttpTransferService(ctx, transferState)
+	var err error
 	switch transferState.State {
 	case UndefinedTransferState:
+		transferState.State = TransferRequested
+		err = httpService.ConsumerSendTransferRequest(ctx)
 	case TransferRequested:
 	case TransferStarted:
+		transferState.State = TransferCompleted
+		err = httpService.ConsumerSendTransferCompleted(ctx)
 	case TransferSuspended:
 	case TransferCompleted:
 	case TransferTerminated:
 	}
 
-	s.checkErrorAndStoreTransferState(ctx, transferState, nil)
+	s.checkErrorAndStoreTransferState(ctx, transferState, err)
 }
 
 func (s *SimpleStateStorage) triggerNextProviderTransferState(
@@ -355,14 +361,18 @@ func (s *SimpleStateStorage) triggerNextProviderTransferState(
 ) {
 	logger := logging.Extract(ctx)
 	logger.Info("Delaying triggering next provider transfer state for one second")
+	httpService := getHttpTransferService(ctx, transferState)
+	var err error
 	switch transferState.State {
 	case UndefinedTransferState:
 	case TransferRequested:
+		transferState.State = TransferStarted
+		err = httpService.ProviderSendTransferStartRequest(ctx)
 	case TransferStarted:
 	case TransferSuspended:
 	case TransferCompleted:
 	case TransferTerminated:
 	}
 
-	s.checkErrorAndStoreTransferState(ctx, transferState, nil)
+	s.checkErrorAndStoreTransferState(ctx, transferState, err)
 }

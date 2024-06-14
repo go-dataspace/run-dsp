@@ -17,11 +17,14 @@ package dsp
 import (
 	"io"
 	"net/http"
+	"strings"
 
 	"github.com/go-dataspace/run-dsp/dsp/shared"
 	"github.com/go-dataspace/run-dsp/internal/constants"
+	"github.com/go-dataspace/run-dsp/internal/dspstatemachine"
 	"github.com/go-dataspace/run-dsp/jsonld"
 	"github.com/go-dataspace/run-dsp/logging"
+	"github.com/google/uuid"
 )
 
 func getTransferProcessReq() shared.TransferProcess {
@@ -58,7 +61,31 @@ func providerTransferRequestHandler(w http.ResponseWriter, req *http.Request) {
 	}
 	logger.Debug("Got transfer request", "req", transferReq)
 
-	validateMarshalAndReturn(req.Context(), w, http.StatusCreated, getTransferProcessReq())
+	parts := strings.Split(transferReq.ConsumerPID, ":")
+	uuidPart := parts[len(parts)-1]
+	consumerPID, err := uuid.Parse(uuidPart)
+	if err != nil {
+		returnError(w, http.StatusBadRequest, "Consumer PID is not a UUID")
+		return
+	}
+	transferArgs := dspstatemachine.TransferArgs{
+		BaseArgs: dspstatemachine.BaseArgs{
+			ParticipantRole:         dspstatemachine.Provider,
+			ConsumerProcessId:       consumerPID,
+			ProviderProcessId:       uuid.New(),
+			ConsumerCallbackAddress: transferReq.CallbackAddress,
+		},
+		AgreementID:  transferReq.AgreementID,
+		StateStorage: dspstatemachine.GetStateStorage(req.Context()),
+	}
+
+	transferProcess, err := dspstatemachine.ProviderCheckTransferRequestMessage(req.Context(), transferArgs)
+	if err != nil {
+		returnError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	validateMarshalAndReturn(req.Context(), w, http.StatusCreated, transferProcess)
+	go sendUUID(req.Context(), transferArgs.ProviderProcessId, dspstatemachine.Transfer)
 }
 
 func providerTransferStartHandler(w http.ResponseWriter, req *http.Request) {
@@ -87,10 +114,14 @@ func providerTransferStartHandler(w http.ResponseWriter, req *http.Request) {
 
 func providerTransferCompletionHandler(w http.ResponseWriter, req *http.Request) {
 	logger := logging.Extract(req.Context())
-	providerPID := req.PathValue("providerPID")
-	if providerPID == "" {
+	providerPIDString := req.PathValue("providerPID")
+	if providerPIDString == "" {
 		returnError(w, http.StatusBadRequest, "Missing provider PID")
 		return
+	}
+	providerPID, err := uuid.Parse(providerPIDString)
+	if err != nil {
+		returnError(w, http.StatusBadRequest, "Provider PID is not a UUID")
 	}
 	reqBody, err := io.ReadAll(req.Body)
 	if err != nil {
@@ -105,8 +136,20 @@ func providerTransferCompletionHandler(w http.ResponseWriter, req *http.Request)
 
 	logger.Debug("Got transfer completion", "completion", completion)
 
-	// If all goes well, we just return a 200
-	w.WriteHeader(http.StatusOK)
+	transferArgs := dspstatemachine.TransferArgs{
+		BaseArgs: dspstatemachine.BaseArgs{
+			ParticipantRole:   dspstatemachine.Provider,
+			ProviderProcessId: providerPID,
+		},
+		StateStorage: dspstatemachine.GetStateStorage(req.Context()),
+	}
+
+	transferProcess, err := dspstatemachine.ProviderCheckTransferCompletionMessage(req.Context(), transferArgs)
+	if err != nil {
+		returnError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	validateMarshalAndReturn(req.Context(), w, http.StatusCreated, transferProcess)
 }
 
 func providerTransferTerminationHandler(w http.ResponseWriter, req *http.Request) {
@@ -159,9 +202,14 @@ func providerTransferSuspensionHandler(w http.ResponseWriter, req *http.Request)
 
 func consumerTransferStartHandler(w http.ResponseWriter, req *http.Request) {
 	logger := logging.Extract(req.Context())
-	providerPID := req.PathValue("consumerPID")
-	if providerPID == "" {
-		returnError(w, http.StatusBadRequest, "Missing provider PID")
+	consumerPIDString := req.PathValue("consumerPID")
+	if consumerPIDString == "" {
+		returnError(w, http.StatusBadRequest, "Missing consumer PID")
+		return
+	}
+	consumerPID, err := uuid.Parse(consumerPIDString)
+	if err != nil {
+		returnError(w, http.StatusBadRequest, "Consumer PID is not a UUID")
 		return
 	}
 	reqBody, err := io.ReadAll(req.Body)
@@ -175,10 +223,32 @@ func consumerTransferStartHandler(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	logger.Debug("Got transfer start", "suspension", start)
+	logger.Debug("Got transfer start from provider", "suspension", start)
 
-	// If all goes well, we just return a 200
-	w.WriteHeader(http.StatusOK)
+	parts := strings.Split(start.ProviderPID, ":")
+	uuidPart := parts[len(parts)-1]
+	providerPID, err := uuid.Parse(uuidPart)
+	if err != nil {
+		returnError(w, http.StatusBadRequest, "Provider PID is not a UUID")
+		return
+	}
+	transferArgs := dspstatemachine.TransferArgs{
+		BaseArgs: dspstatemachine.BaseArgs{
+			ParticipantRole:   dspstatemachine.Provider,
+			ConsumerProcessId: consumerPID,
+			ProviderProcessId: providerPID,
+		},
+		StateStorage: dspstatemachine.GetStateStorage(req.Context()),
+	}
+
+	transferProcess, err := dspstatemachine.ConsumerCheckTransferStartMessage(req.Context(), transferArgs)
+	if err != nil {
+		returnError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	validateMarshalAndReturn(req.Context(), w, http.StatusCreated, transferProcess)
+	go sendUUID(req.Context(), transferArgs.ConsumerProcessId, dspstatemachine.Transfer)
 }
 
 func consumerTransferCompletionHandler(w http.ResponseWriter, req *http.Request) {

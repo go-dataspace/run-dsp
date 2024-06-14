@@ -24,7 +24,7 @@ type TransferRequestMessage struct {
 	Type            string         `json:"@type,omitempty" validate:"required,eq=dspace:TransferRequestMessage"`
 	AgreementID     string         `json:"dspace:agreementID" validate:"required"`
 	Format          string         `json:"dct:format" validate:"required"`
-	DataAddress     DataAddress    `json:"dspace:dataAddress"`
+	DataAddress     *DataAddress   `json:"dspace:dataAddress,omitempty"`
 	CallbackAddress string         `json:"dspace:callbackAddress" validate:"required"`
 	ConsumerPID     string         `json:"dspace:consumerPid" validate:"required"`
 }

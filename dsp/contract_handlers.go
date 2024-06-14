@@ -423,11 +423,13 @@ func consumerContractEventHandler(w http.ResponseWriter, req *http.Request) {
 	state, _ := contractArgs.StateStorage.FindContractNegotiationState(req.Context(), consumerPID)
 	statePID := uuid.New()
 	transferState := dspstatemachine.DSPTransferStateStorage{
-		StateID:         statePID,
-		ConsumerPID:     statePID,
-		State:           dspstatemachine.UndefinedTransferState,
-		ParticipantRole: dspstatemachine.Consumer,
-		AgreementID:     state.Agreement.ID,
+		StateID:                 statePID,
+		ConsumerPID:             statePID,
+		State:                   dspstatemachine.UndefinedTransferState,
+		ParticipantRole:         dspstatemachine.Consumer,
+		AgreementID:             state.Agreement.ID,
+		ConsumerCallbackAddress: "http://localhost:8080/run-dsp/v2024-1/callback",
+		ProviderCallbackAddress: "http://localhost:8080/run-dsp/v2024-1",
 	}
 	//nolint:errcheck
 	contractArgs.StateStorage.StoreTransferNegotiationState(req.Context(), statePID, transferState)

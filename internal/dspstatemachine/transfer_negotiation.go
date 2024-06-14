@@ -55,6 +55,7 @@ type TransferArgs struct {
 	BaseArgs
 	TransferState TransferNegotiationState
 	StateStorage  DSPStateStorageService
+	AgreementID   string
 }
 
 type DSPTransferNegotiationError struct {
@@ -66,7 +67,6 @@ func (err *DSPTransferNegotiationError) Error() string {
 	return fmt.Sprintf("status %d: err %v", err.StatusCode, err.Err)
 }
 
-//nolint:unused
 func checkFindTransferNegotiationState(
 	ctx context.Context, args TransferArgs, processID uuid.UUID, expectedStates []TransferNegotiationState,
 ) (DSPTransferStateStorage, error) {
