@@ -25,8 +25,9 @@ type contextKeyType string
 const contextKey contextKeyType = "statechannel"
 
 type StateStorageChannelMessage struct {
-	Context   context.Context
-	ProcessID uuid.UUID
+	Context         context.Context
+	ProcessID       uuid.UUID
+	TransactionType DSPTransactionType
 }
 
 func NewMiddleware(idChan chan StateStorageChannelMessage) func(http.Handler) http.Handler {

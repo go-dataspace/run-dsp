@@ -89,6 +89,7 @@ func providerContractRequestHandler(w http.ResponseWriter, req *http.Request) {
 			ProviderProcessId:       uuid.New(),
 			ConsumerCallbackAddress: contractReq.CallbackAddress,
 		},
+		Offer:        contractReq.Offer,
 		StateStorage: dspstatemachine.GetStateStorage(req.Context()),
 	}
 	contractNegotiation, err := dspstatemachine.ProviderCheckContractRequestMessage(req.Context(), contractArgs)
@@ -98,7 +99,7 @@ func providerContractRequestHandler(w http.ResponseWriter, req *http.Request) {
 	}
 
 	validateMarshalAndReturn(req.Context(), w, http.StatusOK, contractNegotiation)
-	go sendUUID(req.Context(), contractArgs.ProviderProcessId)
+	go sendUUID(req.Context(), contractArgs.ProviderProcessId, dspstatemachine.Contract)
 }
 
 func providerContractSpecificRequestHandler(w http.ResponseWriter, req *http.Request) {
@@ -246,7 +247,7 @@ func providerContractVerificationHandler(w http.ResponseWriter, req *http.Reques
 	}
 
 	validateMarshalAndReturn(req.Context(), w, http.StatusOK, contractNegotiation)
-	go sendUUID(req.Context(), contractArgs.ProviderProcessId)
+	go sendUUID(req.Context(), contractArgs.ProviderProcessId, dspstatemachine.Contract)
 }
 
 func providerContractTerminationHandler(w http.ResponseWriter, req *http.Request) {
@@ -356,6 +357,7 @@ func consumerContractAgreementHandler(w http.ResponseWriter, req *http.Request) 
 			ProviderCallbackAddress: agreement.CallbackAddress,
 		},
 		StateStorage: dspstatemachine.GetStateStorage(req.Context()),
+		Agreement:    agreement.Agreement,
 	}
 	contractNegotiation, err := dspstatemachine.ConsumerCheckContractAgreedRequest(req.Context(), contractArgs)
 	if err != nil {
@@ -364,7 +366,7 @@ func consumerContractAgreementHandler(w http.ResponseWriter, req *http.Request) 
 	}
 
 	validateMarshalAndReturn(req.Context(), w, http.StatusOK, contractNegotiation)
-	go sendUUID(req.Context(), consumerPID)
+	go sendUUID(req.Context(), consumerPID, dspstatemachine.Contract)
 }
 
 func consumerContractEventHandler(w http.ResponseWriter, req *http.Request) {
@@ -467,7 +469,7 @@ func triggerConsumerContractRequestHandler(w http.ResponseWriter, req *http.Requ
 	// If all goes well, we just return a 200
 	w.WriteHeader(http.StatusOK)
 
-	go sendUUID(req.Context(), consumerPID)
+	go sendUUID(req.Context(), consumerPID, dspstatemachine.Contract)
 }
 
 func getConsumerContractRequestHandler(w http.ResponseWriter, req *http.Request) {
@@ -530,13 +532,17 @@ func triggerProviderContractOfferRequestHandler(w http.ResponseWriter, req *http
 	// If all goes well, we just return a 200
 	w.WriteHeader(http.StatusOK)
 
-	go sendUUID(req.Context(), providerPID)
+	go sendUUID(req.Context(), providerPID, dspstatemachine.Contract)
 }
 
-func sendUUID(ctx context.Context, id uuid.UUID) {
+// Adding linting exception because of intermediary commit.
+//
+//nolint:unparam
+func sendUUID(ctx context.Context, id uuid.UUID, transactionType dspstatemachine.DSPTransactionType) {
 	channel := dspstatemachine.ExtractChannel(ctx)
 	channel <- dspstatemachine.StateStorageChannelMessage{
-		Context:   ctx,
-		ProcessID: id,
+		Context:         ctx,
+		ProcessID:       id,
+		TransactionType: transactionType,
 	}
 }

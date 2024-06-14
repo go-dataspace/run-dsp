@@ -25,7 +25,7 @@ import (
 )
 
 func ConsumerCheckContractOfferRequest(ctx context.Context, args ContractArgs) (shared.ContractNegotiation, error) {
-	state, err := checkFindNegotiationState(
+	state, err := checkFindContractNegotiationState(
 		ctx, args, args.BaseArgs.ConsumerProcessId, []ContractNegotiationState{UndefinedState})
 	if err == nil {
 		return shared.ContractNegotiation{}, errors.New("Found negotation state on contract offer received")
@@ -53,7 +53,7 @@ func ConsumerCheckContractOfferRequest(ctx context.Context, args ContractArgs) (
 func ConsumerCheckContractAgreedRequest(
 	ctx context.Context, args ContractArgs,
 ) (shared.ContractNegotiation, error) {
-	state, err := checkFindNegotiationState(
+	state, err := checkFindContractNegotiationState(
 		ctx, args, args.BaseArgs.ConsumerProcessId, []ContractNegotiationState{Requested})
 	if err != nil {
 		return shared.ContractNegotiation{}, err
@@ -63,6 +63,7 @@ func ConsumerCheckContractAgreedRequest(
 		state.ProviderPID = args.ProviderProcessId
 	}
 	state.State = Agreed
+	state.Agreement = args.Agreement
 	err = args.StateStorage.StoreContractNegotiationState(ctx, state.StateID, state)
 	if err != nil {
 		return shared.ContractNegotiation{}, fmt.Errorf("Failed to store %s state", Agreed)
@@ -78,7 +79,7 @@ func ConsumerCheckContractAgreedRequest(
 func ConsumerCheckContractFinalizedRequest(
 	ctx context.Context, args ContractArgs,
 ) (shared.ContractNegotiation, error) {
-	state, err := checkFindNegotiationState(
+	state, err := checkFindContractNegotiationState(
 		ctx, args, args.BaseArgs.ProviderProcessId, []ContractNegotiationState{Verified})
 	if err != nil {
 		return shared.ContractNegotiation{}, err
@@ -86,6 +87,11 @@ func ConsumerCheckContractFinalizedRequest(
 
 	state.State = Finalized
 	err = args.StateStorage.StoreContractNegotiationState(ctx, state.StateID, state)
+	if err != nil {
+		return shared.ContractNegotiation{}, fmt.Errorf("Failed to store %s state", Finalized)
+	}
+
+	err = args.StateStorage.StoreAgreement(ctx, state.Agreement.ID, state.Agreement)
 	if err != nil {
 		return shared.ContractNegotiation{}, fmt.Errorf("Failed to store %s state", Finalized)
 	}

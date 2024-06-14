@@ -32,6 +32,7 @@ func ProviderCheckContractRequestMessage(ctx context.Context, args ContractArgs)
 		ConsumerCallbackAddress: args.ConsumerCallbackAddress,
 		ProviderCallbackAddress: "http://localhost:8080",
 		ParticipantRole:         Provider,
+		Offer:                   args.Offer,
 	}
 	err := args.StateStorage.StoreContractNegotiationState(ctx, newState.StateID, newState)
 	if err != nil {
@@ -50,7 +51,7 @@ func ProviderCheckContractRequestMessage(ctx context.Context, args ContractArgs)
 func ProviderCheckContractAcceptedMessage(
 	ctx context.Context, args ContractArgs,
 ) (shared.ContractNegotiation, error) {
-	state, err := checkFindNegotiationState(ctx, args, args.ProviderProcessId, []ContractNegotiationState{Offered})
+	state, err := checkFindContractNegotiationState(ctx, args, args.ProviderProcessId, []ContractNegotiationState{Offered})
 	if err != nil {
 		return shared.ContractNegotiation{}, err
 	}
@@ -58,6 +59,7 @@ func ProviderCheckContractAcceptedMessage(
 	state.ConsumerPID = args.ConsumerProcessId
 	state.ProviderPID = state.StateID
 	state.State = Accepted
+	state.Offer = args.Offer
 	err = args.StateStorage.StoreContractNegotiationState(ctx, args.ProviderProcessId, state)
 	if err != nil {
 		return shared.ContractNegotiation{}, fmt.Errorf("Failed to store %s state", Accepted)
@@ -75,7 +77,7 @@ func ProviderCheckContractAcceptedMessage(
 func ProviderCheckContractAgreementVerificationMessage(
 	ctx context.Context, args ContractArgs,
 ) (shared.ContractNegotiation, error) {
-	state, err := checkFindNegotiationState(ctx, args, args.ProviderProcessId, []ContractNegotiationState{Agreed})
+	state, err := checkFindContractNegotiationState(ctx, args, args.ProviderProcessId, []ContractNegotiationState{Agreed})
 	if err != nil {
 		return shared.ContractNegotiation{}, err
 	}

@@ -23,12 +23,17 @@ import (
 
 	"github.com/go-dataspace/run-dsp/internal/auth"
 	"github.com/go-dataspace/run-dsp/logging"
+	"github.com/go-dataspace/run-dsp/odrl"
 	"github.com/google/uuid"
 )
 
 var (
-	contractStates = make(map[uuid.UUID]DSPContractStateStorage)
-	mutex          = &sync.RWMutex{}
+	contractStates  = make(map[uuid.UUID]DSPContractStateStorage)
+	contractsMutex  = &sync.RWMutex{}
+	transferStates  = make(map[uuid.UUID]DSPTransferStateStorage)
+	transfersMutex  = &sync.RWMutex{}
+	agreements      = make(map[string]odrl.Agreement)
+	agreementsMutex = &sync.RWMutex{}
 )
 
 // type contractStateStore struct {
@@ -51,6 +56,18 @@ type DSPContractStateStorage struct {
 	ConsumerCallbackAddress string
 	ProviderCallbackAddress string
 	ParticipantRole         DSPParticipantRole
+	Offer                   odrl.MessageOffer
+	Agreement               odrl.Agreement
+}
+
+type DSPTransferStateStorage struct {
+	StateID                 uuid.UUID
+	ProviderPID             uuid.UUID
+	ConsumerPID             uuid.UUID
+	State                   TransferNegotiationState
+	ConsumerCallbackAddress string
+	ProviderCallbackAddress string
+	ParticipantRole         DSPParticipantRole
 }
 
 type SimpleStateStorage struct {
@@ -68,9 +85,9 @@ func (s *SimpleStateStorage) FindContractNegotiationState(
 ) (DSPContractStateStorage, error) {
 	logger := logging.Extract(ctx)
 	logger.Debug("STATESTORAGE: Trying to get contract state", "state_id", id)
-	mutex.Lock()
+	contractsMutex.Lock()
 	state, ok := contractStates[id]
-	mutex.Unlock()
+	contractsMutex.Unlock()
 	if !ok {
 		logger.Debug("STATESTORAGE: Could not find state, returning error")
 		return DSPContractStateStorage{}, errors.New("Could not find negotiation state")
@@ -83,9 +100,61 @@ func (s *SimpleStateStorage) StoreContractNegotiationState(
 ) error {
 	logger := logging.Extract(ctx)
 	logger.Debug("STATESTORAGE: Storing contract state", "state_id", id, "state_storage", negotationState)
-	mutex.RLock()
+	contractsMutex.RLock()
 	contractStates[id] = negotationState
-	mutex.RUnlock()
+	contractsMutex.RUnlock()
+	return nil
+}
+
+func (s *SimpleStateStorage) FindTransferNegotiationState(
+	ctx context.Context, id uuid.UUID,
+) (DSPTransferStateStorage, error) {
+	logger := logging.Extract(ctx)
+	logger.Debug("TRANSFERSTATESTORAGE: Trying to get transfer state", "state_id", id)
+	transfersMutex.Lock()
+	state, ok := transferStates[id]
+	transfersMutex.Unlock()
+	if !ok {
+		logger.Debug("TRANSFERSTATESTORAGE: Could not find state, returning error")
+		return DSPTransferStateStorage{}, errors.New("Could not find negotiation state")
+	}
+	return state, nil
+}
+
+func (s *SimpleStateStorage) StoreTransferNegotiationState(
+	ctx context.Context, id uuid.UUID, negotationState DSPTransferStateStorage,
+) error {
+	logger := logging.Extract(ctx)
+	logger.Debug("TRANSFERSTATESTORAGE: Storing transfer state", "state_id", id, "state_storage", negotationState)
+	transfersMutex.RLock()
+	transferStates[id] = negotationState
+	transfersMutex.RUnlock()
+	return nil
+}
+
+func (s *SimpleStateStorage) FindAgreement(
+	ctx context.Context, id string,
+) (odrl.Agreement, error) {
+	logger := logging.Extract(ctx)
+	logger.Debug("TRANSFERSTATESTORAGE: Trying to get transfer state", "state_id", id)
+	agreementsMutex.Lock()
+	agreement, ok := agreements[id]
+	agreementsMutex.Unlock()
+	if !ok {
+		logger.Debug("TRANSFERSTATESTORAGE: Could not find state, returning error")
+		return odrl.Agreement{}, errors.New("Could not find negotiation state")
+	}
+	return agreement, nil
+}
+
+func (s *SimpleStateStorage) StoreAgreement(
+	ctx context.Context, id string, agreement odrl.Agreement,
+) error {
+	logger := logging.Extract(ctx)
+	logger.Debug("TRANSFERSTATESTORAGE: Storing transfer state", "state_id", id, "state_storage", agreement)
+	agreementsMutex.RLock()
+	agreements[id] = agreement
+	agreementsMutex.RUnlock()
 	return nil
 }
 
@@ -103,18 +172,22 @@ func (s *SimpleStateStorage) AllowStateToProgress(idChan chan StateStorageChanne
 			logger = logging.Extract(message.Context)
 			logger.Info("Got UUID of state to release...",
 				"uuid", message.ProcessID, "auth", auth.ExtractUserInfo(message.Context))
-			mutex.Lock()
-			state, ok := contractStates[message.ProcessID]
-			mutex.Unlock()
-			if !ok {
-				logger.Error("Could not find state for processId", "process_id", message.ProcessID)
-				continue
-			}
+			if message.TransactionType == Contract {
+				contractsMutex.Lock()
+				state, ok := contractStates[message.ProcessID]
+				contractsMutex.Unlock()
+				if !ok {
+					logger.Error("Could not find state for processId", "process_id", message.ProcessID)
+					continue
+				}
 
-			if state.ParticipantRole == Consumer {
-				go s.triggerNextConsumerState(message.Context, state)
+				if state.ParticipantRole == Consumer {
+					go s.triggerNextConsumerState(message.Context, state)
+				} else {
+					go s.triggerNextProviderState(message.Context, state)
+				}
 			} else {
-				go s.triggerNextProviderState(message.Context, state)
+				logger.Info(("Got Transfer transaction type, but this is not yet implemented"))
 			}
 		}
 	}
@@ -134,6 +207,18 @@ func (s *SimpleStateStorage) checkErrorAndStoreState(
 			"role", contractState.ParticipantRole,
 			"error", err)
 		return
+	}
+
+	if contractState.State == Finalized {
+		err = s.StoreAgreement(ctx, contractState.Agreement.ID, contractState.Agreement)
+		if err != nil {
+			msg = fmt.Sprintf("Failed to store agreement for processId. Error: %s", err.Error())
+			logger.Error(msg,
+				"process_id", contractState.StateID,
+				"agreement", contractState.Agreement,
+				"role", contractState.ParticipantRole,
+				"error", err)
+		}
 	}
 
 	err = s.StoreContractNegotiationState(ctx, contractState.StateID, contractState)
@@ -181,7 +266,7 @@ func (s *SimpleStateStorage) triggerNextProviderState(ctx context.Context, contr
 	switch contractState.State {
 	case Requested:
 		contractState.State = Agreed
-		err = httpService.ProviderSendContractAgreement(ctx)
+		contractState.Agreement, err = httpService.ProviderSendContractAgreement(ctx)
 	case Agreed:
 		contractState.State = Finalized
 		err = httpService.ProviderSendContractFinalized(ctx)

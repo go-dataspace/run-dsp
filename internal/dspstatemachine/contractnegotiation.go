@@ -17,49 +17,13 @@ package dspstatemachine
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"slices"
 
+	"github.com/go-dataspace/run-dsp/odrl"
 	"github.com/google/uuid"
 )
-
-type ContractNegotiationMessageType int64
-
-const (
-	UndefinedMessage ContractNegotiationMessageType = iota
-	ContractRequestMessage
-	ContractOfferMessage
-	ContractAgreementMessage
-	ContractAgreementVerificationMessage
-	ContractNegotiationEventMessage
-	ContractNegotiationTerminationMessage
-	ContractNegotiationMessage
-	ContractNegotiationError
-)
-
-func (s ContractNegotiationMessageType) String() string {
-	switch s {
-	case UndefinedMessage:
-		return "UndefinedMessage"
-	case ContractRequestMessage:
-		return "ContractRequestMessage"
-	case ContractOfferMessage:
-		return "ContractOfferMessage"
-	case ContractAgreementMessage:
-		return "ContractAgreementMessage"
-	case ContractAgreementVerificationMessage:
-		return "ContractAgreementVerificationMessage"
-	case ContractNegotiationEventMessage:
-		return "ContractNegotiationEventMessage"
-	case ContractNegotiationTerminationMessage:
-		return "ContractNegotiationTerminationMessage"
-	case ContractNegotiationMessage:
-		return "ContractNegotiationMessage"
-	case ContractNegotiationError:
-		return "ContractNegotiationError"
-	}
-	return "unknown"
-}
 
 type ContractNegotiationState int64
 
@@ -102,17 +66,11 @@ type ContractArgs struct {
 	// ContractNegotiationstate
 	NegotiationState ContractNegotiationState
 
-	// ContractMessageType
-	MessageType ContractNegotiationMessageType
-
 	// Backend service for storing / retrieving transaction state
 	StateStorage DSPStateStorageService
 
-	// Consumer contract managing service
-	// consumerService consumerContractTasksService
-
-	// Provider contract managing service
-	// providerService providerContractTasksService
+	Offer     odrl.MessageOffer
+	Agreement odrl.Agreement
 }
 
 type DSPContractNegotiationError struct {
@@ -120,17 +78,17 @@ type DSPContractNegotiationError struct {
 	Err        error
 }
 
-// func newDSPContractError(status int, message string) error {
-// 	return &DSPContractNegotiationError{
-// 		status, errors.New(message),
-// 	}
-// }
-
 func (err *DSPContractNegotiationError) Error() string {
 	return fmt.Sprintf("status %d: err %v", err.StatusCode, err.Err)
 }
 
-func checkFindNegotiationState(
+func newDSPContractError(status int, message string) error {
+	return &DSPContractNegotiationError{
+		status, errors.New(message),
+	}
+}
+
+func checkFindContractNegotiationState(
 	ctx context.Context, args ContractArgs, processID uuid.UUID, expectedStates []ContractNegotiationState,
 ) (DSPContractStateStorage, error) {
 	logger := getLogger(ctx, args.BaseArgs)
@@ -141,9 +99,10 @@ func checkFindNegotiationState(
 		return DSPContractStateStorage{}, err
 	}
 	if !slices.Contains(expectedStates, negotiationState.State) {
-		return DSPContractStateStorage{}, &DSPContractNegotiationError{
-			42, fmt.Errorf("Contract negotiation state invalid. Got %s, expected %s", negotiationState.State, expectedStates),
-		}
+		return DSPContractStateStorage{}, newDSPContractError(
+			42,
+			fmt.Sprintf("Contract negotiation state invalid. Got %s, expected %s", negotiationState.State, expectedStates),
+		)
 	}
 
 	return negotiationState, nil
