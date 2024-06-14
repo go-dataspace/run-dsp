@@ -96,6 +96,7 @@ func (s *SimpleStateStorage) AllowStateToProgress(idChan chan StateStorageChanne
 	logger := logging.Extract(s.ctx)
 	logger.Info("Started go routine for state storage")
 
+	//nolint:gosimple
 	for {
 		select {
 		case message := <-idChan:

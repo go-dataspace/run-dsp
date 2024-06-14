@@ -22,35 +22,6 @@ import (
 	"github.com/go-dataspace/run-dsp/jsonld"
 )
 
-//nolint:dupl
-type providerContractTasksService interface {
-	SendContractOffer(ctx context.Context) error
-	SendContractAgreement(ctx context.Context) error
-	SendNegotiationFinalized(ctx context.Context) error
-	SendContractNegotiationMessage(ctx context.Context) error
-	SendTerminationMessage(ctx context.Context) error
-	SendErrorMessage(ctx context.Context) error
-}
-
-// //nolint:unused
-// func sendContractOfferRequest(ctx context.Context, args ContractArgs) (ContractArgs, DSPState[ContractArgs], error) {
-// 	err := checkFindNegotiationState(ctx, args, []ContractNegotiationState{UndefinedState})
-// 	if err != nil {
-// 		return ContractArgs{}, nil, err
-// 	}
-
-// 	messageType, err := args.providerService.SendContractOffer(ctx, args)
-// 	return checkMessageTypeAndStoreState(
-// 		ctx,
-// 		args,
-// 		[]ContractNegotiationMessageType{ContractNegotiationMessage, ContractOfferMessage},
-// 		messageType,
-// 		err,
-// 		Offered,
-// 		Offered,
-// 		sendContractAcceptedRequest)
-// }
-
 func ProviderCheckContractRequestMessage(ctx context.Context, args ContractArgs) (shared.ContractNegotiation, error) {
 	// NOTE: Going directly from REQUESTED to AGREED
 	newState := DSPContractStateStorage{
@@ -76,7 +47,6 @@ func ProviderCheckContractRequestMessage(ctx context.Context, args ContractArgs)
 	}, err
 }
 
-// //nolint:unused
 func ProviderCheckContractAcceptedMessage(
 	ctx context.Context, args ContractArgs,
 ) (shared.ContractNegotiation, error) {
@@ -101,50 +71,6 @@ func ProviderCheckContractAcceptedMessage(
 		State:       "dspace:ACCEPTED",
 	}, err
 }
-
-// //nolint:unused
-// func sendContractAgreedRequest(ctx context.Context, args ContractArgs) (ContractArgs, DSPState[ContractArgs], error) {
-// 	logger := getLogger(ctx, args.BaseArgs)
-// 	logger.Debug("in sendContractAgreedRequest")
-// 	err := checkFindNegotiationState(ctx, args, []ContractNegotiationState{Requested})
-// 	if err != nil {
-// 		return ContractArgs{}, nil, err
-// 	}
-
-// 	messageType, err := args.providerService.SendContractAgreement(ctx, args)
-// 	return checkMessageTypeAndStoreState(
-// 		ctx,
-// 		args,
-// 		[]ContractNegotiationMessageType{ContractNegotiationMessage, ContractAgreementMessage},
-// 		messageType,
-// 		err,
-// 		Agreed,
-// 		Agreed,
-// 		sendContractAcceptedRequest)
-// }
-
-// //nolint:unused
-// func sendContractFinalizedRequest(
-// 	ctx context.Context, args ContractArgs,
-// ) (ContractArgs, DSPState[ContractArgs], error) {
-// 	logger := getLogger(ctx, args.BaseArgs)
-// 	logger.Debug("in sendContractFinalizedRequest")
-// 	err := checkFindNegotiationState(ctx, args, []ContractNegotiationState{Verified})
-// 	if err != nil {
-// 		return ContractArgs{}, nil, err
-// 	}
-
-// 	messageType, err := args.providerService.SendNegotiationFinalized(ctx, args)
-// 	return checkMessageTypeAndStoreState(
-// 		ctx,
-// 		args,
-// 		[]ContractNegotiationMessageType{ContractNegotiationMessage},
-// 		messageType,
-// 		err,
-// 		Finalized,
-// 		Finalized,
-// 		nil)
-// }
 
 func ProviderCheckContractAgreementVerificationMessage(
 	ctx context.Context, args ContractArgs,

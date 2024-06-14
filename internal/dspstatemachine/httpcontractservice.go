@@ -187,7 +187,8 @@ func (h *httpContractService) ProviderSendContractAgreement(ctx context.Context)
 		return err
 	}
 
-	targetUrl := fmt.Sprintf("%s/negotiations/%s/agreement", h.ContractState.ConsumerCallbackAddress, h.ContractState.ConsumerPID)
+	targetUrl := fmt.Sprintf("%s/negotiations/%s/agreement",
+		h.ContractState.ConsumerCallbackAddress, h.ContractState.ConsumerPID)
 	logger.Debug("Sending ContractAgreementMessage", "target_url", targetUrl, "contract_agreement", agreement)
 	responseBody, err := h.sendPostRequest(ctx, targetUrl, reqBody)
 	if err != nil {
@@ -248,8 +249,4 @@ func (h *httpContractService) ProviderSendContractFinalized(ctx context.Context)
 	}
 
 	return nil
-}
-
-func statusCodeCheck(i int) bool {
-	return i >= 200 && i < 300
 }
