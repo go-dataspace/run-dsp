@@ -174,31 +174,52 @@ func (s *SimpleStateStorage) AllowStateToProgress(idChan chan StateStorageChanne
 			logger.Info("Got UUID of state to release...",
 				"uuid", message.ProcessID, "auth", auth.ExtractUserInfo(message.Context))
 			if message.TransactionType == Contract {
-				contractsMutex.Lock()
-				state, ok := contractStates[message.ProcessID]
-				contractsMutex.Unlock()
-				if !ok {
-					logger.Error("Could not find state for processId", "process_id", message.ProcessID)
-					continue
-				}
-
-				if state.ParticipantRole == Consumer {
-					go s.triggerNextConsumerState(message.Context, state)
-				} else {
-					go s.triggerNextProviderState(message.Context, state)
-				}
+				s.triggerContractStates(message)
 			} else {
-				logger.Info(("Got Transfer transaction type, but this is not yet implemented"))
+				s.triggerTransferStates(message)
 			}
 		}
 	}
 }
 
-func (s *SimpleStateStorage) checkErrorAndStoreState(
+func (s *SimpleStateStorage) triggerContractStates(message StateStorageChannelMessage) {
+	logger := logging.Extract(message.Context)
+
+	contractsMutex.Lock()
+	state, ok := contractStates[message.ProcessID]
+	contractsMutex.Unlock()
+	if !ok {
+		logger.Error("Could not find state for processId", "process_id", message.ProcessID)
+	}
+
+	if state.ParticipantRole == Consumer {
+		go s.triggerNextConsumerContractState(message.Context, state)
+	} else {
+		go s.triggerNextProviderContractState(message.Context, state)
+	}
+}
+
+func (s *SimpleStateStorage) triggerTransferStates(message StateStorageChannelMessage) {
+	logger := logging.Extract(message.Context)
+	logger.Debug("In trigger transfer states")
+	transfersMutex.Lock()
+	state, ok := transferStates[message.ProcessID]
+	transfersMutex.Unlock()
+	if !ok {
+		logger.Error("Could not find state for processId", "process_id", message.ProcessID)
+	}
+
+	if state.ParticipantRole == Consumer {
+		go s.triggerNextConsumerTransferState(message.Context, state)
+	} else {
+		go s.triggerNextProviderTransferState(message.Context, state)
+	}
+}
+
+func (s *SimpleStateStorage) checkErrorAndStoreContractState(
 	ctx context.Context, contractState DSPContractStateStorage, err error,
 ) {
 	logger := logging.Extract(ctx)
-
 	var msg string
 	if err != nil {
 		msg = fmt.Sprintf("Failed to trigger next state for processId. Error: %s", err.Error())
@@ -233,11 +254,37 @@ func (s *SimpleStateStorage) checkErrorAndStoreState(
 	}
 }
 
-func (s *SimpleStateStorage) triggerNextConsumerState(
+func (s *SimpleStateStorage) checkErrorAndStoreTransferState(
+	ctx context.Context, transferState DSPTransferStateStorage, err error,
+) {
+	logger := logging.Extract(ctx)
+	var msg string
+	if err != nil {
+		msg = fmt.Sprintf("Failed to trigger next state for processId. Error: %s", err.Error())
+		logger.Error(msg,
+			"process_id", transferState.StateID,
+			"next_state", transferState.State,
+			"role", transferState.ParticipantRole,
+			"error", err)
+		return
+	}
+
+	err = s.StoreTransferNegotiationState(ctx, transferState.StateID, transferState)
+	if err != nil {
+		msg = fmt.Sprintf("Failed to store state for processId. Error: %s", err.Error())
+		logger.Error(msg,
+			"process_id", transferState.StateID,
+			"next_state", transferState.State,
+			"role", transferState.ParticipantRole,
+			"error", err)
+	}
+}
+
+func (s *SimpleStateStorage) triggerNextConsumerContractState(
 	ctx context.Context, contractState DSPContractStateStorage,
 ) {
 	logger := logging.Extract(ctx)
-	logger.Info("Delaying triggering next state for one second")
+	logger.Info("Delaying triggering next consumer contract state for one second")
 	httpService := getHttpContractService(ctx, contractState)
 	var err error
 	switch contractState.State {
@@ -255,12 +302,14 @@ func (s *SimpleStateStorage) triggerNextConsumerState(
 	case Terminated:
 	}
 
-	s.checkErrorAndStoreState(ctx, contractState, err)
+	s.checkErrorAndStoreContractState(ctx, contractState, err)
 }
 
-func (s *SimpleStateStorage) triggerNextProviderState(ctx context.Context, contractState DSPContractStateStorage) {
+func (s *SimpleStateStorage) triggerNextProviderContractState(
+	ctx context.Context, contractState DSPContractStateStorage,
+) {
 	logger := logging.Extract(ctx)
-	logger.Info("Delaying triggering next state for one second")
+	logger.Info("Delaying triggering next provider contract state for one second")
 	httpService := getHttpContractService(ctx, contractState)
 	time.Sleep(time.Second)
 	var err error
@@ -281,5 +330,39 @@ func (s *SimpleStateStorage) triggerNextProviderState(ctx context.Context, contr
 	case Terminated:
 	}
 
-	s.checkErrorAndStoreState(ctx, contractState, err)
+	s.checkErrorAndStoreContractState(ctx, contractState, err)
+}
+
+func (s *SimpleStateStorage) triggerNextConsumerTransferState(
+	ctx context.Context, transferState DSPTransferStateStorage,
+) {
+	logger := logging.Extract(ctx)
+	logger.Info("Delaying triggering next consumer transfer state for one second")
+	switch transferState.State {
+	case UndefinedTransferState:
+	case TransferRequested:
+	case TransferStarted:
+	case TransferSuspended:
+	case TransferCompleted:
+	case TransferTerminated:
+	}
+
+	s.checkErrorAndStoreTransferState(ctx, transferState, nil)
+}
+
+func (s *SimpleStateStorage) triggerNextProviderTransferState(
+	ctx context.Context, transferState DSPTransferStateStorage,
+) {
+	logger := logging.Extract(ctx)
+	logger.Info("Delaying triggering next provider transfer state for one second")
+	switch transferState.State {
+	case UndefinedTransferState:
+	case TransferRequested:
+	case TransferStarted:
+	case TransferSuspended:
+	case TransferCompleted:
+	case TransferTerminated:
+	}
+
+	s.checkErrorAndStoreTransferState(ctx, transferState, nil)
 }
