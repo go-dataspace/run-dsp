@@ -122,6 +122,46 @@ func (h *httpContractService) ConsumerSendContractRequest(ctx context.Context) e
 	return nil
 }
 
+func (h *httpContractService) ConsumerSendAgreementVerificationRequest(ctx context.Context) error {
+	logger := logging.Extract(ctx)
+	logger.Debug("In ConsumerAgreementVerificationRequest")
+
+	verification := shared.ContractAgreementVerificationMessage{
+		Context:     jsonld.NewRootContext([]jsonld.ContextEntry{{ID: constants.DSPContext}}),
+		Type:        "dspace:ContractAgreementVerificationMessage",
+		ProviderPID: fmt.Sprintf("urn:uuid:%s", h.ContractState.ProviderPID),
+		ConsumerPID: fmt.Sprintf("urn:uuid:%s", h.ContractState.ConsumerPID),
+	}
+
+	reqBody, err := shared.ValidateAndMarshal(ctx, verification)
+	if err != nil {
+		return err
+	}
+
+	targetUrl := fmt.Sprintf("%s/negotiations/%s/agreement/verification",
+		h.ContractState.ProviderCallbackAddress, h.ContractState.ProviderPID)
+	logger.Debug("Sending ConsumerAgreementVerificationRequest", "target_url", targetUrl, "contract_request", verification)
+	responseBody, err := h.sendPostRequest(ctx, targetUrl, reqBody)
+	if err != nil {
+		return err
+	}
+
+	// This should have the state OFFERED in ACK, if not empty
+	if len(responseBody) != 0 {
+		contractNegotiation, err := shared.UnmarshalAndValidate(ctx, responseBody, shared.ContractNegotiation{})
+		if err != nil {
+			return err
+		}
+
+		logger.Debug("Got ContractNegotiation", "contract_negotiation", contractNegotiation)
+		if contractNegotiation.State != "dspace:REQUESTED" {
+			return errors.New("Invalid state returned")
+		}
+	}
+
+	return nil
+}
+
 func (h *httpContractService) ProviderSendContractAgreement(ctx context.Context) error {
 	logger := logging.Extract(ctx)
 	logger.Debug("In ProviderSendContractAgreement")
@@ -146,7 +186,47 @@ func (h *httpContractService) ProviderSendContractAgreement(ctx context.Context)
 	}
 
 	targetUrl := fmt.Sprintf("%s/negotiations/%s/agreement", h.ContractState.ConsumerCallbackAddress, h.ContractState.ConsumerPID)
-	logger.Debug("Sending ContractAgreement", "target_url", targetUrl, "contract_agreement", agreement)
+	logger.Debug("Sending ContractAgreementMessage", "target_url", targetUrl, "contract_agreement", agreement)
+	responseBody, err := h.sendPostRequest(ctx, targetUrl, reqBody)
+	if err != nil {
+		return err
+	}
+
+	// This should have the state OFFERED in ACK, if not empty
+	if len(responseBody) != 0 {
+		contractNegotiation, err := shared.UnmarshalAndValidate(ctx, responseBody, shared.ContractNegotiation{})
+		if err != nil {
+			return err
+		}
+
+		logger.Debug("Got ContractNegotiation", "contract_negotiation", contractNegotiation)
+		if contractNegotiation.State != "dspace:AGREED" {
+			return errors.New("Invalid state returned")
+		}
+	}
+
+	return nil
+}
+
+func (h *httpContractService) ProviderSendContractFinalized(ctx context.Context) error {
+	logger := logging.Extract(ctx)
+	logger.Debug("In ProviderSendContractFinalized")
+	finalized := shared.ContractNegotiationEventMessage{
+		Context:     jsonld.NewRootContext([]jsonld.ContextEntry{{ID: constants.DSPContext}}),
+		Type:        "dspace:ContractNegotiationEventMessage",
+		ProviderPID: fmt.Sprintf("urn:uuid:%s", h.ContractState.ProviderPID),
+		ConsumerPID: fmt.Sprintf("urn:uuid:%s", h.ContractState.ConsumerPID),
+		EventType:   "dspace:FINALIZED",
+	}
+
+	reqBody, err := shared.ValidateAndMarshal(ctx, finalized)
+	if err != nil {
+		return err
+	}
+
+	targetUrl := fmt.Sprintf("%s/negotiations/%s/events",
+		h.ContractState.ConsumerCallbackAddress, h.ContractState.ConsumerPID)
+	logger.Debug("Sending ContractNegotiationEventMessage", "target_url", targetUrl, "contract_agreement", finalized)
 	responseBody, err := h.sendPostRequest(ctx, targetUrl, reqBody)
 	if err != nil {
 		return err

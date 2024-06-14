@@ -86,6 +86,7 @@ func providerContractRequestHandler(w http.ResponseWriter, req *http.Request) {
 		BaseArgs: dspstatemachine.BaseArgs{
 			ParticipantRole:         dspstatemachine.Provider,
 			ConsumerProcessId:       consumerPID,
+			ProviderProcessId:       uuid.New(),
 			ConsumerCallbackAddress: contractReq.CallbackAddress,
 		},
 		StateStorage: dspstatemachine.GetStateStorage(req.Context()),
@@ -93,10 +94,11 @@ func providerContractRequestHandler(w http.ResponseWriter, req *http.Request) {
 	contractNegotiation, err := dspstatemachine.ProviderCheckContractRequestMessage(req.Context(), contractArgs)
 	if err != nil {
 		returnError(w, http.StatusInternalServerError, err.Error())
+		return
 	}
 
 	validateMarshalAndReturn(req.Context(), w, http.StatusOK, contractNegotiation)
-	go sendUUID(req.Context(), consumerPID)
+	go sendUUID(req.Context(), contractArgs.ProviderProcessId)
 }
 
 func providerContractSpecificRequestHandler(w http.ResponseWriter, req *http.Request) {
@@ -184,6 +186,7 @@ func providerContractEventHandler(w http.ResponseWriter, req *http.Request) {
 	contractNegotiation, err := dspstatemachine.ProviderCheckContractAcceptedMessage(req.Context(), contractArgs)
 	if err != nil {
 		returnError(w, http.StatusInternalServerError, err.Error())
+		return
 	}
 
 	validateMarshalAndReturn(req.Context(), w, http.StatusOK, contractNegotiation)
@@ -194,6 +197,11 @@ func providerContractVerificationHandler(w http.ResponseWriter, req *http.Reques
 	providerPID := req.PathValue("providerPID")
 	if providerPID == "" {
 		returnError(w, http.StatusBadRequest, "Missing provider PID")
+		return
+	}
+	_, err := uuid.Parse(providerPID)
+	if err != nil {
+		returnError(w, http.StatusBadRequest, "Invalid request: provicer PID is not a UUID")
 		return
 	}
 	reqBody, err := io.ReadAll(req.Body)
@@ -209,15 +217,8 @@ func providerContractVerificationHandler(w http.ResponseWriter, req *http.Reques
 
 	logger.Debug("Got contract verification", "verification", verification)
 
-	parts := strings.Split(verification.ConsumerPID, ":")
+	parts := strings.Split(verification.ProviderPID, ":")
 	uuidPart := parts[len(parts)-1]
-	consumerPID, err := uuid.Parse(uuidPart)
-	if err != nil {
-		returnError(w, http.StatusBadRequest, "Invalid request: ConsumerPID is not a UUID")
-		return
-	}
-	parts = strings.Split(verification.ProviderPID, ":")
-	uuidPart = parts[len(parts)-1]
 
 	if providerPID != uuidPart {
 		returnError(w, http.StatusBadRequest, "Invalid request: ProviderPID in message does not match path parameter")
@@ -233,21 +234,20 @@ func providerContractVerificationHandler(w http.ResponseWriter, req *http.Reques
 	contractArgs := dspstatemachine.ContractArgs{
 		BaseArgs: dspstatemachine.BaseArgs{
 			ParticipantRole:   dspstatemachine.Provider,
-			ConsumerProcessId: consumerPID,
 			ProviderProcessId: uuidProviderPID,
 		},
 		NegotiationState: dspstatemachine.Accepted,
 		StateStorage:     dspstatemachine.GetStateStorage(req.Context()),
 	}
-	contractNegotiation, err := dspstatemachine.ProviderCheckContractAgreeementVerificationMessage(
+	contractNegotiation, err := dspstatemachine.ProviderCheckContractAgreementVerificationMessage(
 		req.Context(), contractArgs)
 	if err != nil {
 		returnError(w, http.StatusInternalServerError, err.Error())
+		return
 	}
 
 	validateMarshalAndReturn(req.Context(), w, http.StatusOK, contractNegotiation)
-	// If all goes well, we just return a 200
-	w.WriteHeader(http.StatusOK)
+	go sendUUID(req.Context(), contractArgs.ProviderProcessId)
 }
 
 func providerContractTerminationHandler(w http.ResponseWriter, req *http.Request) {
@@ -317,9 +317,14 @@ func consumerContractSpecificOfferHandler(w http.ResponseWriter, req *http.Reque
 
 func consumerContractAgreementHandler(w http.ResponseWriter, req *http.Request) {
 	logger := logging.Extract(req.Context())
-	consumerPID := req.PathValue("consumerPID")
-	if consumerPID == "" {
+	consumerPIDString := req.PathValue("consumerPID")
+	if consumerPIDString == "" {
 		returnError(w, http.StatusBadRequest, "Missing consumer PID")
+		return
+	}
+	consumerPID, err := uuid.Parse(consumerPIDString)
+	if err != nil {
+		returnError(w, http.StatusBadRequest, "Invalid request: consumer PID is not a UUID")
 		return
 	}
 	reqBody, err := io.ReadAll(req.Body)
@@ -333,17 +338,45 @@ func consumerContractAgreementHandler(w http.ResponseWriter, req *http.Request) 
 		return
 	}
 
+	parts := strings.Split(agreement.ProviderPID, ":")
+	uuidPart := parts[len(parts)-1]
+	providerPID, err := uuid.Parse(uuidPart)
+	if err != nil {
+		returnError(w, http.StatusBadRequest, "Invalid request: ProviderPID is not a UUID")
+		return
+	}
+
 	logger.Debug("Got contract agreement", "agreement", agreement)
 
-	// If all goes well, we just return a 200
-	w.WriteHeader(http.StatusOK)
+	contractArgs := dspstatemachine.ContractArgs{
+		BaseArgs: dspstatemachine.BaseArgs{
+			ParticipantRole:         dspstatemachine.Provider,
+			ConsumerProcessId:       consumerPID,
+			ProviderProcessId:       providerPID,
+			ProviderCallbackAddress: agreement.CallbackAddress,
+		},
+		StateStorage: dspstatemachine.GetStateStorage(req.Context()),
+	}
+	contractNegotiation, err := dspstatemachine.ConsumerCheckContractAgreedRequest(req.Context(), contractArgs)
+	if err != nil {
+		returnError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	validateMarshalAndReturn(req.Context(), w, http.StatusOK, contractNegotiation)
+	go sendUUID(req.Context(), consumerPID)
 }
 
 func consumerContractEventHandler(w http.ResponseWriter, req *http.Request) {
 	logger := logging.Extract(req.Context())
-	consumerPID := req.PathValue("consumerPID")
-	if consumerPID == "" {
+	consumerPIDString := req.PathValue("consumerPID")
+	if consumerPIDString == "" {
 		returnError(w, http.StatusBadRequest, "Missing consumer PID")
+		return
+	}
+	consumerPID, err := uuid.Parse(consumerPIDString)
+	if err != nil {
+		returnError(w, http.StatusBadRequest, "Invalid request: consumer PID is not a UUID")
 		return
 	}
 	reqBody, err := io.ReadAll(req.Body)
@@ -359,10 +392,30 @@ func consumerContractEventHandler(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
+	parts := strings.Split(event.ProviderPID, ":")
+	uuidPart := parts[len(parts)-1]
+	providerPID, err := uuid.Parse(uuidPart)
+	if err != nil {
+		returnError(w, http.StatusBadRequest, "Invalid request: ProviderPID is not a UUID")
+		return
+	}
 	logger.Debug("Got contract event", "offer", event)
 
-	// If all goes well, we just return a 200
-	w.WriteHeader(http.StatusOK)
+	contractArgs := dspstatemachine.ContractArgs{
+		BaseArgs: dspstatemachine.BaseArgs{
+			ParticipantRole:   dspstatemachine.Provider,
+			ConsumerProcessId: consumerPID,
+			ProviderProcessId: providerPID,
+		},
+		StateStorage: dspstatemachine.GetStateStorage(req.Context()),
+	}
+	contractNegotiation, err := dspstatemachine.ConsumerCheckContractFinalizedRequest(req.Context(), contractArgs)
+	if err != nil {
+		returnError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	validateMarshalAndReturn(req.Context(), w, http.StatusOK, contractNegotiation)
 }
 
 func consumerContractTerminationHandler(w http.ResponseWriter, req *http.Request) {
@@ -398,7 +451,6 @@ func triggerConsumerContractRequestHandler(w http.ResponseWriter, req *http.Requ
 	logger.Debug("Got trigger request to start contract negotiation")
 	contractState := dspstatemachine.DSPContractStateStorage{
 		StateID:                 consumerPID,
-		ProviderPID:             uuid.New(),
 		ConsumerPID:             consumerPID,
 		State:                   dspstatemachine.UndefinedState,
 		ConsumerCallbackAddress: "http://localhost:8080/callback",
@@ -437,7 +489,6 @@ func getConsumerContractRequestHandler(w http.ResponseWriter, req *http.Request)
 
 	contractState := dspstatemachine.DSPContractStateStorage{
 		StateID:                 consumerPID,
-		ProviderPID:             uuid.New(),
 		ConsumerPID:             consumerPID,
 		State:                   dspstatemachine.UndefinedState,
 		ConsumerCallbackAddress: "http://localhost:8080/callback",
@@ -453,6 +504,33 @@ func getConsumerContractRequestHandler(w http.ResponseWriter, req *http.Request)
 	}
 
 	validateMarshalAndReturn(req.Context(), w, http.StatusOK, contractRequest)
+}
+
+// FIXME: This needs to have a function for sending an offer.
+func triggerProviderContractOfferRequestHandler(w http.ResponseWriter, req *http.Request) {
+	logger := logging.Extract(req.Context())
+	providerPID := uuid.New()
+
+	logger.Debug("Got trigger request to start contract negotiation")
+	contractState := dspstatemachine.DSPContractStateStorage{
+		StateID:                 providerPID,
+		ProviderPID:             providerPID,
+		State:                   dspstatemachine.UndefinedState,
+		ConsumerCallbackAddress: "http://localhost:8080/callback",
+		ProviderCallbackAddress: "http://localhost:8080",
+		ParticipantRole:         dspstatemachine.Provider,
+	}
+
+	stateStorage := dspstatemachine.GetStateStorage(req.Context())
+	err := stateStorage.StoreContractNegotiationState(req.Context(), providerPID, contractState)
+	if err != nil {
+		returnError(w, http.StatusBadRequest, "Failed to store initial state")
+		return
+	}
+	// If all goes well, we just return a 200
+	w.WriteHeader(http.StatusOK)
+
+	go sendUUID(req.Context(), providerPID)
 }
 
 func sendUUID(ctx context.Context, id uuid.UUID) {

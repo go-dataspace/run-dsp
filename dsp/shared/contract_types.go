@@ -52,7 +52,7 @@ type ContractAgreementMessage struct {
 // ContractAgreementVerificationMessage verifies the contract agreement.
 type ContractAgreementVerificationMessage struct {
 	Context     jsonld.Context `json:"@context"`
-	Type        string         `json:"@type" validate:"required,eq=dspace:ContractAgreementMessage"`
+	Type        string         `json:"@type" validate:"required,eq=dspace:ContractAgreementVerificationMessage"`
 	ProviderPID string         `json:"dspace:providerPid" validate:"required"`
 	ConsumerPID string         `json:"dspace:consumerPid" validate:"required"`
 }
@@ -60,7 +60,7 @@ type ContractAgreementVerificationMessage struct {
 // ContractNegotiationEventMessage notifies of a contract event.
 type ContractNegotiationEventMessage struct {
 	Context     jsonld.Context `json:"@context"`
-	Type        string         `json:"@type" validate:"required,eq=dspace:ContractAgreementMessage"`
+	Type        string         `json:"@type" validate:"required,eq=dspace:ContractNegotiationEventMessage"`
 	ProviderPID string         `json:"dspace:providerPid" validate:"required"`
 	ConsumerPID string         `json:"dspace:consumerPid" validate:"required"`
 	EventType   string         `json:"dspace:eventType" validate:"required,oneof=dspace:ACCEPTED dspace:FINALIZED"`
@@ -88,7 +88,7 @@ type ContractNegotiation struct {
 // ContractNegotiationError is a response to show the state of the contract negotiation.
 type ContractNegotiationError struct {
 	Context     jsonld.Context   `json:"@context,omitempty"`
-	Type        string           `json:"@type,omitempty" validate:"required,eq=dspace:ContractNegotiation"`
+	Type        string           `json:"@type,omitempty" validate:"required,eq=dspace:ContractNegotiationError"`
 	ProviderPID string           `json:"dspace:providerPid,omitempty" validate:"required"`
 	ConsumerPID string           `json:"dspace:consumerPid,omitempty" validate:"required"`
 	Code        string           `json:"dspace:code,omitempty"`

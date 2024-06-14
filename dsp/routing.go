@@ -62,6 +62,7 @@ func GetRoutes() http.Handler {
 	mux.HandleFunc("GET /types", returnAllTypes)
 	mux.HandleFunc("GET /triggerconsumer", triggerConsumerContractRequestHandler)
 	mux.HandleFunc("GET /getconsumercontractrequest", getConsumerContractRequestHandler)
+	mux.HandleFunc("GET /triggerproducer", triggerProviderContractOfferRequestHandler)
 
 	return mux
 }

@@ -16,6 +16,7 @@ package dspstatemachine
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -65,13 +66,14 @@ func GetStateStorage(ctx context.Context) *SimpleStateStorage {
 func (s *SimpleStateStorage) FindContractNegotiationState(
 	ctx context.Context, id uuid.UUID,
 ) (DSPContractStateStorage, error) {
+	logger := logging.Extract(ctx)
+	logger.Debug("STATESTORAGE: Trying to get contract state", "state_id", id)
 	mutex.Lock()
 	state, ok := contractStates[id]
 	mutex.Unlock()
 	if !ok {
-		return DSPContractStateStorage{
-			StateID: uuid.New(), State: UndefinedState, ProviderCallbackAddress: "http://localhost:8080",
-		}, nil
+		logger.Debug("STATESTORAGE: Could not find state, returning error")
+		return DSPContractStateStorage{}, errors.New("Could not find negotiation state")
 	}
 	return state, nil
 }
@@ -79,6 +81,8 @@ func (s *SimpleStateStorage) FindContractNegotiationState(
 func (s *SimpleStateStorage) StoreContractNegotiationState(
 	ctx context.Context, id uuid.UUID, negotationState DSPContractStateStorage,
 ) error {
+	logger := logging.Extract(ctx)
+	logger.Debug("STATESTORAGE: Storing contract state", "state_id", id, "state_storage", negotationState)
 	mutex.RLock()
 	contractStates[id] = negotationState
 	mutex.RUnlock()
@@ -153,10 +157,12 @@ func (s *SimpleStateStorage) triggerNextConsumerState(
 	case UndefinedState:
 		contractState.State = Requested
 		err = httpService.ConsumerSendContractRequest(ctx)
+	case Agreed:
+		contractState.State = Verified
+		err = httpService.ConsumerSendAgreementVerificationRequest(ctx)
 	case Requested:
 	case Offered:
 	case Accepted:
-	case Agreed:
 	case Verified:
 	case Finalized:
 	case Terminated:
@@ -175,11 +181,15 @@ func (s *SimpleStateStorage) triggerNextProviderState(ctx context.Context, contr
 	case Requested:
 		contractState.State = Agreed
 		err = httpService.ProviderSendContractAgreement(ctx)
+	case Agreed:
+		contractState.State = Finalized
+		err = httpService.ProviderSendContractFinalized(ctx)
+	case Verified:
+		contractState.State = Finalized
+		err = httpService.ProviderSendContractFinalized(ctx)
 	case UndefinedState:
 	case Offered:
 	case Accepted:
-	case Agreed:
-	case Verified:
 	case Finalized:
 	case Terminated:
 	}

@@ -53,17 +53,16 @@ type providerContractTasksService interface {
 
 func ProviderCheckContractRequestMessage(ctx context.Context, args ContractArgs) (shared.ContractNegotiation, error) {
 	// NOTE: Going directly from REQUESTED to AGREED
-	state, err := checkFindNegotiationState(ctx, args, args.ConsumerProcessId, []ContractNegotiationState{UndefinedState})
-	if err != nil {
-		return shared.ContractNegotiation{}, err
+	newState := DSPContractStateStorage{
+		StateID:                 args.ProviderProcessId,
+		ProviderPID:             args.ProviderProcessId,
+		ConsumerPID:             args.ConsumerProcessId,
+		State:                   Requested,
+		ConsumerCallbackAddress: args.ConsumerCallbackAddress,
+		ProviderCallbackAddress: "http://localhost:8080",
+		ParticipantRole:         Provider,
 	}
-
-	state.ParticipantRole = args.ParticipantRole
-	state.ConsumerPID = args.ConsumerProcessId
-	state.ProviderPID = state.StateID
-	state.ConsumerCallbackAddress = args.BaseArgs.ConsumerCallbackAddress
-	state.State = Requested
-	err = args.StateStorage.StoreContractNegotiationState(ctx, args.ConsumerProcessId, state)
+	err := args.StateStorage.StoreContractNegotiationState(ctx, newState.StateID, newState)
 	if err != nil {
 		return shared.ContractNegotiation{}, fmt.Errorf("Failed to store %s state", Requested)
 	}
@@ -71,8 +70,8 @@ func ProviderCheckContractRequestMessage(ctx context.Context, args ContractArgs)
 	return shared.ContractNegotiation{
 		Context:     jsonld.NewRootContext([]jsonld.ContextEntry{{ID: constants.DSPContext}}),
 		Type:        "dspace:ContractNegotiation",
-		ProviderPID: state.ProviderPID.String(),
-		ConsumerPID: state.ConsumerPID.String(),
+		ProviderPID: newState.ProviderPID.String(),
+		ConsumerPID: newState.ConsumerPID.String(),
 		State:       "dspace:REQUESTED",
 	}, err
 }
@@ -81,7 +80,7 @@ func ProviderCheckContractRequestMessage(ctx context.Context, args ContractArgs)
 func ProviderCheckContractAcceptedMessage(
 	ctx context.Context, args ContractArgs,
 ) (shared.ContractNegotiation, error) {
-	state, err := checkFindNegotiationState(ctx, args, args.ConsumerProcessId, []ContractNegotiationState{Offered})
+	state, err := checkFindNegotiationState(ctx, args, args.ProviderProcessId, []ContractNegotiationState{Offered})
 	if err != nil {
 		return shared.ContractNegotiation{}, err
 	}
@@ -89,7 +88,7 @@ func ProviderCheckContractAcceptedMessage(
 	state.ConsumerPID = args.ConsumerProcessId
 	state.ProviderPID = state.StateID
 	state.State = Accepted
-	err = args.StateStorage.StoreContractNegotiationState(ctx, args.ConsumerProcessId, state)
+	err = args.StateStorage.StoreContractNegotiationState(ctx, args.ProviderProcessId, state)
 	if err != nil {
 		return shared.ContractNegotiation{}, fmt.Errorf("Failed to store %s state", Accepted)
 	}
@@ -147,19 +146,16 @@ func ProviderCheckContractAcceptedMessage(
 // 		nil)
 // }
 
-
-func ProviderCheckContractAgreeementVerificationMessage(
+func ProviderCheckContractAgreementVerificationMessage(
 	ctx context.Context, args ContractArgs,
 ) (shared.ContractNegotiation, error) {
-	state, err := checkFindNegotiationState(ctx, args, args.ConsumerProcessId, []ContractNegotiationState{Agreed})
+	state, err := checkFindNegotiationState(ctx, args, args.ProviderProcessId, []ContractNegotiationState{Agreed})
 	if err != nil {
 		return shared.ContractNegotiation{}, err
 	}
 
-	state.ConsumerPID = args.ConsumerProcessId
-	state.ProviderPID = state.StateID
 	state.State = Verified
-	err = args.StateStorage.StoreContractNegotiationState(ctx, args.ConsumerProcessId, state)
+	err = args.StateStorage.StoreContractNegotiationState(ctx, args.ProviderProcessId, state)
 	if err != nil {
 		return shared.ContractNegotiation{}, fmt.Errorf("Failed to store %s state", Verified)
 	}
