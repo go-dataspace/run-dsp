@@ -30,7 +30,7 @@ func ProviderCheckContractRequestMessage(ctx context.Context, args ContractArgs)
 		ConsumerPID:             args.ConsumerProcessId,
 		State:                   Requested,
 		ConsumerCallbackAddress: args.ConsumerCallbackAddress,
-		ProviderCallbackAddress: "http://localhost:8080",
+		ProviderCallbackAddress: "http://localhost:8080/run-dsp/v2024-1",
 		ParticipantRole:         Provider,
 		Offer:                   args.Offer,
 	}

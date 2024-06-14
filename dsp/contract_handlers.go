@@ -469,8 +469,8 @@ func triggerConsumerContractRequestHandler(w http.ResponseWriter, req *http.Requ
 		StateID:                 consumerPID,
 		ConsumerPID:             consumerPID,
 		State:                   dspstatemachine.UndefinedState,
-		ConsumerCallbackAddress: "http://localhost:8080/callback",
-		ProviderCallbackAddress: "http://localhost:8080",
+		ConsumerCallbackAddress: "http://localhost:8080/run-dsp/v2024-1/callback",
+		ProviderCallbackAddress: "http://localhost:8080/run-dsp/v2024-1",
 		ParticipantRole:         dspstatemachine.Consumer,
 	}
 
@@ -500,15 +500,15 @@ func getConsumerContractRequestHandler(w http.ResponseWriter, req *http.Request)
 			Type:   "odrl:Offer",
 			Target: fmt.Sprintf("urn:uuid:%s", uuid.New()),
 		},
-		CallbackAddress: "http://localhost:8080/callback",
+		CallbackAddress: "http://localhost:8080/run-dsp/v2024-1/callback",
 	}
 
 	contractState := dspstatemachine.DSPContractStateStorage{
 		StateID:                 consumerPID,
 		ConsumerPID:             consumerPID,
 		State:                   dspstatemachine.UndefinedState,
-		ConsumerCallbackAddress: "http://localhost:8080/callback",
-		ProviderCallbackAddress: "http://localhost:8080",
+		ConsumerCallbackAddress: "http://localhost:8080/run-dsp/v2024-1/callback",
+		ProviderCallbackAddress: "http://localhost:8080/run-dsp/v2024-1",
 		ParticipantRole:         dspstatemachine.Consumer,
 	}
 
@@ -532,8 +532,8 @@ func triggerProviderContractOfferRequestHandler(w http.ResponseWriter, req *http
 		StateID:                 providerPID,
 		ProviderPID:             providerPID,
 		State:                   dspstatemachine.UndefinedState,
-		ConsumerCallbackAddress: "http://localhost:8080/callback",
-		ProviderCallbackAddress: "http://localhost:8080",
+		ConsumerCallbackAddress: "http://localhost:8080/run-dsp/v2024-1/callback",
+		ProviderCallbackAddress: "http://localhost:8080/run-dsp/v2024-1",
 		ParticipantRole:         dspstatemachine.Provider,
 	}
 

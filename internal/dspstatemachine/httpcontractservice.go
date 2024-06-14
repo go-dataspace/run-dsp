@@ -115,7 +115,7 @@ func (h *httpContractService) ConsumerSendContractRequest(ctx context.Context) e
 			return err
 		}
 
-		logger.Debug("Got ContractNegotiation", "contract_negotiation", contractNegotiation)
+		logger.Debug("Got ContractNegotiation", "cloontract_negotiation", contractNegotiation)
 		if contractNegotiation.State != "dspace:REQUESTED" {
 			return errors.New("Invalid state returned")
 		}
