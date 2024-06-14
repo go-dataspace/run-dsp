@@ -29,24 +29,25 @@ type Offer struct {
 // MessageOffer is an ODRL MessageOffer.
 type MessageOffer struct {
 	PolicyClass
-	Type string `json:"@type" validate:"required,eq=odrl:Offer"`
+	Type   string `json:"@type" validate:"required,eq=odrl:Offer"`
+	Target string `json:"odrl:target" validate:"required"`
 }
 
 // PolicyClass is an ODRL PolicyClass.
 type PolicyClass struct {
 	AbstractPolicyRule
-	ID         string       `json:"@id" validate:"required"`
-	ProviderID string       `json:"dspace:providerId,omitempty"` // Got from an examole, not in standard.
-	Profile    []Reference  `json:"odrl:profile,omitempty" validate:"dive"`
-	Permission []Permission `json:"odrl:permission,omitempty" validate:"gte=1,dive"`
-	Obligation []Duty       `json:"odrl:obligation" validate:"gte=1,dive"`
-	Prohibiton []any        `json:"odrl:prohibiton"` // Spec for this was missing but is required, even if empty.
+	ID          string       `json:"@id"`                         // FIXME: Maybe re-add the required validation?
+	ProviderID  string       `json:"dspace:providerId,omitempty"` // Got from an example, not in standard.
+	Profile     []Reference  `json:"odrl:profile,omitempty" validate:"dive"`
+	Permission  []Permission `json:"odrl:permission,omitempty" validate:"dive"`
+	Obligation  []Duty       `json:"odrl:obligation,omitempty" validate:"dive"`
+	Prohibition []any        `json:"odrl:prohibition"` // Spec for this was missing but is required, even if empty.
 }
 
 // AbstractPolicyRule defines an ODRL abstract policy rule.
 type AbstractPolicyRule struct {
-	Assigner string `json:"assigner,omitempty"`
-	Assignee string `json:"assignee,omitempty"`
+	Assigner string `json:"odrl:assigner,omitempty"`
+	Assignee string `json:"odrl:assignee,omitempty"`
 }
 
 // Reference is a reference.
@@ -83,6 +84,6 @@ type Agreement struct {
 	PolicyClass
 	Type      string    `json:"@type" validate:"required,eq=odrl:Agreement"`
 	ID        string    `json:"@id" validate:"required"`
-	Target    string    `json:"@target" validate:"required"`
+	Target    string    `json:"odrl:target" validate:"required"`
 	Timestamp time.Time `json:"dspace:timestamp"`
 }

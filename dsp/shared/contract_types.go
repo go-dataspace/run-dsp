@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package dsp
+package shared
 
 import (
 	"github.com/go-dataspace/run-dsp/jsonld"
@@ -23,7 +23,7 @@ import (
 type ContractRequestMessage struct {
 	Context         jsonld.Context    `json:"@context"`
 	Type            string            `json:"@type" validate:"required,eq=dspace:ContractRequestMessage"`
-	ProviderPID     string            `json:"dspace:providerPid"`
+	ProviderPID     string            `json:"dspace:providerPid,omitempty"`
 	ConsumerPID     string            `json:"dspace:consumerPid" validate:"required"`
 	Offer           odrl.MessageOffer `json:"dspace:offer" validate:"required"`
 	CallbackAddress string            `json:"dspace:callbackAddress" validate:"required"`
@@ -52,7 +52,7 @@ type ContractAgreementMessage struct {
 // ContractAgreementVerificationMessage verifies the contract agreement.
 type ContractAgreementVerificationMessage struct {
 	Context     jsonld.Context `json:"@context"`
-	Type        string         `json:"@type" validate:"required,eq=dspace:ContractAgreementMessage"`
+	Type        string         `json:"@type" validate:"required,eq=dspace:ContractAgreementVerificationMessage"`
 	ProviderPID string         `json:"dspace:providerPid" validate:"required"`
 	ConsumerPID string         `json:"dspace:consumerPid" validate:"required"`
 }
@@ -60,7 +60,7 @@ type ContractAgreementVerificationMessage struct {
 // ContractNegotiationEventMessage notifies of a contract event.
 type ContractNegotiationEventMessage struct {
 	Context     jsonld.Context `json:"@context"`
-	Type        string         `json:"@type" validate:"required,eq=dspace:ContractAgreementMessage"`
+	Type        string         `json:"@type" validate:"required,eq=dspace:ContractNegotiationEventMessage"`
 	ProviderPID string         `json:"dspace:providerPid" validate:"required"`
 	ConsumerPID string         `json:"dspace:consumerPid" validate:"required"`
 	EventType   string         `json:"dspace:eventType" validate:"required,oneof=dspace:ACCEPTED dspace:FINALIZED"`
@@ -82,13 +82,13 @@ type ContractNegotiation struct {
 	Type        string         `json:"@type" validate:"required,eq=dspace:ContractNegotiation"`
 	ProviderPID string         `json:"dspace:providerPid" validate:"required"`
 	ConsumerPID string         `json:"dspace:consumerPid" validate:"required"`
-	State       string         `json:"dspace:state" validate:"required,contract_state"`
+	State       string         `json:"dspace:state" validate:"required"`
 }
 
 // ContractNegotiationError is a response to show the state of the contract negotiation.
-type ContractNegotiationERror struct {
+type ContractNegotiationError struct {
 	Context     jsonld.Context   `json:"@context,omitempty"`
-	Type        string           `json:"@type,omitempty" validate:"required,eq=dspace:ContractNegotiation"`
+	Type        string           `json:"@type,omitempty" validate:"required,eq=dspace:ContractNegotiationError"`
 	ProviderPID string           `json:"dspace:providerPid,omitempty" validate:"required"`
 	ConsumerPID string           `json:"dspace:consumerPid,omitempty" validate:"required"`
 	Code        string           `json:"dspace:code,omitempty"`

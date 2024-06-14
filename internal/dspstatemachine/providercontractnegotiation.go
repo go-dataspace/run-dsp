@@ -15,121 +15,82 @@ package dspstatemachine
 
 import (
 	"context"
+	"fmt"
+
+	"github.com/go-dataspace/run-dsp/dsp/shared"
+	"github.com/go-dataspace/run-dsp/internal/constants"
+	"github.com/go-dataspace/run-dsp/jsonld"
 )
 
-//nolint:dupl
-type providerContractTasksService interface {
-	SendContractOffer(ctx context.Context, args ContractArgs) (ContractNegotiationMessageType, error)
-	CheckContractRequest(ctx context.Context, args ContractArgs) (bool, error)
-	CheckContractAcceptedMessage(ctx context.Context, args ContractArgs) (bool, error)
-	SendContractAgreement(ctx context.Context, args ContractArgs) (ContractNegotiationMessageType, error)
-	CheckContractAgreementVerification(ctx context.Context, args ContractArgs) (bool, error)
-	SendNegotiationFinalized(ctx context.Context, args ContractArgs) (
-		ContractNegotiationMessageType, error)
-	SendContractNegotiationMessage(ctx context.Context, args ContractArgs) (
-		ContractNegotiationMessageType, error)
-	SendTerminationMessage(ctx context.Context, args ContractArgs) (
-		ContractNegotiationMessageType, error)
-	SendErrorMessage(ctx context.Context, args ContractArgs) error
-}
-
-//nolint:unused
-func sendContractOfferRequest(ctx context.Context, args ContractArgs) (ContractArgs, DSPState[ContractArgs], error) {
-	err := checkFindNegotiationState(ctx, args, []ContractNegotiationState{UndefinedState})
-	if err != nil {
-		return ContractArgs{}, nil, err
-	}
-
-	messageType, err := args.providerService.SendContractOffer(ctx, args)
-	return checkMessageTypeAndStoreState(
-		ctx,
-		args,
-		[]ContractNegotiationMessageType{ContractNegotiationMessage, ContractOfferMessage},
-		messageType,
-		err,
-		Offered,
-		Offered,
-		sendContractAcceptedRequest)
-}
-
-//nolint:unused
-func checkContractRequestMessage(ctx context.Context, args ContractArgs) (ContractArgs, DSPState[ContractArgs], error) {
+func ProviderCheckContractRequestMessage(ctx context.Context, args ContractArgs) (shared.ContractNegotiation, error) {
 	// NOTE: Going directly from REQUESTED to AGREED
-	return checkContractNegotiationRequest(
-		ctx,
-		args,
-		ContractRequestMessage,
-		[]ContractNegotiationState{Requested},
-		Agreed, false, sendContractAgreedRequest,
-	)
-}
-
-//nolint:unused
-func checkContractAcceptedMessage(
-	ctx context.Context, args ContractArgs,
-) (ContractArgs, DSPState[ContractArgs], error) {
-	return checkContractNegotiationRequest(
-		ctx,
-		args,
-		ContractNegotiationEventMessage,
-		[]ContractNegotiationState{Offered},
-		Agreed, false, sendContractAgreedRequest,
-	)
-}
-
-//nolint:unused
-func sendContractAgreedRequest(ctx context.Context, args ContractArgs) (ContractArgs, DSPState[ContractArgs], error) {
-	logger := getLogger(ctx, args.BaseArgs)
-	logger.Debug("in sendContractAgreedRequest")
-	err := checkFindNegotiationState(ctx, args, []ContractNegotiationState{Requested})
+	newState := DSPContractStateStorage{
+		StateID:                 args.ProviderProcessId,
+		ProviderPID:             args.ProviderProcessId,
+		ConsumerPID:             args.ConsumerProcessId,
+		State:                   Requested,
+		ConsumerCallbackAddress: args.ConsumerCallbackAddress,
+		ProviderCallbackAddress: "http://localhost:8080",
+		ParticipantRole:         Provider,
+	}
+	err := args.StateStorage.StoreContractNegotiationState(ctx, newState.StateID, newState)
 	if err != nil {
-		return ContractArgs{}, nil, err
+		return shared.ContractNegotiation{}, fmt.Errorf("Failed to store %s state", Requested)
 	}
 
-	messageType, err := args.providerService.SendContractAgreement(ctx, args)
-	return checkMessageTypeAndStoreState(
-		ctx,
-		args,
-		[]ContractNegotiationMessageType{ContractNegotiationMessage, ContractAgreementMessage},
-		messageType,
-		err,
-		Agreed,
-		Agreed,
-		sendContractAcceptedRequest)
+	return shared.ContractNegotiation{
+		Context:     jsonld.NewRootContext([]jsonld.ContextEntry{{ID: constants.DSPContext}}),
+		Type:        "dspace:ContractNegotiation",
+		ProviderPID: newState.ProviderPID.String(),
+		ConsumerPID: newState.ConsumerPID.String(),
+		State:       "dspace:REQUESTED",
+	}, err
 }
 
-//nolint:unused
-func sendContractFinalizedRequest(
+func ProviderCheckContractAcceptedMessage(
 	ctx context.Context, args ContractArgs,
-) (ContractArgs, DSPState[ContractArgs], error) {
-	logger := getLogger(ctx, args.BaseArgs)
-	logger.Debug("in sendContractFinalizedRequest")
-	err := checkFindNegotiationState(ctx, args, []ContractNegotiationState{Verified})
+) (shared.ContractNegotiation, error) {
+	state, err := checkFindNegotiationState(ctx, args, args.ProviderProcessId, []ContractNegotiationState{Offered})
 	if err != nil {
-		return ContractArgs{}, nil, err
+		return shared.ContractNegotiation{}, err
 	}
 
-	messageType, err := args.providerService.SendNegotiationFinalized(ctx, args)
-	return checkMessageTypeAndStoreState(
-		ctx,
-		args,
-		[]ContractNegotiationMessageType{ContractNegotiationMessage},
-		messageType,
-		err,
-		Finalized,
-		Finalized,
-		nil)
+	state.ConsumerPID = args.ConsumerProcessId
+	state.ProviderPID = state.StateID
+	state.State = Accepted
+	err = args.StateStorage.StoreContractNegotiationState(ctx, args.ProviderProcessId, state)
+	if err != nil {
+		return shared.ContractNegotiation{}, fmt.Errorf("Failed to store %s state", Accepted)
+	}
+
+	return shared.ContractNegotiation{
+		Context:     jsonld.NewRootContext([]jsonld.ContextEntry{{ID: constants.DSPContext}}),
+		Type:        "dspace:ContractNegotiation",
+		ProviderPID: state.ProviderPID.String(),
+		ConsumerPID: state.ConsumerPID.String(),
+		State:       "dspace:ACCEPTED",
+	}, err
 }
 
-//nolint:unused
-func checkContractAgreeementVerificationMessage(
+func ProviderCheckContractAgreementVerificationMessage(
 	ctx context.Context, args ContractArgs,
-) (ContractArgs, DSPState[ContractArgs], error) {
-	return checkContractNegotiationRequest(
-		ctx,
-		args,
-		ContractAgreementVerificationMessage,
-		[]ContractNegotiationState{Agreed},
-		Verified, false, sendContractFinalizedRequest,
-	)
+) (shared.ContractNegotiation, error) {
+	state, err := checkFindNegotiationState(ctx, args, args.ProviderProcessId, []ContractNegotiationState{Agreed})
+	if err != nil {
+		return shared.ContractNegotiation{}, err
+	}
+
+	state.State = Verified
+	err = args.StateStorage.StoreContractNegotiationState(ctx, args.ProviderProcessId, state)
+	if err != nil {
+		return shared.ContractNegotiation{}, fmt.Errorf("Failed to store %s state", Verified)
+	}
+
+	return shared.ContractNegotiation{
+		Context:     jsonld.NewRootContext([]jsonld.ContextEntry{{ID: constants.DSPContext}}),
+		Type:        "dspace:ContractNegotiation",
+		ProviderPID: state.ProviderPID.String(),
+		ConsumerPID: state.ConsumerPID.String(),
+		State:       "dspace:VERIFIED",
+	}, err
 }

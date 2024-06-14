@@ -12,9 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package dsp
+package shared
 
-import "github.com/go-dataspace/run-dsp/jsonld"
+import (
+	"github.com/go-dataspace/run-dsp/jsonld"
+)
 
 // TransferRequestMessage requests a data transfer.
 type TransferRequestMessage struct {

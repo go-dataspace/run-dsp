@@ -18,13 +18,14 @@ import (
 	"io"
 	"net/http"
 
+	"github.com/go-dataspace/run-dsp/dsp/shared"
 	"github.com/go-dataspace/run-dsp/internal/constants"
 	"github.com/go-dataspace/run-dsp/jsonld"
 	"github.com/go-dataspace/run-dsp/logging"
 )
 
-func getTransferProcessReq() TransferProcess {
-	return TransferProcess{
+func getTransferProcessReq() shared.TransferProcess {
+	return shared.TransferProcess{
 		Context:     jsonld.NewRootContext([]jsonld.ContextEntry{{ID: constants.DSPContext}}),
 		Type:        "dspace:TransferProcess",
 		ProviderPID: "urn:uuid:a343fcbf-99fc-4ce8-8e9b-148c97605aab",
@@ -50,7 +51,7 @@ func providerTransferRequestHandler(w http.ResponseWriter, req *http.Request) {
 		returnError(w, http.StatusBadRequest, "Could not read body")
 		return
 	}
-	transferReq, err := unmarshalAndValidate(req.Context(), reqBody, TransferRequestMessage{})
+	transferReq, err := shared.UnmarshalAndValidate(req.Context(), reqBody, shared.TransferRequestMessage{})
 	if err != nil {
 		returnError(w, http.StatusBadRequest, "Invalid request")
 		return
@@ -72,7 +73,7 @@ func providerTransferStartHandler(w http.ResponseWriter, req *http.Request) {
 		returnError(w, http.StatusBadRequest, "Could not read body")
 		return
 	}
-	start, err := unmarshalAndValidate(req.Context(), reqBody, TransferStartMessage{})
+	start, err := shared.UnmarshalAndValidate(req.Context(), reqBody, shared.TransferStartMessage{})
 	if err != nil {
 		returnError(w, http.StatusBadRequest, "Invalid request")
 		return
@@ -96,7 +97,7 @@ func providerTransferCompletionHandler(w http.ResponseWriter, req *http.Request)
 		returnError(w, http.StatusBadRequest, "Could not read body")
 		return
 	}
-	completion, err := unmarshalAndValidate(req.Context(), reqBody, TransferCompletionMessage{})
+	completion, err := shared.UnmarshalAndValidate(req.Context(), reqBody, shared.TransferCompletionMessage{})
 	if err != nil {
 		returnError(w, http.StatusBadRequest, "Invalid request")
 		return
@@ -120,7 +121,7 @@ func providerTransferTerminationHandler(w http.ResponseWriter, req *http.Request
 		returnError(w, http.StatusBadRequest, "Could not read body")
 		return
 	}
-	termination, err := unmarshalAndValidate(req.Context(), reqBody, TransferTerminationMessage{})
+	termination, err := shared.UnmarshalAndValidate(req.Context(), reqBody, shared.TransferTerminationMessage{})
 	if err != nil {
 		returnError(w, http.StatusBadRequest, "Invalid request")
 		return
@@ -144,7 +145,7 @@ func providerTransferSuspensionHandler(w http.ResponseWriter, req *http.Request)
 		returnError(w, http.StatusBadRequest, "Could not read body")
 		return
 	}
-	suspension, err := unmarshalAndValidate(req.Context(), reqBody, TransferSuspensionMessage{})
+	suspension, err := shared.UnmarshalAndValidate(req.Context(), reqBody, shared.TransferSuspensionMessage{})
 	if err != nil {
 		returnError(w, http.StatusBadRequest, "Invalid request")
 		return
@@ -168,7 +169,7 @@ func consumerTransferStartHandler(w http.ResponseWriter, req *http.Request) {
 		returnError(w, http.StatusBadRequest, "Could not read body")
 		return
 	}
-	start, err := unmarshalAndValidate(req.Context(), reqBody, TransferStartMessage{})
+	start, err := shared.UnmarshalAndValidate(req.Context(), reqBody, shared.TransferStartMessage{})
 	if err != nil {
 		returnError(w, http.StatusBadRequest, "Invalid request")
 		return
@@ -192,7 +193,7 @@ func consumerTransferCompletionHandler(w http.ResponseWriter, req *http.Request)
 		returnError(w, http.StatusBadRequest, "Could not read body")
 		return
 	}
-	completion, err := unmarshalAndValidate(req.Context(), reqBody, TransferCompletionMessage{})
+	completion, err := shared.UnmarshalAndValidate(req.Context(), reqBody, shared.TransferCompletionMessage{})
 	if err != nil {
 		returnError(w, http.StatusBadRequest, "Invalid request")
 		return
@@ -216,7 +217,7 @@ func consumerTransferTerminationHandler(w http.ResponseWriter, req *http.Request
 		returnError(w, http.StatusBadRequest, "Could not read body")
 		return
 	}
-	termination, err := unmarshalAndValidate(req.Context(), reqBody, TransferTerminationMessage{})
+	termination, err := shared.UnmarshalAndValidate(req.Context(), reqBody, shared.TransferTerminationMessage{})
 	if err != nil {
 		returnError(w, http.StatusBadRequest, "Invalid request")
 		return
@@ -240,7 +241,7 @@ func consumerTransferSuspensionHandler(w http.ResponseWriter, req *http.Request)
 		returnError(w, http.StatusBadRequest, "Could not read body")
 		return
 	}
-	suspension, err := unmarshalAndValidate(req.Context(), reqBody, TransferSuspensionMessage{})
+	suspension, err := shared.UnmarshalAndValidate(req.Context(), reqBody, shared.TransferSuspensionMessage{})
 	if err != nil {
 		returnError(w, http.StatusBadRequest, "Invalid request")
 		return

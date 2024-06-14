@@ -50,8 +50,9 @@ type BaseArgs struct {
 	// Type of DSP transaction
 	TransactionType DSPTransactionType
 
-	// Is the communication asynchronous or not?
-	AsynchronousCommunication bool
+	// Callback urls for request
+	ConsumerCallbackAddress string
+	ProviderCallbackAddress string
 
 	// Error information
 	StatusCode   int
@@ -62,9 +63,9 @@ type BaseArgs struct {
 type (
 	DSPState[T any]        func(ctx context.Context, args T) (T, DSPState[T], error)
 	DSPStateStorageService interface {
-		FindContractNegotiationState(ctx context.Context, id uuid.UUID) (ContractNegotiationState, error)
-		StoreContractNegotiationState(ctx context.Context, id uuid.UUID, negotationState ContractNegotiationState) error
-		GenerateProcessId(ctx context.Context) (processId uuid.UUID, error error)
+		FindContractNegotiationState(ctx context.Context, id uuid.UUID) (DSPContractStateStorage, error)
+		StoreContractNegotiationState(ctx context.Context, id uuid.UUID, negotationState DSPContractStateStorage) error
+		// GenerateProcessId(ctx context.Context) (processId uuid.UUID, error error)
 	}
 )
 
