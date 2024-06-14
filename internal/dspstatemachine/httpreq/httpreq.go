@@ -25,25 +25,13 @@ import (
 
 	"github.com/cenkalti/backoff/v4"
 	"github.com/go-dataspace/run-dsp/logging"
-
-	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/trace"
 )
 
 const (
 	defaultRetryDuration = 2 * time.Minute
 )
 
-var (
-	tracer trace.Tracer
-	client = &http.Client{}
-)
-
-func init() {
-	tracer = otel.Tracer(
-		"github.com/go-dataspace/run-dsp",
-	)
-}
+var client = &http.Client{}
 
 // Request represents a http request with retrying capabilities.
 type Request struct {
@@ -140,14 +128,8 @@ func WithDuration(d time.Duration) RequestOption {
 // Do executes the request.
 func (r *Request) Do() ([]byte, error) {
 	logger := logging.Extract(r.Context).With("method", r.Method, "url", r.URL)
-	ctx, span := tracer.Start(r.Context, "Request.Do")
-	defer span.End()
 
 	reqFunc := func() (respBody, error) {
-		if r.UpdateActivity != nil {
-			r.UpdateActivity()
-		}
-
 		req, err := http.NewRequest(r.Method, r.URL, r.Body)
 		if err != nil {
 			return respBody{}, err
@@ -178,7 +160,7 @@ func (r *Request) Do() ([]byte, error) {
 
 	b := backoff.NewExponentialBackOff()
 	b.MaxElapsedTime = r.Duration
-	bctx := backoff.WithContext(b, ctx)
+	bctx := backoff.WithContext(b, r.Context)
 	bctx.Reset()
 	respBody, err := backoff.RetryNotifyWithData(reqFunc, bctx, errFunc)
 	if err != nil {

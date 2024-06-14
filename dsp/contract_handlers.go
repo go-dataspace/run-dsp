@@ -15,6 +15,7 @@
 package dsp
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"net/http"
@@ -95,11 +96,7 @@ func providerContractRequestHandler(w http.ResponseWriter, req *http.Request) {
 	}
 
 	validateMarshalAndReturn(req.Context(), w, http.StatusOK, contractNegotiation)
-	channel := dspstatemachine.ExtractChannel(req.Context())
-	channel <- dspstatemachine.StateStorageChannelMessage{
-		Context:   req.Context(),
-		ProcessID: consumerPID,
-	}
+	go sendUUID(req.Context(), consumerPID)
 }
 
 func providerContractSpecificRequestHandler(w http.ResponseWriter, req *http.Request) {
@@ -418,11 +415,7 @@ func triggerConsumerContractRequestHandler(w http.ResponseWriter, req *http.Requ
 	// If all goes well, we just return a 200
 	w.WriteHeader(http.StatusOK)
 
-	channel := dspstatemachine.ExtractChannel(req.Context())
-	channel <- dspstatemachine.StateStorageChannelMessage{
-		Context:   req.Context(),
-		ProcessID: consumerPID,
-	}
+	go sendUUID(req.Context(), consumerPID)
 }
 
 func getConsumerContractRequestHandler(w http.ResponseWriter, req *http.Request) {
@@ -460,4 +453,12 @@ func getConsumerContractRequestHandler(w http.ResponseWriter, req *http.Request)
 	}
 
 	validateMarshalAndReturn(req.Context(), w, http.StatusOK, contractRequest)
+}
+
+func sendUUID(ctx context.Context, id uuid.UUID) {
+	channel := dspstatemachine.ExtractChannel(ctx)
+	channel <- dspstatemachine.StateStorageChannelMessage{
+		Context:   ctx,
+		ProcessID: id,
+	}
 }

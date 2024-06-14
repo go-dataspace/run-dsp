@@ -29,6 +29,18 @@ var (
 	mutex          = &sync.RWMutex{}
 )
 
+type contractStateStore struct {
+	contractState map[uuid.UUIDs]DSPContractStateStorage
+	sync.RWMutex
+}
+
+// func (c contractStateStore) Get(u uuid.UUID) DSPContractStateStorage {
+// 	defer c.Unlock()
+// 	c.Lock()
+
+// 	return c.contractState[u]
+// }
+
 type DSPContractStateStorage struct {
 	StateID                 uuid.UUID
 	ProviderPID             uuid.UUID

@@ -19,13 +19,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"time"
 
 	"github.com/go-dataspace/run-dsp/dsp/shared"
 	"github.com/go-dataspace/run-dsp/internal/auth"
 	"github.com/go-dataspace/run-dsp/internal/constants"
-	"github.com/go-dataspace/run-dsp/internal/dspstatemachine/httpreq"
 	"github.com/go-dataspace/run-dsp/jsonld"
 	"github.com/go-dataspace/run-dsp/logging"
 	"github.com/go-dataspace/run-dsp/odrl"
@@ -44,31 +44,35 @@ func getHttpContractService(ctx context.Context, contractState DSPContractStateS
 	}
 }
 
-func (h *httpContractService) configureRequest() func(r *http.Request) {
-	return func(r *http.Request) {
-		r.Header.Add("Authorization", auth.ExtractUserInfo(h.Context).String())
-		r.Header.Add("Content-Type", "application/json")
-		r.Header.Add("Accept", "application/json")
-	}
+func (h *httpContractService) configureRequest(r *http.Request) {
+	r.Header.Add("Authorization", auth.ExtractUserInfo(h.Context).String())
+	r.Header.Add("Content-Type", "application/json")
+	r.Header.Add("Accept", "application/json")
 }
 
 func (h *httpContractService) sendPostRequest(ctx context.Context, url string, reqBody []byte) ([]byte, error) {
-	respBody, err := httpreq.New(
-		ctx,
-		http.MethodPost,
-		url,
-		httpreq.WithBody(bytes.NewBuffer(reqBody)),
-		httpreq.WithRequestConfigure(h.configureRequest()),
-		httpreq.WithStatusCodeCheck(statusCodeCheck),
-		// httpreq.WithCancel(c.selfDestruct),
-	).Do()
+	req, err := http.NewRequest("POST", url, bytes.NewBuffer(reqBody))
+	if err != nil {
+		return nil, err
+	}
+	h.configureRequest(req)
+	client := &http.Client{}
+	resp, err := client.Do(req)
 	// NOTE: If the URL is incorrect (in my test missing a / for http://) we get context cancelled message
 	//       instead of the real one.
 	if err != nil {
 		return nil, err
 	}
+	if resp.StatusCode > 299 {
+		return nil, fmt.Errorf("Invalid error code: %d", resp.StatusCode)
+	}
+	defer resp.Body.Close()
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
 
-	return respBody, nil
+	return body, nil
 }
 
 func (h *httpContractService) ConsumerSendContractRequest(ctx context.Context) error {
