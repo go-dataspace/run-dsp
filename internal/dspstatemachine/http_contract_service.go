@@ -15,16 +15,12 @@
 package dspstatemachine
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
-	"io"
-	"net/http"
 	"time"
 
 	"github.com/go-dataspace/run-dsp/dsp/shared"
-	"github.com/go-dataspace/run-dsp/internal/auth"
 	"github.com/go-dataspace/run-dsp/internal/constants"
 	"github.com/go-dataspace/run-dsp/jsonld"
 	"github.com/go-dataspace/run-dsp/logging"
@@ -33,48 +29,17 @@ import (
 )
 
 type httpContractService struct {
-	Context       context.Context
+	httpService
 	ContractState DSPContractStateStorage
 }
 
 func getHttpContractService(ctx context.Context, contractState DSPContractStateStorage) *httpContractService {
 	return &httpContractService{
-		Context:       ctx,
+		httpService: httpService{
+			Context: ctx,
+		},
 		ContractState: contractState,
 	}
-}
-
-func (h *httpContractService) configureRequest(r *http.Request) {
-	r.Header.Add("Authorization", auth.ExtractUserInfo(h.Context).String())
-	r.Header.Add("Content-Type", "application/json")
-	r.Header.Add("Accept", "application/json")
-}
-
-func (h *httpContractService) sendPostRequest(ctx context.Context, url string, reqBody []byte) ([]byte, error) {
-	logger := logging.Extract(ctx)
-	logger.Debug("Going to send POST request", "target_url", url)
-	req, err := http.NewRequest("POST", url, bytes.NewBuffer(reqBody))
-	if err != nil {
-		return nil, err
-	}
-	h.configureRequest(req)
-	client := &http.Client{}
-	resp, err := client.Do(req)
-	// NOTE: If the URL is incorrect (in my test missing a / for http://) we get context cancelled message
-	//       instead of the real one.
-	if err != nil {
-		return nil, err
-	}
-	if resp.StatusCode > 299 {
-		return nil, fmt.Errorf("Invalid error code: %d", resp.StatusCode)
-	}
-	defer resp.Body.Close()
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-
-	return body, nil
 }
 
 func (h *httpContractService) ConsumerSendContractRequest(ctx context.Context) error {
@@ -124,6 +89,7 @@ func (h *httpContractService) ConsumerSendContractRequest(ctx context.Context) e
 	return nil
 }
 
+//nolint:dupl
 func (h *httpContractService) ConsumerSendAgreementVerificationRequest(ctx context.Context) error {
 	logger := logging.Extract(ctx)
 	logger.Debug("In ConsumerAgreementVerificationRequest")
@@ -164,51 +130,52 @@ func (h *httpContractService) ConsumerSendAgreementVerificationRequest(ctx conte
 	return nil
 }
 
-func (h *httpContractService) ProviderSendContractAgreement(ctx context.Context) error {
+func (h *httpContractService) ProviderSendContractAgreement(ctx context.Context) (odrl.Agreement, error) {
 	logger := logging.Extract(ctx)
 	logger.Debug("In ProviderSendContractAgreement")
-	agreement := shared.ContractAgreementMessage{
-		Context:     jsonld.NewRootContext([]jsonld.ContextEntry{{ID: constants.DSPContext}}),
-		Type:        "dspace:ContractAgreementMessage",
-		ProviderPID: fmt.Sprintf("urn:uuid:%s", h.ContractState.ProviderPID),
-		ConsumerPID: fmt.Sprintf("urn:uuid:%s", h.ContractState.ConsumerPID),
-		Agreement: odrl.Agreement{
-			PolicyClass: odrl.PolicyClass{},
-			Type:        "odrl:Agreement",
-			ID:          fmt.Sprintf("urn:uuid:%s", uuid.New()),
-			Target:      fmt.Sprintf("urn:uuid:%s", uuid.New()),
-			Timestamp:   time.Now(),
-		},
+	agreement := odrl.Agreement{
+		PolicyClass: odrl.PolicyClass{},
+		Type:        "odrl:Agreement",
+		ID:          fmt.Sprintf("urn:uuid:%s", uuid.New()),
+		Target:      h.ContractState.Offer.Target,
+		Timestamp:   time.Now(),
+	}
+	agreementMessage := shared.ContractAgreementMessage{
+		Context:         jsonld.NewRootContext([]jsonld.ContextEntry{{ID: constants.DSPContext}}),
+		Type:            "dspace:ContractAgreementMessage",
+		ProviderPID:     fmt.Sprintf("urn:uuid:%s", h.ContractState.ProviderPID),
+		ConsumerPID:     fmt.Sprintf("urn:uuid:%s", h.ContractState.ConsumerPID),
+		Agreement:       agreement,
 		CallbackAddress: h.ContractState.ProviderCallbackAddress,
 	}
 
-	reqBody, err := shared.ValidateAndMarshal(ctx, agreement)
+	reqBody, err := shared.ValidateAndMarshal(ctx, agreementMessage)
 	if err != nil {
-		return err
+		return odrl.Agreement{}, err
 	}
 
 	targetUrl := fmt.Sprintf("%s/negotiations/%s/agreement",
 		h.ContractState.ConsumerCallbackAddress, h.ContractState.ConsumerPID)
-	logger.Debug("Sending ContractAgreementMessage", "target_url", targetUrl, "contract_agreement", agreement)
+	logger.Debug("Sending ContractAgreementMessage", "target_url", targetUrl, "contract_agreement", agreementMessage)
 	responseBody, err := h.sendPostRequest(ctx, targetUrl, reqBody)
 	if err != nil {
-		return err
+		return odrl.Agreement{}, err
 	}
 
 	// This should have the state OFFERED in ACK, if not empty
 	if len(responseBody) != 0 {
 		contractNegotiation, err := shared.UnmarshalAndValidate(ctx, responseBody, shared.ContractNegotiation{})
 		if err != nil {
-			return err
+			return odrl.Agreement{}, err
 		}
 
 		logger.Debug("Got ContractNegotiation", "contract_negotiation", contractNegotiation)
 		if contractNegotiation.State != "dspace:AGREED" {
-			return errors.New("Invalid state returned")
+			return odrl.Agreement{}, errors.New("Invalid state returned")
 		}
 	}
 
-	return nil
+	return agreement, nil
 }
 
 func (h *httpContractService) ProviderSendContractFinalized(ctx context.Context) error {
@@ -243,7 +210,7 @@ func (h *httpContractService) ProviderSendContractFinalized(ctx context.Context)
 		}
 
 		logger.Debug("Got ContractNegotiation", "contract_negotiation", contractNegotiation)
-		if contractNegotiation.State != "dspace:AGREED" {
+		if contractNegotiation.State != "dspace:FINALIZED" {
 			return errors.New("Invalid state returned")
 		}
 	}

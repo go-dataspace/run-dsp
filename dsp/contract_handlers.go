@@ -60,6 +60,7 @@ func providerContractStateHandler(w http.ResponseWriter, req *http.Request) {
 	validateMarshalAndReturn(req.Context(), w, http.StatusOK, getContractNegoReq())
 }
 
+//nolint:dupl
 func providerContractRequestHandler(w http.ResponseWriter, req *http.Request) {
 	logger := logging.Extract(req.Context())
 	reqBody, err := io.ReadAll(req.Body)
@@ -89,6 +90,7 @@ func providerContractRequestHandler(w http.ResponseWriter, req *http.Request) {
 			ProviderProcessId:       uuid.New(),
 			ConsumerCallbackAddress: contractReq.CallbackAddress,
 		},
+		Offer:        contractReq.Offer,
 		StateStorage: dspstatemachine.GetStateStorage(req.Context()),
 	}
 	contractNegotiation, err := dspstatemachine.ProviderCheckContractRequestMessage(req.Context(), contractArgs)
@@ -98,7 +100,7 @@ func providerContractRequestHandler(w http.ResponseWriter, req *http.Request) {
 	}
 
 	validateMarshalAndReturn(req.Context(), w, http.StatusOK, contractNegotiation)
-	go sendUUID(req.Context(), contractArgs.ProviderProcessId)
+	go sendUUID(req.Context(), contractArgs.ProviderProcessId, dspstatemachine.Contract)
 }
 
 func providerContractSpecificRequestHandler(w http.ResponseWriter, req *http.Request) {
@@ -246,7 +248,7 @@ func providerContractVerificationHandler(w http.ResponseWriter, req *http.Reques
 	}
 
 	validateMarshalAndReturn(req.Context(), w, http.StatusOK, contractNegotiation)
-	go sendUUID(req.Context(), contractArgs.ProviderProcessId)
+	go sendUUID(req.Context(), contractArgs.ProviderProcessId, dspstatemachine.Contract)
 }
 
 func providerContractTerminationHandler(w http.ResponseWriter, req *http.Request) {
@@ -356,6 +358,7 @@ func consumerContractAgreementHandler(w http.ResponseWriter, req *http.Request) 
 			ProviderCallbackAddress: agreement.CallbackAddress,
 		},
 		StateStorage: dspstatemachine.GetStateStorage(req.Context()),
+		Agreement:    agreement.Agreement,
 	}
 	contractNegotiation, err := dspstatemachine.ConsumerCheckContractAgreedRequest(req.Context(), contractArgs)
 	if err != nil {
@@ -364,7 +367,7 @@ func consumerContractAgreementHandler(w http.ResponseWriter, req *http.Request) 
 	}
 
 	validateMarshalAndReturn(req.Context(), w, http.StatusOK, contractNegotiation)
-	go sendUUID(req.Context(), consumerPID)
+	go sendUUID(req.Context(), consumerPID, dspstatemachine.Contract)
 }
 
 func consumerContractEventHandler(w http.ResponseWriter, req *http.Request) {
@@ -384,14 +387,12 @@ func consumerContractEventHandler(w http.ResponseWriter, req *http.Request) {
 		returnError(w, http.StatusBadRequest, "Could not read body")
 		return
 	}
-
 	// This should have the event FINALIZED
 	event, err := shared.UnmarshalAndValidate(req.Context(), reqBody, shared.ContractNegotiationEventMessage{})
 	if err != nil {
 		returnError(w, http.StatusBadRequest, "Invalid request")
 		return
 	}
-
 	parts := strings.Split(event.ProviderPID, ":")
 	uuidPart := parts[len(parts)-1]
 	providerPID, err := uuid.Parse(uuidPart)
@@ -400,7 +401,6 @@ func consumerContractEventHandler(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 	logger.Debug("Got contract event", "offer", event)
-
 	contractArgs := dspstatemachine.ContractArgs{
 		BaseArgs: dspstatemachine.BaseArgs{
 			ParticipantRole:   dspstatemachine.Provider,
@@ -414,8 +414,23 @@ func consumerContractEventHandler(w http.ResponseWriter, req *http.Request) {
 		returnError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-
 	validateMarshalAndReturn(req.Context(), w, http.StatusOK, contractNegotiation)
+
+	// FIXME: This is only for testing purposed
+	state, _ := contractArgs.StateStorage.FindContractNegotiationState(req.Context(), consumerPID)
+	statePID := uuid.New()
+	transferState := dspstatemachine.DSPTransferStateStorage{
+		StateID:                 statePID,
+		ConsumerPID:             statePID,
+		State:                   dspstatemachine.UndefinedTransferState,
+		ParticipantRole:         dspstatemachine.Consumer,
+		AgreementID:             state.Agreement.ID,
+		ConsumerCallbackAddress: "http://localhost:8080/run-dsp/v2024-1/callback",
+		ProviderCallbackAddress: "http://localhost:8080/run-dsp/v2024-1",
+	}
+	//nolint:errcheck
+	contractArgs.StateStorage.StoreTransferNegotiationState(req.Context(), statePID, transferState)
+	go sendUUID(req.Context(), statePID, dspstatemachine.Transfer)
 }
 
 func consumerContractTerminationHandler(w http.ResponseWriter, req *http.Request) {
@@ -453,8 +468,8 @@ func triggerConsumerContractRequestHandler(w http.ResponseWriter, req *http.Requ
 		StateID:                 consumerPID,
 		ConsumerPID:             consumerPID,
 		State:                   dspstatemachine.UndefinedState,
-		ConsumerCallbackAddress: "http://localhost:8080/callback",
-		ProviderCallbackAddress: "http://localhost:8080",
+		ConsumerCallbackAddress: "http://localhost:8080/run-dsp/v2024-1/callback",
+		ProviderCallbackAddress: "http://localhost:8080/run-dsp/v2024-1",
 		ParticipantRole:         dspstatemachine.Consumer,
 	}
 
@@ -467,7 +482,7 @@ func triggerConsumerContractRequestHandler(w http.ResponseWriter, req *http.Requ
 	// If all goes well, we just return a 200
 	w.WriteHeader(http.StatusOK)
 
-	go sendUUID(req.Context(), consumerPID)
+	go sendUUID(req.Context(), consumerPID, dspstatemachine.Contract)
 }
 
 func getConsumerContractRequestHandler(w http.ResponseWriter, req *http.Request) {
@@ -484,15 +499,15 @@ func getConsumerContractRequestHandler(w http.ResponseWriter, req *http.Request)
 			Type:   "odrl:Offer",
 			Target: fmt.Sprintf("urn:uuid:%s", uuid.New()),
 		},
-		CallbackAddress: "http://localhost:8080/callback",
+		CallbackAddress: "http://localhost:8080/run-dsp/v2024-1/callback",
 	}
 
 	contractState := dspstatemachine.DSPContractStateStorage{
 		StateID:                 consumerPID,
 		ConsumerPID:             consumerPID,
 		State:                   dspstatemachine.UndefinedState,
-		ConsumerCallbackAddress: "http://localhost:8080/callback",
-		ProviderCallbackAddress: "http://localhost:8080",
+		ConsumerCallbackAddress: "http://localhost:8080/run-dsp/v2024-1/callback",
+		ProviderCallbackAddress: "http://localhost:8080/run-dsp/v2024-1",
 		ParticipantRole:         dspstatemachine.Consumer,
 	}
 
@@ -516,8 +531,8 @@ func triggerProviderContractOfferRequestHandler(w http.ResponseWriter, req *http
 		StateID:                 providerPID,
 		ProviderPID:             providerPID,
 		State:                   dspstatemachine.UndefinedState,
-		ConsumerCallbackAddress: "http://localhost:8080/callback",
-		ProviderCallbackAddress: "http://localhost:8080",
+		ConsumerCallbackAddress: "http://localhost:8080/run-dsp/v2024-1/callback",
+		ProviderCallbackAddress: "http://localhost:8080/run-dsp/v2024-1",
 		ParticipantRole:         dspstatemachine.Provider,
 	}
 
@@ -530,13 +545,14 @@ func triggerProviderContractOfferRequestHandler(w http.ResponseWriter, req *http
 	// If all goes well, we just return a 200
 	w.WriteHeader(http.StatusOK)
 
-	go sendUUID(req.Context(), providerPID)
+	go sendUUID(req.Context(), providerPID, dspstatemachine.Contract)
 }
 
-func sendUUID(ctx context.Context, id uuid.UUID) {
+func sendUUID(ctx context.Context, id uuid.UUID, transactionType dspstatemachine.DSPTransactionType) {
 	channel := dspstatemachine.ExtractChannel(ctx)
 	channel <- dspstatemachine.StateStorageChannelMessage{
-		Context:   ctx,
-		ProcessID: id,
+		Context:         ctx,
+		ProcessID:       id,
+		TransactionType: transactionType,
 	}
 }

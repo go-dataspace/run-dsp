@@ -20,6 +20,7 @@ import (
 	"log/slog"
 
 	"github.com/go-dataspace/run-dsp/logging"
+	"github.com/go-dataspace/run-dsp/odrl"
 	"github.com/google/uuid"
 )
 
@@ -34,7 +35,7 @@ type DSPTransactionType int64
 
 const (
 	Contract DSPTransactionType = iota
-	Transaction
+	Transfer
 )
 
 type BaseArgs struct {
@@ -65,7 +66,10 @@ type (
 	DSPStateStorageService interface {
 		FindContractNegotiationState(ctx context.Context, id uuid.UUID) (DSPContractStateStorage, error)
 		StoreContractNegotiationState(ctx context.Context, id uuid.UUID, negotationState DSPContractStateStorage) error
-		// GenerateProcessId(ctx context.Context) (processId uuid.UUID, error error)
+		FindTransferNegotiationState(ctx context.Context, id uuid.UUID) (DSPTransferStateStorage, error)
+		StoreTransferNegotiationState(ctx context.Context, id uuid.UUID, negotationState DSPTransferStateStorage) error
+		FindAgreement(ctx context.Context, id string) (odrl.Agreement, error)
+		StoreAgreement(ctx context.Context, id string, agrement odrl.Agreement) error
 	}
 )
 
