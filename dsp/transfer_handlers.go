@@ -47,6 +47,7 @@ func providerTransferProcessHandler(w http.ResponseWriter, req *http.Request) {
 	validateMarshalAndReturn(req.Context(), w, http.StatusOK, getTransferProcessReq())
 }
 
+//nolint:dupl
 func providerTransferRequestHandler(w http.ResponseWriter, req *http.Request) {
 	logger := logging.Extract(req.Context())
 	reqBody, err := io.ReadAll(req.Body)

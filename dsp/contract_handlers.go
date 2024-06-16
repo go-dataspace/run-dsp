@@ -60,6 +60,7 @@ func providerContractStateHandler(w http.ResponseWriter, req *http.Request) {
 	validateMarshalAndReturn(req.Context(), w, http.StatusOK, getContractNegoReq())
 }
 
+//nolint:dupl
 func providerContractRequestHandler(w http.ResponseWriter, req *http.Request) {
 	logger := logging.Extract(req.Context())
 	reqBody, err := io.ReadAll(req.Body)
@@ -386,14 +387,12 @@ func consumerContractEventHandler(w http.ResponseWriter, req *http.Request) {
 		returnError(w, http.StatusBadRequest, "Could not read body")
 		return
 	}
-
 	// This should have the event FINALIZED
 	event, err := shared.UnmarshalAndValidate(req.Context(), reqBody, shared.ContractNegotiationEventMessage{})
 	if err != nil {
 		returnError(w, http.StatusBadRequest, "Invalid request")
 		return
 	}
-
 	parts := strings.Split(event.ProviderPID, ":")
 	uuidPart := parts[len(parts)-1]
 	providerPID, err := uuid.Parse(uuidPart)
@@ -402,7 +401,6 @@ func consumerContractEventHandler(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 	logger.Debug("Got contract event", "offer", event)
-
 	contractArgs := dspstatemachine.ContractArgs{
 		BaseArgs: dspstatemachine.BaseArgs{
 			ParticipantRole:   dspstatemachine.Provider,
@@ -416,7 +414,6 @@ func consumerContractEventHandler(w http.ResponseWriter, req *http.Request) {
 		returnError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-
 	validateMarshalAndReturn(req.Context(), w, http.StatusOK, contractNegotiation)
 
 	// FIXME: This is only for testing purposed
