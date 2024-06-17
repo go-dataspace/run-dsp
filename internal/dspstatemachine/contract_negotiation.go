@@ -71,6 +71,7 @@ type ContractArgs struct {
 
 	Offer     odrl.MessageOffer
 	Agreement odrl.Agreement
+	DatasetID uuid.UUID
 }
 
 type DSPContractNegotiationError struct {

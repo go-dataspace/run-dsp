@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"slices"
 
+	"github.com/go-dataspace/run-dsp/dsp/shared"
 	"github.com/google/uuid"
 )
 
@@ -56,6 +57,7 @@ type TransferArgs struct {
 	TransferState TransferNegotiationState
 	StateStorage  DSPStateStorageService
 	AgreementID   string
+	PublishInfo   shared.PublishInfo
 }
 
 type DSPTransferNegotiationError struct {

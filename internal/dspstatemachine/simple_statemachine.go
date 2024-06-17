@@ -21,6 +21,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/go-dataspace/run-dsp/dsp/shared"
 	"github.com/go-dataspace/run-dsp/internal/auth"
 	"github.com/go-dataspace/run-dsp/logging"
 	"github.com/go-dataspace/run-dsp/odrl"
@@ -58,6 +59,7 @@ type DSPContractStateStorage struct {
 	ParticipantRole         DSPParticipantRole
 	Offer                   odrl.MessageOffer
 	Agreement               odrl.Agreement
+	DatasetID               uuid.UUID
 }
 
 type DSPTransferStateStorage struct {
@@ -69,6 +71,7 @@ type DSPTransferStateStorage struct {
 	ProviderCallbackAddress string
 	ParticipantRole         DSPParticipantRole
 	AgreementID             string
+	PublishInfo             shared.PublishInfo
 }
 
 type SimpleStateStorage struct {

@@ -35,10 +35,6 @@ var dataService = shared.DataService{
 	EndpointURL: "https://insert-url-here.dsp/",
 }
 
-type catalogHandlers struct {
-	provider shared.FileProvider
-}
-
 func fileToDataset(file *shared.File, service shared.DataService) shared.Dataset {
 	ds := shared.Dataset{
 		Resource: shared.Resource{
@@ -65,7 +61,7 @@ func filesToDatasets(files []*shared.File, service shared.DataService) []shared.
 	return datasets
 }
 
-func (ch *catalogHandlers) catalogRequestHandler(w http.ResponseWriter, req *http.Request) {
+func (ch *dspHandlers) catalogRequestHandler(w http.ResponseWriter, req *http.Request) {
 	logger := logging.Extract(req.Context())
 	body, err := io.ReadAll(req.Body)
 	if err != nil {
@@ -108,7 +104,7 @@ func (ch *catalogHandlers) catalogRequestHandler(w http.ResponseWriter, req *htt
 	})
 }
 
-func (ch *catalogHandlers) datasetRequestHandler(w http.ResponseWriter, req *http.Request) {
+func (ch *dspHandlers) datasetRequestHandler(w http.ResponseWriter, req *http.Request) {
 	paramID := req.PathValue("id")
 	if paramID == "" {
 		returnError(w, http.StatusBadRequest, "No ID given in path")

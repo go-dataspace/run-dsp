@@ -18,6 +18,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -136,7 +137,10 @@ func (p *Publisher) Publish(id uuid.UUID, filePath string) (string, string, erro
 		Token:          token,
 		PathIdentifier: identifier,
 	})
-	url := p.serverURL
+	url, err := url.Parse(p.serverURL.String())
+	if err != nil {
+		panic(fmt.Sprintf("Bad URL: %s", p.serverURL))
+	}
 	url.Path = path.Join(url.Path, p.prefix, identifier, path.Base(filePath))
 
 	return url.String(), token, err

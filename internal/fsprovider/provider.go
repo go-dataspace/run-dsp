@@ -26,7 +26,6 @@ import (
 	"os"
 	"path"
 	"path/filepath"
-	"strconv"
 	"time"
 
 	"github.com/gabriel-vasile/mimetype"
@@ -45,16 +44,19 @@ type Adapter struct {
 }
 
 func New(path string, publisher *Publisher) Adapter {
-	return Adapter{path: path}
+	return Adapter{
+		path:      path,
+		publisher: publisher,
+	}
 }
 
 func (a Adapter) GetFileSet(ctx context.Context, citizenData *shared.CitizenData) ([]*shared.File, error) {
 	logger := logging.Extract(ctx)
 	userPath := path.Join(
 		a.path,
-		strconv.Itoa(citizenData.BirthDate.Year()),
-		strconv.Itoa(int(citizenData.BirthDate.Month())),
-		strconv.Itoa(citizenData.BirthDate.Day()),
+		fmt.Sprintf("%02d", citizenData.BirthDate.Year()),
+		fmt.Sprintf("%02d", citizenData.BirthDate.Month()),
+		fmt.Sprintf("%02d", citizenData.BirthDate.Day()),
 		citizenData.LastName,
 		citizenData.FirstName,
 	)
@@ -161,11 +163,11 @@ func getFiles(logger *slog.Logger, dir string) ([]*shared.File, error) {
 		return nil, err
 	}
 	entries, err := os.ReadDir(dir)
-	files := make([]*shared.File, len(entries))
+	files := make([]*shared.File, 0)
 	if err != nil {
 		return nil, err
 	}
-	for i, entry := range entries {
+	for _, entry := range entries {
 		id, f, err := newFunction(entry, ids, dir, logger)
 		if err != nil {
 			return nil, err
@@ -173,7 +175,7 @@ func getFiles(logger *slog.Logger, dir string) ([]*shared.File, error) {
 		if f == nil {
 			continue
 		}
-		files[i] = f
+		files = append(files, f)
 		ids[entry.Name()] = id
 	}
 

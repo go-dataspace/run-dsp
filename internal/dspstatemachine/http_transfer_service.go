@@ -91,12 +91,17 @@ func (h *httpTransferService) ProviderSendTransferStartRequest(ctx context.Conte
 		DataAddress: shared.DataAddress{
 			Type:         "dspace:DataAddress",
 			EndpointType: "https://w3id.org/idsa/v4.1/HTTP",
-			Endpoint:     "http://example.com/yourfile",
+			Endpoint:     h.TransferState.PublishInfo.URL,
 			EndpointProperties: []shared.EndpointProperty{
 				{
 					Type:  "dspace:EndpointProperty",
 					Name:  "authorization",
-					Value: "TOKEN-ABCDEFG",
+					Value: h.TransferState.PublishInfo.Token,
+				},
+				{
+					Type:  "dspace:EndpointProperty",
+					Name:  "authType",
+					Value: "bearer",
 				},
 			},
 		},
