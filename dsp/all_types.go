@@ -65,7 +65,7 @@ func getAllTypes() AllTypes {
 	}
 }
 
-func returnAllTypes(w http.ResponseWriter, req *http.Request) {
+func (dh *dspHandlers) returnAllTypes(w http.ResponseWriter, req *http.Request) {
 	respBody, err := json.Marshal(getAllTypes())
 	if err != nil {
 		returnError(w, http.StatusInternalServerError, "Failed to marshal data")

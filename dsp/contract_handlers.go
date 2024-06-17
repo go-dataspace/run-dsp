@@ -16,12 +16,14 @@ package dsp
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"strings"
 
 	"github.com/go-dataspace/run-dsp/dsp/shared"
+	"github.com/go-dataspace/run-dsp/internal/auth"
 	"github.com/go-dataspace/run-dsp/internal/constants"
 	"github.com/go-dataspace/run-dsp/internal/dspstatemachine"
 	"github.com/go-dataspace/run-dsp/jsonld"
@@ -50,7 +52,7 @@ func getContractNegOff() shared.ContractNegotiation {
 	}
 }
 
-func providerContractStateHandler(w http.ResponseWriter, req *http.Request) {
+func (dh *dspHandlers) providerContractStateHandler(w http.ResponseWriter, req *http.Request) {
 	providerPID := req.PathValue("providerPID")
 	if providerPID == "" {
 		returnError(w, http.StatusBadRequest, "Missing provider PID")
@@ -60,8 +62,7 @@ func providerContractStateHandler(w http.ResponseWriter, req *http.Request) {
 	validateMarshalAndReturn(req.Context(), w, http.StatusOK, getContractNegoReq())
 }
 
-//nolint:dupl
-func providerContractRequestHandler(w http.ResponseWriter, req *http.Request) {
+func (dh *dspHandlers) providerContractRequestHandler(w http.ResponseWriter, req *http.Request) {
 	logger := logging.Extract(req.Context())
 	reqBody, err := io.ReadAll(req.Body)
 	if err != nil {
@@ -80,6 +81,25 @@ func providerContractRequestHandler(w http.ResponseWriter, req *http.Request) {
 	consumerPID, err := uuid.Parse(uuidPart)
 	if err != nil {
 		returnError(w, http.StatusBadRequest, "Invalid request: ConsumerPID is not a UUID")
+		return
+	}
+
+	parts = strings.Split(contractReq.Offer.Target, ":")
+	uuidPart = parts[len(parts)-1]
+	targetID, err := uuid.Parse(uuidPart)
+	if err != nil {
+		returnError(w, http.StatusBadRequest, "Invalid request: Target ID is not a UUID")
+		return
+	}
+
+	authInfo := auth.ExtractUserInfo(req.Context())
+	_, err = dh.provider.GetFile(req.Context(), &shared.CitizenData{
+		FirstName: authInfo.FirstName,
+		LastName:  authInfo.Lastname,
+		BirthDate: authInfo.BirthDate,
+	}, targetID)
+	if err != nil {
+		returnError(w, http.StatusBadRequest, "Invalid request: Invalid target")
 		return
 	}
 
@@ -103,7 +123,7 @@ func providerContractRequestHandler(w http.ResponseWriter, req *http.Request) {
 	go sendUUID(req.Context(), contractArgs.ProviderProcessId, dspstatemachine.Contract)
 }
 
-func providerContractSpecificRequestHandler(w http.ResponseWriter, req *http.Request) {
+func (dh *dspHandlers) providerContractSpecificRequestHandler(w http.ResponseWriter, req *http.Request) {
 	logger := logging.Extract(req.Context())
 	providerPID := req.PathValue("providerPID")
 	if providerPID == "" {
@@ -130,7 +150,7 @@ func providerContractSpecificRequestHandler(w http.ResponseWriter, req *http.Req
 	w.WriteHeader(http.StatusOK)
 }
 
-func providerContractEventHandler(w http.ResponseWriter, req *http.Request) {
+func (dh *dspHandlers) providerContractEventHandler(w http.ResponseWriter, req *http.Request) {
 	logger := logging.Extract(req.Context())
 	providerPID := req.PathValue("providerPID")
 	if providerPID == "" {
@@ -193,7 +213,7 @@ func providerContractEventHandler(w http.ResponseWriter, req *http.Request) {
 	validateMarshalAndReturn(req.Context(), w, http.StatusOK, contractNegotiation)
 }
 
-func providerContractVerificationHandler(w http.ResponseWriter, req *http.Request) {
+func (dh *dspHandlers) providerContractVerificationHandler(w http.ResponseWriter, req *http.Request) {
 	logger := logging.Extract(req.Context())
 	providerPID := req.PathValue("providerPID")
 	if providerPID == "" {
@@ -251,7 +271,7 @@ func providerContractVerificationHandler(w http.ResponseWriter, req *http.Reques
 	go sendUUID(req.Context(), contractArgs.ProviderProcessId, dspstatemachine.Contract)
 }
 
-func providerContractTerminationHandler(w http.ResponseWriter, req *http.Request) {
+func (dh *dspHandlers) providerContractTerminationHandler(w http.ResponseWriter, req *http.Request) {
 	logger := logging.Extract(req.Context())
 	providerPID := req.PathValue("providerPID")
 	if providerPID == "" {
@@ -276,7 +296,7 @@ func providerContractTerminationHandler(w http.ResponseWriter, req *http.Request
 	w.WriteHeader(http.StatusOK)
 }
 
-func consumerContractOfferHandler(w http.ResponseWriter, req *http.Request) {
+func (dh *dspHandlers) consumerContractOfferHandler(w http.ResponseWriter, req *http.Request) {
 	logger := logging.Extract(req.Context())
 	reqBody, err := io.ReadAll(req.Body)
 	if err != nil {
@@ -293,7 +313,7 @@ func consumerContractOfferHandler(w http.ResponseWriter, req *http.Request) {
 	validateMarshalAndReturn(req.Context(), w, http.StatusCreated, getContractNegOff())
 }
 
-func consumerContractSpecificOfferHandler(w http.ResponseWriter, req *http.Request) {
+func (dh *dspHandlers) consumerContractSpecificOfferHandler(w http.ResponseWriter, req *http.Request) {
 	logger := logging.Extract(req.Context())
 	consumerPID := req.PathValue("consumerPID")
 	if consumerPID == "" {
@@ -317,7 +337,7 @@ func consumerContractSpecificOfferHandler(w http.ResponseWriter, req *http.Reque
 	w.WriteHeader(http.StatusOK)
 }
 
-func consumerContractAgreementHandler(w http.ResponseWriter, req *http.Request) {
+func (dh *dspHandlers) consumerContractAgreementHandler(w http.ResponseWriter, req *http.Request) {
 	logger := logging.Extract(req.Context())
 	consumerPIDString := req.PathValue("consumerPID")
 	if consumerPIDString == "" {
@@ -370,7 +390,7 @@ func consumerContractAgreementHandler(w http.ResponseWriter, req *http.Request) 
 	go sendUUID(req.Context(), consumerPID, dspstatemachine.Contract)
 }
 
-func consumerContractEventHandler(w http.ResponseWriter, req *http.Request) {
+func (dh *dspHandlers) consumerContractEventHandler(w http.ResponseWriter, req *http.Request) {
 	logger := logging.Extract(req.Context())
 	consumerPIDString := req.PathValue("consumerPID")
 	if consumerPIDString == "" {
@@ -433,7 +453,7 @@ func consumerContractEventHandler(w http.ResponseWriter, req *http.Request) {
 	go sendUUID(req.Context(), statePID, dspstatemachine.Transfer)
 }
 
-func consumerContractTerminationHandler(w http.ResponseWriter, req *http.Request) {
+func (dh *dspHandlers) consumerContractTerminationHandler(w http.ResponseWriter, req *http.Request) {
 	logger := logging.Extract(req.Context())
 	consumerPID := req.PathValue("consumerPID")
 	if consumerPID == "" {
@@ -459,9 +479,15 @@ func consumerContractTerminationHandler(w http.ResponseWriter, req *http.Request
 	w.WriteHeader(http.StatusOK)
 }
 
-func triggerConsumerContractRequestHandler(w http.ResponseWriter, req *http.Request) {
+func (dh *dspHandlers) triggerConsumerContractRequestHandler(w http.ResponseWriter, req *http.Request) {
 	logger := logging.Extract(req.Context())
 	consumerPID := uuid.New()
+
+	datasetID, err := uuid.Parse(req.PathValue("datasetID"))
+	if err != nil {
+		returnError(w, http.StatusBadRequest, "Dataset ID is not a UUID")
+		return
+	}
 
 	logger.Debug("Got trigger request to start contract negotiation")
 	contractState := dspstatemachine.DSPContractStateStorage{
@@ -471,21 +497,33 @@ func triggerConsumerContractRequestHandler(w http.ResponseWriter, req *http.Requ
 		ConsumerCallbackAddress: "http://localhost:8080/run-dsp/v2024-1/callback",
 		ProviderCallbackAddress: "http://localhost:8080/run-dsp/v2024-1",
 		ParticipantRole:         dspstatemachine.Consumer,
+		DatasetID:               datasetID,
 	}
 
 	stateStorage := dspstatemachine.GetStateStorage(req.Context())
-	err := stateStorage.StoreContractNegotiationState(req.Context(), consumerPID, contractState)
+	err = stateStorage.StoreContractNegotiationState(req.Context(), consumerPID, contractState)
 	if err != nil {
 		returnError(w, http.StatusBadRequest, "Failed to store initial state")
 		return
 	}
+
+	bytes, err := json.Marshal(struct {
+		ConsumerPID uuid.UUID
+	}{
+		ConsumerPID: consumerPID,
+	})
+	if err != nil {
+		returnError(w, http.StatusBadRequest, "Failed to write body")
+		return
+	}
 	// If all goes well, we just return a 200
 	w.WriteHeader(http.StatusOK)
+	fmt.Fprint(w, string(bytes))
 
 	go sendUUID(req.Context(), consumerPID, dspstatemachine.Contract)
 }
 
-func getConsumerContractRequestHandler(w http.ResponseWriter, req *http.Request) {
+func (dh *dspHandlers) getConsumerContractRequestHandler(w http.ResponseWriter, req *http.Request) {
 	consumerPID := uuid.New()
 	contractRequest := shared.ContractRequestMessage{
 		Context:     jsonld.NewRootContext([]jsonld.ContextEntry{{ID: constants.DSPContext}}),
@@ -522,7 +560,7 @@ func getConsumerContractRequestHandler(w http.ResponseWriter, req *http.Request)
 }
 
 // FIXME: This needs to have a function for sending an offer.
-func triggerProviderContractOfferRequestHandler(w http.ResponseWriter, req *http.Request) {
+func (dh *dspHandlers) triggerProviderContractOfferRequestHandler(w http.ResponseWriter, req *http.Request) {
 	logger := logging.Extract(req.Context())
 	providerPID := uuid.New()
 

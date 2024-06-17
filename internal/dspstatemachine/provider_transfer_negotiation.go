@@ -33,6 +33,7 @@ func ProviderCheckTransferRequestMessage(ctx context.Context, args TransferArgs)
 		ProviderCallbackAddress: "http://localhost:8080/run-dsp/v2024-1",
 		ParticipantRole:         Provider,
 		AgreementID:             args.AgreementID,
+		PublishInfo:             args.PublishInfo,
 	}
 	err := args.StateStorage.StoreTransferNegotiationState(ctx, newState.StateID, newState)
 	if err != nil {

@@ -25,6 +25,10 @@ import (
 	"github.com/go-dataspace/run-dsp/jsonld"
 )
 
+type dspHandlers struct {
+	provider shared.FileProvider
+}
+
 type errorResponse struct {
 	Error string `json:"error"`
 }

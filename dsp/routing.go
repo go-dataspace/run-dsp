@@ -34,43 +34,43 @@ func GetWellKnownRoutes() http.Handler {
 func GetDSPRoutes(provider shared.FileProvider) http.Handler {
 	mux := http.NewServeMux()
 
-	ch := catalogHandlers{provider: provider}
+	ch := dspHandlers{provider: provider}
 	// Catalog endpoints
 	mux.HandleFunc("POST /catalog/request", ch.catalogRequestHandler)
 	mux.HandleFunc("GET /catalog/datasets/{id}", ch.datasetRequestHandler)
 
 	// Contract negotiation endpoints
-	mux.HandleFunc("GET /negotiations/{providerPID}", providerContractStateHandler)
-	mux.HandleFunc("POST /negotiations/request", providerContractRequestHandler)
-	mux.HandleFunc("POST /negotiations/{providerPID}/request", providerContractSpecificRequestHandler)
-	mux.HandleFunc("POST /negotiations/{providerPID}/events", providerContractEventHandler)
-	mux.HandleFunc("POST /negotiations/{providerPID}/agreement/verification", providerContractVerificationHandler)
-	mux.HandleFunc("POST /negotiations/{providerPID}/termination", providerContractTerminationHandler)
+	mux.HandleFunc("GET /negotiations/{providerPID}", ch.providerContractStateHandler)
+	mux.HandleFunc("POST /negotiations/request", ch.providerContractRequestHandler)
+	mux.HandleFunc("POST /negotiations/{providerPID}/request", ch.providerContractSpecificRequestHandler)
+	mux.HandleFunc("POST /negotiations/{providerPID}/events", ch.providerContractEventHandler)
+	mux.HandleFunc("POST /negotiations/{providerPID}/agreement/verification", ch.providerContractVerificationHandler)
+	mux.HandleFunc("POST /negotiations/{providerPID}/termination", ch.providerContractTerminationHandler)
 
 	// Contract negotiation consumer callbacks
-	mux.HandleFunc("POST /negotiations/offers", consumerContractOfferHandler)
-	mux.HandleFunc("POST /negotiations/{consumerPID}/offers", consumerContractSpecificOfferHandler)
-	mux.HandleFunc("POST /callback/negotiations/{consumerPID}/agreement", consumerContractAgreementHandler)
-	mux.HandleFunc("POST /callback/negotiations/{consumerPID}/events", consumerContractEventHandler)
-	mux.HandleFunc("POST /callback/negotiations/{consumerPID}/termination", consumerContractTerminationHandler)
+	mux.HandleFunc("POST /negotiations/offers", ch.consumerContractOfferHandler)
+	mux.HandleFunc("POST /negotiations/{consumerPID}/offers", ch.consumerContractSpecificOfferHandler)
+	mux.HandleFunc("POST /callback/negotiations/{consumerPID}/agreement", ch.consumerContractAgreementHandler)
+	mux.HandleFunc("POST /callback/negotiations/{consumerPID}/events", ch.consumerContractEventHandler)
+	mux.HandleFunc("POST /callback/negotiations/{consumerPID}/termination", ch.consumerContractTerminationHandler)
 
 	// Transfer process endpoints
-	mux.HandleFunc("GET /transfers/{providerPID}", providerTransferProcessHandler)
-	mux.HandleFunc("POST /transfers/request", providerTransferRequestHandler)
-	mux.HandleFunc("POST /transfers/{providerPID}/start", providerTransferStartHandler)
-	mux.HandleFunc("POST /transfers/{providerPID}/completion", providerTransferCompletionHandler)
-	mux.HandleFunc("POST /transfers/{providerPID}/termination", providerTransferTerminationHandler)
-	mux.HandleFunc("POST /transfers/{providerPID}/suspension", providerTransferSuspensionHandler)
+	mux.HandleFunc("GET /transfers/{providerPID}", ch.providerTransferProcessHandler)
+	mux.HandleFunc("POST /transfers/request", ch.providerTransferRequestHandler)
+	mux.HandleFunc("POST /transfers/{providerPID}/start", ch.providerTransferStartHandler)
+	mux.HandleFunc("POST /transfers/{providerPID}/completion", ch.providerTransferCompletionHandler)
+	mux.HandleFunc("POST /transfers/{providerPID}/termination", ch.providerTransferTerminationHandler)
+	mux.HandleFunc("POST /transfers/{providerPID}/suspension", ch.providerTransferSuspensionHandler)
 	// Transfer process consumer callbacks
-	mux.HandleFunc("POST /callback/transfers/{consumerPID}/start", consumerTransferStartHandler)
-	mux.HandleFunc("POST /callback/transfers/{consumerPID}/completion", consumerTransferCompletionHandler)
-	mux.HandleFunc("POST /callback/transfers/{consumerPID}/termination", consumerTransferTerminationHandler)
-	mux.HandleFunc("POST /callback/transfers/{consumerPID}/suspension", consumerTransferSuspensionHandler)
+	mux.HandleFunc("POST /callback/transfers/{consumerPID}/start", ch.consumerTransferStartHandler)
+	mux.HandleFunc("POST /callback/transfers/{consumerPID}/completion", ch.consumerTransferCompletionHandler)
+	mux.HandleFunc("POST /callback/transfers/{consumerPID}/termination", ch.consumerTransferTerminationHandler)
+	mux.HandleFunc("POST /callback/transfers/{consumerPID}/suspension", ch.consumerTransferSuspensionHandler)
 
-	mux.HandleFunc("GET /types", returnAllTypes)
-	mux.HandleFunc("GET /triggerconsumer", triggerConsumerContractRequestHandler)
-	mux.HandleFunc("GET /getconsumercontractrequest", getConsumerContractRequestHandler)
-	mux.HandleFunc("GET /triggerproducer", triggerProviderContractOfferRequestHandler)
+	mux.HandleFunc("GET /types", ch.returnAllTypes)
+	mux.HandleFunc("GET /triggerconsumer/{datasetID}", ch.triggerConsumerContractRequestHandler)
+	mux.HandleFunc("GET /getconsumercontractrequest", ch.getConsumerContractRequestHandler)
+	mux.HandleFunc("GET /triggerproducer", ch.triggerProviderContractOfferRequestHandler)
 
 	return mux
 }

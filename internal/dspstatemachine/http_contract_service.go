@@ -56,7 +56,7 @@ func (h *httpContractService) ConsumerSendContractRequest(ctx context.Context) e
 				ID:                 fmt.Sprintf("urn:uuid:%s", uuid.New()),
 			},
 			Type:   "odrl:Offer",
-			Target: fmt.Sprintf("urn:uuid:%s", uuid.New()),
+			Target: fmt.Sprintf("urn:uuid:%s", h.ContractState.DatasetID),
 		},
 		CallbackAddress: h.ContractState.ConsumerCallbackAddress,
 	}
