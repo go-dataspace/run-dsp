@@ -23,10 +23,11 @@ import (
 	"github.com/go-dataspace/run-dsp/dsp/shared"
 	"github.com/go-dataspace/run-dsp/internal/constants"
 	"github.com/go-dataspace/run-dsp/jsonld"
+	providerv1 "github.com/go-dataspace/run-dsrpc/gen/go/provider/v1"
 )
 
 type dspHandlers struct {
-	provider shared.FileProvider
+	provider providerv1.ProviderServiceClient
 }
 
 type errorResponse struct {

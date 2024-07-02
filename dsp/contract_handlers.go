@@ -23,12 +23,12 @@ import (
 	"strings"
 
 	"github.com/go-dataspace/run-dsp/dsp/shared"
-	"github.com/go-dataspace/run-dsp/internal/auth"
 	"github.com/go-dataspace/run-dsp/internal/constants"
 	"github.com/go-dataspace/run-dsp/internal/dspstatemachine"
 	"github.com/go-dataspace/run-dsp/jsonld"
 	"github.com/go-dataspace/run-dsp/logging"
 	"github.com/go-dataspace/run-dsp/odrl"
+	providerv1 "github.com/go-dataspace/run-dsrpc/gen/go/provider/v1"
 	"github.com/google/uuid"
 )
 
@@ -92,12 +92,9 @@ func (dh *dspHandlers) providerContractRequestHandler(w http.ResponseWriter, req
 		return
 	}
 
-	authInfo := auth.ExtractUserInfo(req.Context())
-	_, err = dh.provider.GetFile(req.Context(), &shared.CitizenData{
-		FirstName: authInfo.FirstName,
-		LastName:  authInfo.Lastname,
-		BirthDate: authInfo.BirthDate,
-	}, targetID)
+	_, err = dh.provider.GetDataset(req.Context(), &providerv1.GetDatasetRequest{
+		DatasetId: targetID.String(),
+	})
 	if err != nil {
 		returnError(w, http.StatusBadRequest, "Invalid request: Invalid target")
 		return
