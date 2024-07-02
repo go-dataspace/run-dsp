@@ -18,7 +18,7 @@ package dsp
 import (
 	"net/http"
 
-	"github.com/go-dataspace/run-dsp/dsp/shared"
+	providerv1 "github.com/go-dataspace/run-dsrpc/gen/go/provider/v1"
 )
 
 // GetRoutes gets all the dataspace routes.
@@ -31,7 +31,7 @@ func GetWellKnownRoutes() http.Handler {
 	return mux
 }
 
-func GetDSPRoutes(provider shared.FileProvider) http.Handler {
+func GetDSPRoutes(provider providerv1.ProviderServiceClient) http.Handler {
 	mux := http.NewServeMux()
 
 	ch := dspHandlers{provider: provider}

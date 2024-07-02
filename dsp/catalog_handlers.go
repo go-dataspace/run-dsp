@@ -18,12 +18,13 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"time"
 
 	"github.com/go-dataspace/run-dsp/dsp/shared"
-	"github.com/go-dataspace/run-dsp/internal/auth"
 	"github.com/go-dataspace/run-dsp/internal/constants"
 	"github.com/go-dataspace/run-dsp/jsonld"
 	"github.com/go-dataspace/run-dsp/logging"
+	providerv1 "github.com/go-dataspace/run-dsrpc/gen/go/provider/v1"
 	"github.com/google/uuid"
 )
 
@@ -35,28 +36,30 @@ var dataService = shared.DataService{
 	EndpointURL: "https://insert-url-here.dsp/",
 }
 
-func fileToDataset(file *shared.File, service shared.DataService) shared.Dataset {
+func processProviderDataset(pds *providerv1.Dataset, service shared.DataService) shared.Dataset {
 	ds := shared.Dataset{
 		Resource: shared.Resource{
-			ID:         fmt.Sprintf("urn:uuid:%s", file.ID.String()),
-			Type:       "dcat:Dataset",
-			Title:      file.Name,
-			Modified:   file.Modified,
-			ConformsTo: file.Format,
+			ID:       fmt.Sprintf("urn:uuid:%s", pds.GetId()),
+			Type:     "dcat:Dataset",
+			Title:    pds.GetTitle(),
+			Issued:   pds.GetIssued().AsTime().Format(time.RFC3339),
+			Modified: pds.GetModified().AsTime().Format(time.RFC3339),
+			Keyword:  pds.GetKeywords(),
+			Creator:  pds.GetCreator(),
 		},
 		Distribution: []shared.Distribution{{
 			Type:          "dcat:Distribution",
-			Format:        "dspace:https+push",
+			Format:        fmt.Sprintf("dspace:%s", pds.GetAccessMethods()),
 			AccessService: []shared.DataService{service},
 		}},
 	}
 	return ds
 }
 
-func filesToDatasets(files []*shared.File, service shared.DataService) []shared.Dataset {
-	datasets := make([]shared.Dataset, len(files))
-	for i, f := range files {
-		datasets[i] = fileToDataset(f, service)
+func processProviderCatalogue(gdc []*providerv1.Dataset, service shared.DataService) []shared.Dataset {
+	datasets := make([]shared.Dataset, len(gdc))
+	for i, f := range gdc {
+		datasets[i] = processProviderDataset(f, service)
 	}
 	return datasets
 }
@@ -75,13 +78,8 @@ func (ch *dspHandlers) catalogRequestHandler(w http.ResponseWriter, req *http.Re
 		return
 	}
 	logger.Debug("Got catalog request", "req", catalogReq)
-	ui := auth.ExtractUserInfo(req.Context())
-	// As there's no filter option yet, we don't need anything from the catalog request.
-	fileSet, err := ch.provider.GetFileSet(req.Context(), &shared.CitizenData{
-		FirstName: ui.FirstName,
-		LastName:  ui.Lastname,
-		BirthDate: ui.BirthDate,
-	})
+	// As the filter option is undefined, we will not fill anything
+	resp, err := ch.provider.GetCatalogue(req.Context(), &providerv1.GetCatalogueRequest{})
 	if err != nil {
 		returnError(w, http.StatusInternalServerError, "could not get catalog")
 		return
@@ -99,7 +97,7 @@ func (ch *dspHandlers) catalogRequestHandler(w http.ResponseWriter, req *http.Re
 			},
 		},
 		Context:  jsonld.NewRootContext([]jsonld.ContextEntry{{ID: constants.DSPContext}}),
-		Datasets: filesToDatasets(fileSet, dataService),
+		Datasets: processProviderCatalogue(resp.GetDatasets(), dataService),
 		Service:  []shared.DataService{dataService},
 	})
 }
@@ -129,17 +127,14 @@ func (ch *dspHandlers) datasetRequestHandler(w http.ResponseWriter, req *http.Re
 		return
 	}
 	logger.Debug("Got dataset request", "req", datasetReq)
-	ui := auth.ExtractUserInfo(ctx)
-	// As there's no filter option yet, we don't need anything from the catalog request.
-	file, err := ch.provider.GetFile(ctx, &shared.CitizenData{
-		FirstName: ui.FirstName,
-		LastName:  ui.Lastname,
-		BirthDate: ui.BirthDate,
-	}, id)
+	resp, err := ch.provider.GetDataset(ctx, &providerv1.GetDatasetRequest{
+		DatasetId: id.String(),
+	})
 	if err != nil {
+		logger.Error("Could not get dataset", "error", err)
 		returnError(w, http.StatusInternalServerError, "could not get dataset")
 		return
 	}
 
-	validateMarshalAndReturn(req.Context(), w, http.StatusOK, fileToDataset(file, dataService))
+	validateMarshalAndReturn(req.Context(), w, http.StatusOK, processProviderDataset(resp.GetDataset(), dataService))
 }

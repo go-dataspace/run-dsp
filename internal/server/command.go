@@ -16,9 +16,13 @@
 package server
 
 import (
+	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"fmt"
+	"log/slog"
 	"net/http"
-	"net/url"
+	"os"
 	"time"
 
 	"github.com/go-dataspace/run-dsp/dsp"
@@ -26,19 +30,69 @@ import (
 	"github.com/go-dataspace/run-dsp/internal/cli"
 	"github.com/go-dataspace/run-dsp/internal/constants"
 	"github.com/go-dataspace/run-dsp/internal/dspstatemachine"
-	"github.com/go-dataspace/run-dsp/internal/fsprovider"
 	"github.com/go-dataspace/run-dsp/logging"
+	providerv1 "github.com/go-dataspace/run-dsrpc/gen/go/provider/v1"
+	grpclog "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/logging"
 	"github.com/justinas/alice"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/credentials/insecure"
 
 	sloghttp "github.com/samber/slog-http"
 )
 
 // Command contains all the server parameters.
+//
+//nolint:lll
 type Command struct {
 	ListenAddr string `help:"Listen address" default:"0.0.0.0" env:"LISTEN_ADDR"`
 	Port       int    `help:"Listen port" default:"8080" env:"PORT"`
-	ServerURL  string `help:"External URL of the server, e.g. https://example.org" default:"http://127.0.0.1:8080/" env:"SERVER_URL"` //nolint:lll
-	ServePath  string `help:"Path for fileserver" default:"/var/tmp/run-dsp/fileserver" env:"SERVE_PATH"`                             //nolint:lll
+
+	ProviderAddress       string `help:"Address of provider GRPC endpoint" required:"" env:"PROVIDER_URL"`
+	ProviderInsecure      bool   `help:"Provider connection does not use TLS" default:"false" env:"PROVIDER_INSECURE"`
+	ProviderCACert        string `help:"Custom CA certificate for provider's TLS certificate" env:"PROVIDER_CA"`
+	ProviderClientCert    string `help:"Client certificate to use to authenticate with provider" env:"PROVIDER_CLIENT_CERT"`
+	ProviderClientCertKey string `help:"Key to the client certificate" env:"PROVIDER_CLIENT_CERT_KEY"`
+}
+
+// Validate checks if the parameters are correct.
+func (c *Command) Validate() error {
+	if c.ProviderInsecure {
+		return nil
+	}
+
+	_, err := checkFile(c.ProviderCACert)
+	if err != nil {
+		return fmt.Errorf("Provider CA certificate: %w", err)
+	}
+
+	certSupplied, err := checkFile(c.ProviderClientCert)
+	if err != nil {
+		return fmt.Errorf("Provider client certificate: %w", err)
+	}
+	keySupplied, err := checkFile(c.ProviderClientCertKey)
+	if err != nil {
+		return fmt.Errorf("Provider client certificate key: %w", err)
+	}
+
+	if certSupplied != keySupplied {
+		return fmt.Errorf("Need to supply both client certificate and its key.")
+	}
+	return nil
+}
+
+func checkFile(l string) (bool, error) {
+	if l != "" {
+		f, err := os.Stat(l)
+		if err != nil {
+			return true, fmt.Errorf("could not read %s: %w", l, err)
+		}
+		if f.IsDir() {
+			return true, fmt.Errorf("%s is a directory", l)
+		}
+		return true, nil
+	}
+	return false, nil
 }
 
 // Run starts the server.
@@ -51,12 +105,11 @@ func (c *Command) Run(p cli.Params) error {
 	idChannel := make(chan dspstatemachine.StateStorageChannelMessage, 10)
 	stateStorage := dspstatemachine.GetStateStorage(ctx)
 	go stateStorage.AllowStateToProgress(idChannel)
-	url, err := url.Parse(c.ServerURL)
+	provider, conn, err := c.getProvider(ctx)
 	if err != nil {
-		return fmt.Errorf("Invalid URL: %s", c.ServerURL)
+		return err
 	}
-	publisher := fsprovider.NewPublisher(ctx, constants.FileServePath, url)
-	provider := fsprovider.New(c.ServePath, publisher)
+	defer conn.Close()
 
 	mux := http.NewServeMux()
 
@@ -65,10 +118,6 @@ func (c *Command) Run(p cli.Params) error {
 		sloghttp.New(logger),
 		logging.NewMiddleware(logger),
 	)
-	mux.Handle(constants.FileServePath+"/", http.StripPrefix(
-		constants.FileServePath,
-		baseMW.Then(publisher.Mux()),
-	))
 	mux.Handle("/.well-known/", http.StripPrefix(
 		"/.well-known",
 		baseMW.Append(jsonHeaderMiddleware).Then(dsp.GetWellKnownRoutes()),
@@ -88,4 +137,75 @@ func (c *Command) Run(p cli.Params) error {
 		ReadHeaderTimeout: 2 * time.Second,
 	}
 	return srv.ListenAndServe()
+}
+
+func (c *Command) getProvider(ctx context.Context) (providerv1.ProviderServiceClient, *grpc.ClientConn, error) {
+	logger := logging.Extract(ctx)
+	tlsCredentials, err := c.loadTLSCredentials()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	logOpts := []grpclog.Option{
+		grpclog.WithLogOnEvents(grpclog.StartCall, grpclog.FinishCall),
+	}
+	conn, err := grpc.NewClient(
+		c.ProviderAddress,
+		grpc.WithTransportCredentials(tlsCredentials),
+		grpc.WithChainUnaryInterceptor(
+			grpclog.UnaryClientInterceptor(interceptorLogger(logger), logOpts...),
+		),
+		grpc.WithStreamInterceptor(
+			grpclog.StreamClientInterceptor(interceptorLogger(logger), logOpts...),
+		),
+	)
+	if err != nil {
+		return nil, nil, fmt.Errorf("could not connect to the provider: %w", err)
+	}
+
+	provider := providerv1.NewProviderServiceClient(conn)
+	_, err = provider.Ping(ctx, &providerv1.PingRequest{})
+	if err != nil {
+		return nil, nil, fmt.Errorf("could not ping provider: %w", err)
+	}
+	return provider, conn, nil
+}
+
+func (c *Command) loadTLSCredentials() (credentials.TransportCredentials, error) {
+	if c.ProviderInsecure {
+		return insecure.NewCredentials(), nil
+	}
+
+	config := &tls.Config{
+		MinVersion: tls.VersionTLS12,
+	}
+
+	if c.ProviderCACert != "" {
+		pemServerCA, err := os.ReadFile(c.ProviderCACert)
+		if err != nil {
+			return nil, fmt.Errorf("couldn't read CA file: %w", err)
+		}
+
+		certPool := x509.NewCertPool()
+		if !certPool.AppendCertsFromPEM(pemServerCA) {
+			return nil, fmt.Errorf("failed to add server CA certificate")
+		}
+		config.RootCAs = certPool
+	}
+
+	if c.ProviderClientCert != "" {
+		clientCert, err := tls.LoadX509KeyPair(c.ProviderClientCert, c.ProviderClientCertKey)
+		if err != nil {
+			return nil, err
+		}
+		config.Certificates = []tls.Certificate{clientCert}
+	}
+
+	return credentials.NewTLS(config), nil
+}
+
+func interceptorLogger(l *slog.Logger) grpclog.Logger {
+	return grpclog.LoggerFunc(func(ctx context.Context, lvl grpclog.Level, msg string, fields ...any) {
+		l.Log(ctx, slog.Level(lvl), msg, fields...)
+	})
 }

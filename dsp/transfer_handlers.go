@@ -20,11 +20,11 @@ import (
 	"strings"
 
 	"github.com/go-dataspace/run-dsp/dsp/shared"
-	"github.com/go-dataspace/run-dsp/internal/auth"
 	"github.com/go-dataspace/run-dsp/internal/constants"
 	"github.com/go-dataspace/run-dsp/internal/dspstatemachine"
 	"github.com/go-dataspace/run-dsp/jsonld"
 	"github.com/go-dataspace/run-dsp/logging"
+	providerv1 "github.com/go-dataspace/run-dsrpc/gen/go/provider/v1"
 	"github.com/google/uuid"
 )
 
@@ -48,7 +48,6 @@ func (dh *dspHandlers) providerTransferProcessHandler(w http.ResponseWriter, req
 	validateMarshalAndReturn(req.Context(), w, http.StatusOK, getTransferProcessReq())
 }
 
-//nolint:funlen
 func (dh *dspHandlers) providerTransferRequestHandler(w http.ResponseWriter, req *http.Request) {
 	reqBody, err := io.ReadAll(req.Body)
 	if err != nil {
@@ -76,27 +75,20 @@ func (dh *dspHandlers) providerTransferRequestHandler(w http.ResponseWriter, req
 		return
 	}
 
-	authInfo := auth.ExtractUserInfo(req.Context())
-	if err != nil {
-		returnError(w, http.StatusBadRequest, "Invalid request: Invalid target")
-		return
-	}
-
 	providerPID := uuid.New()
 	parts = strings.Split(agreement.Target, ":")
 	uuidPart = parts[len(parts)-1]
 	fileID := uuid.MustParse(uuidPart)
 
-	publishInfo, err := dh.provider.PublishFile(req.Context(),
-		&shared.CitizenData{
-			FirstName: authInfo.FirstName,
-			LastName:  authInfo.Lastname,
-			BirthDate: authInfo.BirthDate,
-		}, fileID, providerPID)
+	resp, err := dh.provider.PublishDataset(req.Context(), &providerv1.PublishDatasetRequest{
+		DatasetId: fileID.String(),
+		PublishId: providerPID.String(),
+	})
 	if err != nil {
 		returnError(w, http.StatusBadRequest, "Consumer PID is not a UUID")
 		return
 	}
+	publishInfo := processProviderPublishInfo(resp.PublishInfo)
 
 	transferArgs := dspstatemachine.TransferArgs{
 		BaseArgs: dspstatemachine.BaseArgs{
@@ -117,6 +109,13 @@ func (dh *dspHandlers) providerTransferRequestHandler(w http.ResponseWriter, req
 	}
 	validateMarshalAndReturn(req.Context(), w, http.StatusCreated, transferProcess)
 	go sendUUID(req.Context(), transferArgs.ProviderProcessId, dspstatemachine.Transfer)
+}
+
+func processProviderPublishInfo(ppi *providerv1.PublishInfo) shared.PublishInfo {
+	return shared.PublishInfo{
+		URL:   ppi.GetUrl(),
+		Token: ppi.GetPassword(),
+	}
 }
 
 func (dh *dspHandlers) providerTransferStartHandler(w http.ResponseWriter, req *http.Request) {
@@ -175,7 +174,13 @@ func (dh *dspHandlers) providerTransferCompletionHandler(w http.ResponseWriter, 
 		StateStorage: dspstatemachine.GetStateStorage(req.Context()),
 	}
 
-	dh.provider.UnpublishFile(req.Context(), providerPID)
+	_, err = dh.provider.UnpublishDataset(req.Context(), &providerv1.UnpublishDatasetRequest{
+		PublishId: providerPID.String(),
+	})
+	if err != nil {
+		returnError(w, http.StatusInternalServerError, "could not unpublish file")
+		return
+	}
 
 	transferProcess, err := dspstatemachine.ProviderCheckTransferCompletionMessage(req.Context(), transferArgs)
 	if err != nil {

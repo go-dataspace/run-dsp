@@ -60,7 +60,7 @@ func (p *ConcreteParams) Debug() bool {
 	return p.debug
 }
 
-// Context rreturns the context.
+// Context returns the context.
 func (p *ConcreteParams) Context() context.Context {
 	return p.ctx
 }
