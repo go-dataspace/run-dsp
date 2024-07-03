@@ -17,7 +17,6 @@ package dsp
 import (
 	"io"
 	"net/http"
-	"strings"
 
 	"github.com/go-dataspace/run-dsp/dsp/shared"
 	"github.com/go-dataspace/run-dsp/internal/constants"
@@ -60,9 +59,7 @@ func (dh *dspHandlers) providerTransferRequestHandler(w http.ResponseWriter, req
 		return
 	}
 
-	parts := strings.Split(transferReq.ConsumerPID, ":")
-	uuidPart := parts[len(parts)-1]
-	consumerPID, err := uuid.Parse(uuidPart)
+	consumerPID, err := shared.ParseUUIDURN(transferReq.AgreementID)
 	if err != nil {
 		returnError(w, http.StatusBadRequest, "Consumer PID is not a UUID")
 		return
@@ -76,9 +73,11 @@ func (dh *dspHandlers) providerTransferRequestHandler(w http.ResponseWriter, req
 	}
 
 	providerPID := uuid.New()
-	parts = strings.Split(agreement.Target, ":")
-	uuidPart = parts[len(parts)-1]
-	fileID := uuid.MustParse(uuidPart)
+	fileID, err := shared.ParseUUIDURN(agreement.Target)
+	if err != nil {
+		returnError(w, http.StatusInternalServerError, "Consumer PID is not a UUID")
+		return
+	}
 
 	resp, err := dh.provider.PublishDataset(req.Context(), &providerv1.PublishDatasetRequest{
 		DatasetId: fileID.String(),
@@ -263,9 +262,7 @@ func (dh *dspHandlers) consumerTransferStartHandler(w http.ResponseWriter, req *
 
 	logger.Debug("Got transfer start from provider", "suspension", start)
 
-	parts := strings.Split(start.ProviderPID, ":")
-	uuidPart := parts[len(parts)-1]
-	providerPID, err := uuid.Parse(uuidPart)
+	providerPID, err := shared.ParseUUIDURN(start.ProviderPID)
 	if err != nil {
 		returnError(w, http.StatusBadRequest, "Provider PID is not a UUID")
 		return
@@ -286,7 +283,6 @@ func (dh *dspHandlers) consumerTransferStartHandler(w http.ResponseWriter, req *
 	}
 
 	validateMarshalAndReturn(req.Context(), w, http.StatusCreated, transferProcess)
-	// go sendUUID(req.Context(), transferArgs.ConsumerProcessId, dspstatemachine.Transfer)
 }
 
 func (dh *dspHandlers) consumerTransferCompletionHandler(w http.ResponseWriter, req *http.Request) {
