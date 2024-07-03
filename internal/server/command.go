@@ -26,7 +26,7 @@ import (
 	"time"
 
 	"github.com/go-dataspace/run-dsp/dsp"
-	"github.com/go-dataspace/run-dsp/internal/auth"
+	"github.com/go-dataspace/run-dsp/internal/authforwarder"
 	"github.com/go-dataspace/run-dsp/internal/cli"
 	"github.com/go-dataspace/run-dsp/internal/constants"
 	"github.com/go-dataspace/run-dsp/internal/dspstatemachine"
@@ -126,7 +126,7 @@ func (c *Command) Run(p cli.Params) error {
 		constants.APIPath,
 		baseMW.Append(
 			jsonHeaderMiddleware,
-			auth.NonsenseUserInjector,
+			authforwarder.HTTPMiddleware,
 			dspstatemachine.NewMiddleware(idChannel),
 		).Then(dsp.GetDSPRoutes(provider)),
 	))
@@ -154,9 +154,11 @@ func (c *Command) getProvider(ctx context.Context) (providerv1.ProviderServiceCl
 		grpc.WithTransportCredentials(tlsCredentials),
 		grpc.WithChainUnaryInterceptor(
 			grpclog.UnaryClientInterceptor(interceptorLogger(logger), logOpts...),
+			authforwarder.UnaryClientInterceptor,
 		),
-		grpc.WithStreamInterceptor(
+		grpc.WithChainStreamInterceptor(
 			grpclog.StreamClientInterceptor(interceptorLogger(logger), logOpts...),
+			authforwarder.StreamClientInterceptor,
 		),
 	)
 	if err != nil {

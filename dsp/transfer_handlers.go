@@ -85,7 +85,7 @@ func (dh *dspHandlers) providerTransferRequestHandler(w http.ResponseWriter, req
 		PublishId: providerPID.String(),
 	})
 	if err != nil {
-		returnError(w, http.StatusBadRequest, "Consumer PID is not a UUID")
+		grpcErrorHandler(w, logging.Extract(req.Context()), err)
 		return
 	}
 	publishInfo := processProviderPublishInfo(resp.PublishInfo)
@@ -178,7 +178,7 @@ func (dh *dspHandlers) providerTransferCompletionHandler(w http.ResponseWriter, 
 		PublishId: providerPID.String(),
 	})
 	if err != nil {
-		returnError(w, http.StatusInternalServerError, "could not unpublish file")
+		grpcErrorHandler(w, logger, err)
 		return
 	}
 

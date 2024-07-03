@@ -81,7 +81,7 @@ func (ch *dspHandlers) catalogRequestHandler(w http.ResponseWriter, req *http.Re
 	// As the filter option is undefined, we will not fill anything
 	resp, err := ch.provider.GetCatalogue(req.Context(), &providerv1.GetCatalogueRequest{})
 	if err != nil {
-		returnError(w, http.StatusInternalServerError, "could not get catalog")
+		grpcErrorHandler(w, logger, err)
 		return
 	}
 
@@ -131,8 +131,7 @@ func (ch *dspHandlers) datasetRequestHandler(w http.ResponseWriter, req *http.Re
 		DatasetId: id.String(),
 	})
 	if err != nil {
-		logger.Error("Could not get dataset", "error", err)
-		returnError(w, http.StatusInternalServerError, "could not get dataset")
+		grpcErrorHandler(w, logger, err)
 		return
 	}
 

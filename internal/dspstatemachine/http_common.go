@@ -21,7 +21,7 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/go-dataspace/run-dsp/internal/auth"
+	"github.com/go-dataspace/run-dsp/internal/authforwarder"
 	"github.com/go-dataspace/run-dsp/logging"
 )
 
@@ -30,7 +30,7 @@ type httpService struct {
 }
 
 func (h *httpService) configureRequest(r *http.Request) {
-	r.Header.Add("Authorization", auth.ExtractUserInfo(h.Context).String())
+	r.Header.Add("Authorization", authforwarder.ExtractAuthorization(h.Context))
 	r.Header.Add("Content-Type", "application/json")
 	r.Header.Add("Accept", "application/json")
 }

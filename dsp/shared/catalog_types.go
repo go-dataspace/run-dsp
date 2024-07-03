@@ -39,7 +39,7 @@ type DatasetRequestMessage struct {
 type CatalogAcknowledgement struct {
 	Context jsonld.Context `json:"@context"`
 	Dataset
-	Datasets      []Dataset     `json:"dcat:dataset" validate:"gte=1"`
+	Datasets      []Dataset     `json:"dcat:dataset"`
 	Service       []DataService `json:"dcat:service" validate:"gte=1"`
 	ParticipantID string        `json:"dspace:participantID,omitempty"`
 	Homepage      string        `json:"foaf:homepage,omitempty"`
