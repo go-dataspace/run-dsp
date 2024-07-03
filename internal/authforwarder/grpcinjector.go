@@ -29,7 +29,7 @@ func UnaryClientInterceptor(
 	cc *grpc.ClientConn, invoker grpc.UnaryInvoker,
 	opts ...grpc.CallOption,
 ) error {
-	val := ExtractValue(ctx)
+	val := ExtractAuthorization(ctx)
 	ctx = metadata.AppendToOutgoingContext(ctx, "authorization", val)
 	return invoker(ctx, method, req, reply, cc, opts...)
 }
@@ -40,13 +40,13 @@ func StreamClientInterceptor(
 	ctx context.Context, desc *grpc.StreamDesc, cc *grpc.ClientConn,
 	method string, streamer grpc.Streamer, opts ...grpc.CallOption,
 ) (grpc.ClientStream, error) {
-	val := ExtractValue(ctx)
+	val := ExtractAuthorization(ctx)
 	ctx = metadata.AppendToOutgoingContext(ctx, "authorization", val)
 	return streamer(ctx, desc, cc, method, opts...)
 }
 
-// ExtractValue shouldn't be public, but it temporarily is to keep things working.
-func ExtractValue(ctx context.Context) string {
+// ExtractAuthorization shouldn't be public, but it temporarily is to keep things working.
+func ExtractAuthorization(ctx context.Context) string {
 	ctxVal := ctx.Value(contextKey)
 	if ctxVal == nil {
 		return ""

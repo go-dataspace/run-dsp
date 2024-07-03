@@ -30,7 +30,7 @@ type httpService struct {
 }
 
 func (h *httpService) configureRequest(r *http.Request) {
-	r.Header.Add("Authorization", authforwarder.ExtractValue(h.Context))
+	r.Header.Add("Authorization", authforwarder.ExtractAuthorization(h.Context))
 	r.Header.Add("Content-Type", "application/json")
 	r.Header.Add("Accept", "application/json")
 }
