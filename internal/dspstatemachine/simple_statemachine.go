@@ -22,7 +22,6 @@ import (
 	"time"
 
 	"github.com/go-dataspace/run-dsp/dsp/shared"
-	"github.com/go-dataspace/run-dsp/internal/auth"
 	"github.com/go-dataspace/run-dsp/logging"
 	"github.com/go-dataspace/run-dsp/odrl"
 	"github.com/google/uuid"
@@ -175,7 +174,7 @@ func (s *SimpleStateStorage) AllowStateToProgress(idChan chan StateStorageChanne
 		case message := <-idChan:
 			logger = logging.Extract(message.Context)
 			logger.Info("Got UUID of state to release...",
-				"uuid", message.ProcessID, "auth", auth.ExtractUserInfo(message.Context))
+				"uuid", message.ProcessID)
 			if message.TransactionType == Contract {
 				s.triggerContractStates(message)
 			} else {

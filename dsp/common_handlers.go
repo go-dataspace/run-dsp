@@ -18,12 +18,15 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 
 	"github.com/go-dataspace/run-dsp/dsp/shared"
 	"github.com/go-dataspace/run-dsp/internal/constants"
 	"github.com/go-dataspace/run-dsp/jsonld"
 	providerv1 "github.com/go-dataspace/run-dsrpc/gen/go/provider/v1"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 type dspHandlers struct {
@@ -66,6 +69,22 @@ func routeNotImplemented(w http.ResponseWriter, req *http.Request) {
 	path := req.URL.Path
 	method := req.Method
 	returnError(w, http.StatusNotImplemented, fmt.Sprintf("%s %s has not been implemented", method, path))
+}
+
+func grpcErrorHandler(w http.ResponseWriter, l *slog.Logger, err error) {
+	l.Error("Got GRPC error", "error", err)
+	switch status.Code(err) { //nolint:exhaustive
+	case codes.Unauthenticated:
+		returnContent(w, http.StatusForbidden, "not authenticated")
+	case codes.PermissionDenied:
+		returnContent(w, http.StatusUnauthorized, "permission denied")
+	case codes.InvalidArgument:
+		returnContent(w, http.StatusBadRequest, "invalid argument")
+	case codes.NotFound:
+		returnContent(w, http.StatusNotFound, "not found")
+	default:
+		returnContent(w, http.StatusInternalServerError, "error")
+	}
 }
 
 func dspaceVersionHandler(w http.ResponseWriter, req *http.Request) {
