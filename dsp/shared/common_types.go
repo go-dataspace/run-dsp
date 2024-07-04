@@ -39,3 +39,9 @@ type Multilanguage struct {
 	Value    string `json:"@value" validate:"required"`
 	Language string `json:"@language" validate:"required"`
 }
+
+// PublishInfo is a simplified struct to store where to download a file.
+type PublishInfo struct {
+	URL   string
+	Token string
+}

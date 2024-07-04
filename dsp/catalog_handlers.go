@@ -36,34 +36,6 @@ var dataService = shared.DataService{
 	EndpointURL: "https://insert-url-here.dsp/",
 }
 
-func processProviderDataset(pds *providerv1.Dataset, service shared.DataService) shared.Dataset {
-	ds := shared.Dataset{
-		Resource: shared.Resource{
-			ID:       fmt.Sprintf("urn:uuid:%s", pds.GetId()),
-			Type:     "dcat:Dataset",
-			Title:    pds.GetTitle(),
-			Issued:   pds.GetIssued().AsTime().Format(time.RFC3339),
-			Modified: pds.GetModified().AsTime().Format(time.RFC3339),
-			Keyword:  pds.GetKeywords(),
-			Creator:  pds.GetCreator(),
-		},
-		Distribution: []shared.Distribution{{
-			Type:          "dcat:Distribution",
-			Format:        fmt.Sprintf("dspace:%s", pds.GetAccessMethods()),
-			AccessService: []shared.DataService{service},
-		}},
-	}
-	return ds
-}
-
-func processProviderCatalogue(gdc []*providerv1.Dataset, service shared.DataService) []shared.Dataset {
-	datasets := make([]shared.Dataset, len(gdc))
-	for i, f := range gdc {
-		datasets[i] = processProviderDataset(f, service)
-	}
-	return datasets
-}
-
 func (ch *dspHandlers) catalogRequestHandler(w http.ResponseWriter, req *http.Request) {
 	logger := logging.Extract(req.Context())
 	body, err := io.ReadAll(req.Body)
@@ -136,4 +108,32 @@ func (ch *dspHandlers) datasetRequestHandler(w http.ResponseWriter, req *http.Re
 	}
 
 	validateMarshalAndReturn(req.Context(), w, http.StatusOK, processProviderDataset(resp.GetDataset(), dataService))
+}
+
+func processProviderDataset(pds *providerv1.Dataset, service shared.DataService) shared.Dataset {
+	ds := shared.Dataset{
+		Resource: shared.Resource{
+			ID:       fmt.Sprintf("urn:uuid:%s", pds.GetId()),
+			Type:     "dcat:Dataset",
+			Title:    pds.GetTitle(),
+			Issued:   pds.GetIssued().AsTime().Format(time.RFC3339),
+			Modified: pds.GetModified().AsTime().Format(time.RFC3339),
+			Keyword:  pds.GetKeywords(),
+			Creator:  pds.GetCreator(),
+		},
+		Distribution: []shared.Distribution{{
+			Type:          "dcat:Distribution",
+			Format:        fmt.Sprintf("dspace:%s", pds.GetAccessMethods()),
+			AccessService: []shared.DataService{service},
+		}},
+	}
+	return ds
+}
+
+func processProviderCatalogue(gdc []*providerv1.Dataset, service shared.DataService) []shared.Dataset {
+	datasets := make([]shared.Dataset, len(gdc))
+	for i, f := range gdc {
+		datasets[i] = processProviderDataset(f, service)
+	}
+	return datasets
 }

@@ -20,7 +20,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"strings"
 
 	"github.com/go-dataspace/run-dsp/dsp/shared"
 	"github.com/go-dataspace/run-dsp/internal/constants"
@@ -76,17 +75,13 @@ func (dh *dspHandlers) providerContractRequestHandler(w http.ResponseWriter, req
 	}
 	logger.Debug("Got contract request", "req", contractReq)
 
-	parts := strings.Split(contractReq.ConsumerPID, ":")
-	uuidPart := parts[len(parts)-1]
-	consumerPID, err := uuid.Parse(uuidPart)
+	consumerPID, err := shared.ParseUUIDURN(contractReq.ConsumerPID)
 	if err != nil {
 		returnError(w, http.StatusBadRequest, "Invalid request: ConsumerPID is not a UUID")
 		return
 	}
 
-	parts = strings.Split(contractReq.Offer.Target, ":")
-	uuidPart = parts[len(parts)-1]
-	targetID, err := uuid.Parse(uuidPart)
+	targetID, err := shared.ParseUUIDURN(contractReq.Offer.Target)
 	if err != nil {
 		returnError(w, http.StatusBadRequest, "Invalid request: Target ID is not a UUID")
 		return
@@ -166,24 +161,19 @@ func (dh *dspHandlers) providerContractEventHandler(w http.ResponseWriter, req *
 	}
 
 	logger.Debug("Got contract event", "event", event)
-	parts := strings.Split(event.ConsumerPID, ":")
-	uuidPart := parts[len(parts)-1]
-	consumerPID, err := uuid.Parse(uuidPart)
+	consumerPID, err := shared.ParseUUIDURN(event.ConsumerPID)
 	if err != nil {
 		returnError(w, http.StatusBadRequest, "Invalid request: ConsumerPID is not a UUID")
 		return
 	}
-	parts = strings.Split(event.ProviderPID, ":")
-	uuidPart = parts[len(parts)-1]
-
-	if providerPID != uuidPart {
-		returnError(w, http.StatusBadRequest, "Invalid request: ProviderPID in message does not match path parameter")
+	uuidProviderPID, err := shared.ParseUUIDURN(event.ProviderPID)
+	if err != nil {
+		returnError(w, http.StatusBadRequest, "Invalid request: ProviderPID is not a UUID")
 		return
 	}
 
-	uuidProviderPID, err := uuid.Parse(uuidPart)
-	if err != nil {
-		returnError(w, http.StatusBadRequest, "Invalid request: ProviderPID is not a UUID")
+	if providerPID != uuidProviderPID.String() {
+		returnError(w, http.StatusBadRequest, "Invalid request: ProviderPID in message does not match path parameter")
 		return
 	}
 
@@ -235,17 +225,14 @@ func (dh *dspHandlers) providerContractVerificationHandler(w http.ResponseWriter
 
 	logger.Debug("Got contract verification", "verification", verification)
 
-	parts := strings.Split(verification.ProviderPID, ":")
-	uuidPart := parts[len(parts)-1]
-
-	if providerPID != uuidPart {
-		returnError(w, http.StatusBadRequest, "Invalid request: ProviderPID in message does not match path parameter")
+	uuidProviderPID, err := shared.ParseUUIDURN(verification.ProviderPID)
+	if err != nil {
+		returnError(w, http.StatusBadRequest, "Invalid request: ProviderPID is not a UUID")
 		return
 	}
 
-	uuidProviderPID, err := uuid.Parse(uuidPart)
-	if err != nil {
-		returnError(w, http.StatusBadRequest, "Invalid request: ProviderPID is not a UUID")
+	if providerPID != uuidProviderPID.String() {
+		returnError(w, http.StatusBadRequest, "Invalid request: ProviderPID in message does not match path parameter")
 		return
 	}
 
@@ -357,9 +344,7 @@ func (dh *dspHandlers) consumerContractAgreementHandler(w http.ResponseWriter, r
 		return
 	}
 
-	parts := strings.Split(agreement.ProviderPID, ":")
-	uuidPart := parts[len(parts)-1]
-	providerPID, err := uuid.Parse(uuidPart)
+	providerPID, err := shared.ParseUUIDURN(agreement.ProviderPID)
 	if err != nil {
 		returnError(w, http.StatusBadRequest, "Invalid request: ProviderPID is not a UUID")
 		return
@@ -410,9 +395,7 @@ func (dh *dspHandlers) consumerContractEventHandler(w http.ResponseWriter, req *
 		returnError(w, http.StatusBadRequest, "Invalid request")
 		return
 	}
-	parts := strings.Split(event.ProviderPID, ":")
-	uuidPart := parts[len(parts)-1]
-	providerPID, err := uuid.Parse(uuidPart)
+	providerPID, err := shared.ParseUUIDURN(event.ProviderPID)
 	if err != nil {
 		returnError(w, http.StatusBadRequest, "Invalid request: ProviderPID is not a UUID")
 		return
