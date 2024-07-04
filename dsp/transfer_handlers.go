@@ -59,7 +59,7 @@ func (dh *dspHandlers) providerTransferRequestHandler(w http.ResponseWriter, req
 		return
 	}
 
-	consumerPID, err := shared.ParseUUIDURN(transferReq.AgreementID)
+	consumerPID, err := shared.ParseUUIDURN(transferReq.ConsumerPID)
 	if err != nil {
 		returnError(w, http.StatusBadRequest, "Consumer PID is not a UUID")
 		return

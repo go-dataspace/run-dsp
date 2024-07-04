@@ -25,14 +25,14 @@ func NewMiddleware(logger *slog.Logger) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			ctx := r.Context()
-			logger = logger.With(
+			reqLogger := logger.With(
 				"method", r.Method,
 				"host", r.Host,
 				"path", r.URL.Path,
 				"query", r.URL.RawQuery,
 				"ip", r.RemoteAddr,
 			)
-			r = r.WithContext(Inject(ctx, logger))
+			r = r.WithContext(Inject(ctx, reqLogger))
 			next.ServeHTTP(w, r)
 		})
 	}
