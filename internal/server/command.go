@@ -22,14 +22,16 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"os"
+	"path"
 	"time"
 
 	"github.com/go-dataspace/run-dsp/dsp"
+	"github.com/go-dataspace/run-dsp/dsp/statemachine"
 	"github.com/go-dataspace/run-dsp/internal/authforwarder"
 	"github.com/go-dataspace/run-dsp/internal/cli"
 	"github.com/go-dataspace/run-dsp/internal/constants"
-	"github.com/go-dataspace/run-dsp/internal/dspstatemachine"
 	"github.com/go-dataspace/run-dsp/logging"
 	providerv1 "github.com/go-dataspace/run-dsrpc/gen/go/provider/v1"
 	grpclog "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/logging"
@@ -48,6 +50,8 @@ type Command struct {
 	ListenAddr string `help:"Listen address" default:"0.0.0.0" env:"LISTEN_ADDR"`
 	Port       int    `help:"Listen port" default:"8080" env:"PORT"`
 
+	ExternalURL *url.URL `help:"URL that RUN-DSP uses in the dataspace. Default: http://LISTEN_ADDR:PORT" env:"EXTERNAL_URL"`
+
 	ProviderAddress       string `help:"Address of provider GRPC endpoint" required:"" env:"PROVIDER_URL"`
 	ProviderInsecure      bool   `help:"Provider connection does not use TLS" default:"false" env:"PROVIDER_INSECURE"`
 	ProviderCACert        string `help:"Custom CA certificate for provider's TLS certificate" env:"PROVIDER_CA"`
@@ -59,6 +63,14 @@ type Command struct {
 func (c *Command) Validate() error {
 	if c.ProviderInsecure {
 		return nil
+	}
+
+	if c.ExternalURL == nil {
+		u, err := url.Parse(fmt.Sprintf("http://%s:%d", c.ListenAddr, c.Port))
+		if err != nil {
+			return fmt.Errorf("broken default URL, see your listen address and port")
+		}
+		c.ExternalURL = u
 	}
 
 	_, err := checkFile(c.ProviderCACert)
@@ -102,14 +114,14 @@ func (c *Command) Run(p cli.Params) error {
 
 	logger.Info("Starting server", "listenAddr", c.ListenAddr, "port", c.Port)
 
-	idChannel := make(chan dspstatemachine.StateStorageChannelMessage, 10)
-	stateStorage := dspstatemachine.GetStateStorage(ctx)
-	go stateStorage.AllowStateToProgress(idChannel)
 	provider, conn, err := c.getProvider(ctx)
 	if err != nil {
 		return err
 	}
 	defer conn.Close()
+
+	store := statemachine.NewMemoryArchiver()
+	httpClient := &statemachine.HTTPRequester{}
 
 	mux := http.NewServeMux()
 
@@ -122,13 +134,15 @@ func (c *Command) Run(p cli.Params) error {
 		"/.well-known",
 		baseMW.Append(jsonHeaderMiddleware).Then(dsp.GetWellKnownRoutes()),
 	))
+
+	selfURL := cloneURL(c.ExternalURL)
+	selfURL.Path = path.Join(selfURL.Path, constants.APIPath)
 	mux.Handle(constants.APIPath+"/", http.StripPrefix(
 		constants.APIPath,
 		baseMW.Append(
 			jsonHeaderMiddleware,
 			authforwarder.HTTPMiddleware,
-			dspstatemachine.NewMiddleware(idChannel),
-		).Then(dsp.GetDSPRoutes(provider)),
+		).Then(dsp.GetDSPRoutes(provider, store, httpClient, selfURL)),
 	))
 
 	srv := &http.Server{
@@ -210,4 +224,12 @@ func interceptorLogger(l *slog.Logger) grpclog.Logger {
 	return grpclog.LoggerFunc(func(ctx context.Context, lvl grpclog.Level, msg string, fields ...any) {
 		l.Log(ctx, slog.Level(lvl), msg, fields...)
 	})
+}
+
+func cloneURL(u *url.URL) *url.URL {
+	cu, err := url.Parse(u.String())
+	if err != nil {
+		panic(fmt.Sprintf("failed to clone URL %s: %s", u.String(), err))
+	}
+	return cu
 }

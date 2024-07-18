@@ -17,7 +17,9 @@ package dsp
 
 import (
 	"net/http"
+	"net/url"
 
+	"github.com/go-dataspace/run-dsp/dsp/statemachine"
 	providerv1 "github.com/go-dataspace/run-dsrpc/gen/go/provider/v1"
 )
 
@@ -31,10 +33,15 @@ func GetWellKnownRoutes() http.Handler {
 	return mux
 }
 
-func GetDSPRoutes(provider providerv1.ProviderServiceClient) http.Handler {
+func GetDSPRoutes(
+	provider providerv1.ProviderServiceClient,
+	store statemachine.Archiver,
+	httpClient statemachine.Requester,
+	selfURL *url.URL,
+) http.Handler {
 	mux := http.NewServeMux()
 
-	ch := dspHandlers{provider: provider}
+	ch := dspHandlers{provider: provider, store: store, client: httpClient, selfURL: selfURL}
 	// Catalog endpoints
 	mux.HandleFunc("POST /catalog/request", ch.catalogRequestHandler)
 	mux.HandleFunc("GET /catalog/datasets/{id}", ch.datasetRequestHandler)
@@ -49,7 +56,7 @@ func GetDSPRoutes(provider providerv1.ProviderServiceClient) http.Handler {
 
 	// Contract negotiation consumer callbacks
 	mux.HandleFunc("POST /negotiations/offers", ch.consumerContractOfferHandler)
-	mux.HandleFunc("POST /negotiations/{consumerPID}/offers", ch.consumerContractSpecificOfferHandler)
+	mux.HandleFunc("POST /callback/negotiations/{consumerPID}/offers", ch.consumerContractSpecificOfferHandler)
 	mux.HandleFunc("POST /callback/negotiations/{consumerPID}/agreement", ch.consumerContractAgreementHandler)
 	mux.HandleFunc("POST /callback/negotiations/{consumerPID}/events", ch.consumerContractEventHandler)
 	mux.HandleFunc("POST /callback/negotiations/{consumerPID}/termination", ch.consumerContractTerminationHandler)
@@ -67,10 +74,7 @@ func GetDSPRoutes(provider providerv1.ProviderServiceClient) http.Handler {
 	mux.HandleFunc("POST /callback/transfers/{consumerPID}/termination", ch.consumerTransferTerminationHandler)
 	mux.HandleFunc("POST /callback/transfers/{consumerPID}/suspension", ch.consumerTransferSuspensionHandler)
 
-	mux.HandleFunc("GET /types", ch.returnAllTypes)
 	mux.HandleFunc("GET /triggerconsumer/{datasetID}", ch.triggerConsumerContractRequestHandler)
-	mux.HandleFunc("GET /getconsumercontractrequest", ch.getConsumerContractRequestHandler)
-	mux.HandleFunc("GET /triggerproducer", ch.triggerProviderContractOfferRequestHandler)
 
 	return mux
 }

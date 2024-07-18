@@ -42,6 +42,7 @@ type TransferRequester interface {
 	GetTransferRequest() *TransferRequest
 	GetPublishInfo() *providerv1.PublishInfo
 	GetTransferDirection() TransferDirection
+	GetTransferProcess() shared.TransferProcess
 }
 
 type TransferRequestNegotiationState interface {

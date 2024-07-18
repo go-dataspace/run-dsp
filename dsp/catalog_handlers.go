@@ -16,7 +16,6 @@ package dsp
 
 import (
 	"fmt"
-	"io"
 	"net/http"
 	"time"
 
@@ -38,12 +37,7 @@ var dataService = shared.DataService{
 
 func (ch *dspHandlers) catalogRequestHandler(w http.ResponseWriter, req *http.Request) {
 	logger := logging.Extract(req.Context())
-	body, err := io.ReadAll(req.Body)
-	if err != nil {
-		returnError(w, http.StatusBadRequest, "Could not read body")
-		return
-	}
-	catalogReq, err := shared.UnmarshalAndValidate(req.Context(), body, shared.CatalogRequestMessage{})
+	catalogReq, err := shared.DecodeValid[shared.CatalogRequestMessage](req)
 	if err != nil {
 		logger.Error("Non validating catalog request", "error", err)
 		returnError(w, http.StatusBadRequest, "Request did not validate")
@@ -57,7 +51,7 @@ func (ch *dspHandlers) catalogRequestHandler(w http.ResponseWriter, req *http.Re
 		return
 	}
 
-	validateMarshalAndReturn(req.Context(), w, http.StatusOK, shared.CatalogAcknowledgement{
+	err = shared.EncodeValid(w, req, http.StatusOK, shared.CatalogAcknowledgement{
 		Dataset: shared.Dataset{
 			Resource: shared.Resource{
 				ID:   "urn:uuid:3afeadd8-ed2d-569e-d634-8394a8836d57",
@@ -72,6 +66,9 @@ func (ch *dspHandlers) catalogRequestHandler(w http.ResponseWriter, req *http.Re
 		Datasets: processProviderCatalogue(resp.GetDatasets(), dataService),
 		Service:  []shared.DataService{dataService},
 	})
+	if err != nil {
+		logger.Error("failed to serve catalog", "error", err)
+	}
 }
 
 func (ch *dspHandlers) datasetRequestHandler(w http.ResponseWriter, req *http.Request) {
@@ -87,12 +84,7 @@ func (ch *dspHandlers) datasetRequestHandler(w http.ResponseWriter, req *http.Re
 		returnError(w, http.StatusBadRequest, "Invalid ID")
 		return
 	}
-	body, err := io.ReadAll(req.Body)
-	if err != nil {
-		returnError(w, http.StatusBadRequest, "Could not read body")
-		return
-	}
-	datasetReq, err := shared.UnmarshalAndValidate(ctx, body, shared.DatasetRequestMessage{})
+	datasetReq, err := shared.DecodeValid[shared.DatasetRequestMessage](req)
 	if err != nil {
 		logger.Error("Non validating dataset request", "error", err)
 		returnError(w, http.StatusBadRequest, "Request did not validate")
@@ -107,7 +99,10 @@ func (ch *dspHandlers) datasetRequestHandler(w http.ResponseWriter, req *http.Re
 		return
 	}
 
-	validateMarshalAndReturn(req.Context(), w, http.StatusOK, processProviderDataset(resp.GetDataset(), dataService))
+	err = shared.EncodeValid(w, req, http.StatusOK, processProviderDataset(resp.GetDataset(), dataService))
+	if err != nil {
+		logger.Error("failed to serve dataset", "error", err)
+	}
 }
 
 func processProviderDataset(pds *providerv1.Dataset, service shared.DataService) shared.Dataset {

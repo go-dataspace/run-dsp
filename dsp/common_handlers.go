@@ -15,13 +15,14 @@
 package dsp
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net/http"
+	"net/url"
 
 	"github.com/go-dataspace/run-dsp/dsp/shared"
+	"github.com/go-dataspace/run-dsp/dsp/statemachine"
 	"github.com/go-dataspace/run-dsp/internal/constants"
 	"github.com/go-dataspace/run-dsp/jsonld"
 	providerv1 "github.com/go-dataspace/run-dsrpc/gen/go/provider/v1"
@@ -30,7 +31,10 @@ import (
 )
 
 type dspHandlers struct {
+	store    statemachine.Archiver
 	provider providerv1.ProviderServiceClient
+	client   statemachine.Requester
+	selfURL  *url.URL
 }
 
 type errorResponse struct {
@@ -49,15 +53,6 @@ func errorString(e string) string {
 func returnContent(w http.ResponseWriter, status int, content string) {
 	w.WriteHeader(status)
 	fmt.Fprint(w, content)
-}
-
-func validateMarshalAndReturn[T any](ctx context.Context, w http.ResponseWriter, successStatus int, s T) {
-	respBody, err := shared.ValidateAndMarshal(ctx, s)
-	if err != nil {
-		returnError(w, http.StatusInternalServerError, "Could not render response")
-		return
-	}
-	returnContent(w, successStatus, string(respBody))
 }
 
 func returnError(w http.ResponseWriter, status int, e string) {

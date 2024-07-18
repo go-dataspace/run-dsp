@@ -19,6 +19,7 @@ import (
 	"net/url"
 	"slices"
 
+	"github.com/go-dataspace/run-dsp/dsp/shared"
 	providerv1 "github.com/go-dataspace/run-dsrpc/gen/go/provider/v1"
 	"github.com/google/uuid"
 )
@@ -93,4 +94,14 @@ func (tr *TransferRequest) SetState(state TransferRequestState) error {
 	}
 	tr.state = state
 	return nil
+}
+
+func (tr *TransferRequest) GetTransferProcess() shared.TransferProcess {
+	return shared.TransferProcess{
+		Context:     dspaceContext,
+		Type:        "dspace:TransferProcess",
+		ProviderPID: tr.providerPID.URN(),
+		ConsumerPID: tr.consumerPID.URN(),
+		State:       tr.state.String(),
+	}
 }

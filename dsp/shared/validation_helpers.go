@@ -19,6 +19,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"slices"
 
 	"github.com/go-dataspace/run-dsp/logging"
@@ -57,6 +58,32 @@ func ContractNegotiationState(fl validator.FieldLevel) bool {
 		"dspace:TERMINATED",
 	}
 	return slices.Contains(states, fl.Field().String())
+}
+
+func EncodeValid[T any](w http.ResponseWriter, r *http.Request, status int, v T) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	if err := validate.Struct(v); err != nil {
+		return handleValidationError(err, logging.Extract(r.Context()))
+	}
+	if err := json.NewEncoder(w).Encode(v); err != nil {
+		return fmt.Errorf("encode json: %w", err)
+	}
+	return nil
+}
+
+func DecodeValid[T any](r *http.Request) (T, error) {
+	defer r.Body.Close()
+	var v T
+	if err := json.NewDecoder(r.Body).Decode(&v); err != nil {
+		return v, fmt.Errorf("decode json: %w", err)
+	}
+
+	if err := validate.Struct(v); err != nil {
+		return v, handleValidationError(err, logging.Extract(r.Context()))
+	}
+
+	return v, nil
 }
 
 func ValidateAndMarshal[T any](ctx context.Context, s T) ([]byte, error) {
