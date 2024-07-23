@@ -36,12 +36,12 @@ func GetWellKnownRoutes() http.Handler {
 func GetDSPRoutes(
 	provider providerv1.ProviderServiceClient,
 	store statemachine.Archiver,
-	httpClient statemachine.Requester,
+	reconciler *statemachine.Reconciler,
 	selfURL *url.URL,
 ) http.Handler {
 	mux := http.NewServeMux()
 
-	ch := dspHandlers{provider: provider, store: store, client: httpClient, selfURL: selfURL}
+	ch := dspHandlers{provider: provider, store: store, reconciler: reconciler, selfURL: selfURL}
 	// Catalog endpoints
 	mux.HandleFunc("POST /catalog/request", ch.catalogRequestHandler)
 	mux.HandleFunc("GET /catalog/datasets/{id}", ch.datasetRequestHandler)
@@ -75,6 +75,8 @@ func GetDSPRoutes(
 	mux.HandleFunc("POST /callback/transfers/{consumerPID}/suspension", ch.consumerTransferSuspensionHandler)
 
 	mux.HandleFunc("GET /triggerconsumer/{datasetID}", ch.triggerConsumerContractRequestHandler)
+	mux.HandleFunc("GET /triggertransfer/{contractProviderPID}", ch.triggerTransferRequestHandler)
+	mux.HandleFunc("GET /completetransfer/{providerPID}", ch.completeTransferRequestHandler)
 
 	return mux
 }

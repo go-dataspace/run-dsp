@@ -38,6 +38,7 @@ func init() {
 
 func TransferProcessState(fl validator.FieldLevel) bool {
 	states := []string{
+		"INITIAL",
 		"dspace:REQUESTED",
 		"dspace:STARTED",
 		"dspace:TERMINATED",
@@ -99,7 +100,7 @@ func UnmarshalAndValidate[T any](ctx context.Context, b []byte, s T) (T, error) 
 	logger := logging.Extract(ctx)
 	err := json.Unmarshal(b, &s)
 	if err != nil {
-		logger.Error("Couldn't unmarshal JSON", "error", err)
+		logger.Error("Couldn't unmarshal JSON", "err", err)
 		return s, fmt.Errorf("Couldn't unmarshal JSON")
 	}
 
@@ -113,7 +114,7 @@ func UnmarshalAndValidate[T any](ctx context.Context, b []byte, s T) (T, error) 
 func handleValidationError(err error, logger *slog.Logger) error {
 	// This should rarely if ever happen, but guard for it anyway.
 	if _, ok := err.(*validator.InvalidValidationError); ok { //nolint:errorlint
-		logger.Error("Invalid validation", "error", err)
+		logger.Error("Invalid validation", "err", err)
 		return fmt.Errorf("Invalid Validation")
 	}
 
@@ -132,7 +133,7 @@ func handleValidationError(err error, logger *slog.Logger) error {
 		)
 		return fmt.Errorf("Validation Error")
 	}
-	logger.Error("Unknown error", "error", err)
+	logger.Error("Unknown error", "err", err)
 	return err
 }
 

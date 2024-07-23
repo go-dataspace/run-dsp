@@ -42,12 +42,13 @@ func (dh *dspHandlers) providerContractStateHandler(w http.ResponseWriter, req *
 		return
 	}
 	if err := shared.EncodeValid(w, req, http.StatusOK, contract.GetContractNegotiation()); err != nil {
-		logger.Error("couldn't serve contract state: %w", "error", err)
+		logger.Error("couldn't serve contract state: %w", "err", err)
 	}
 }
 
 func (dh *dspHandlers) providerContractRequestHandler(w http.ResponseWriter, req *http.Request) {
-	logger := logging.Extract(req.Context())
+	ctx, logger := logging.InjectLabels(req.Context(), "handler", "providerContractRequestHandler")
+	req = req.WithContext(ctx)
 	contractReq, err := shared.DecodeValid[shared.ContractRequestMessage](req)
 	if err != nil {
 		returnError(w, http.StatusBadRequest, "Invalid request")
@@ -68,40 +69,44 @@ func (dh *dspHandlers) providerContractRequestHandler(w http.ResponseWriter, req
 	}
 
 	// TODO: Maybe make a function in the statemachine that parses the contract request message.
-	pState := statemachine.NewContract(
+	ctx, pState, err := statemachine.NewContract(
 		req.Context(),
-		dh.store, dh.provider, dh.client,
+		dh.store, dh.provider, dh.reconciler,
 		uuid.UUID{}, consumerPID,
 		statemachine.ContractStates.INITIAL,
 		odrl.Offer{MessageOffer: contractReq.Offer},
 		cbURL, dh.selfURL,
-		statemachine.ContractProvider,
+		statemachine.DataspaceProvider,
 	)
+	req = req.WithContext(ctx)
 
-	nextState, err := pState.Recv(req.Context(), contractReq)
+	if err != nil {
+		returnError(w, http.StatusInternalServerError, "Couldn't create contract")
+		return
+	}
+
+	ctx, nextState, err := pState.Recv(req.Context(), contractReq)
 	if err != nil {
 		returnError(w, http.StatusBadRequest, "Invalid request")
 		return
 	}
+	req = req.WithContext(ctx)
 
 	apply, err := nextState.Send(req.Context())
 	if err != nil {
 		returnError(w, http.StatusInternalServerError, "Not able to progress state")
 		return
 	}
-	defer apply()
 
 	if err := shared.EncodeValid(w, req, http.StatusOK, nextState.GetContractNegotiation()); err != nil {
-		logger.Error("Couldn't serve response", "error", err)
+		logger.Error("Couldn't serve response", "err", err)
 		returnError(w, http.StatusInternalServerError, "Failed to serve response")
 	}
+	go apply()
 }
 
-// TODO: unify this with the other state progression func.
-//
-//nolint:dupl
 func progressContractState[T any](
-	dh *dspHandlers, w http.ResponseWriter, req *http.Request, role statemachine.ContractRole, rawPID string,
+	dh *dspHandlers, w http.ResponseWriter, req *http.Request, role statemachine.DataspaceRole, rawPID string,
 ) {
 	logger := logging.Extract(req.Context())
 	pid, err := uuid.Parse(rawPID)
@@ -112,9 +117,9 @@ func progressContractState[T any](
 
 	var contract *statemachine.Contract
 	switch role {
-	case statemachine.ContractConsumer:
+	case statemachine.DataspaceConsumer:
 		contract, err = dh.store.GetConsumerContract(req.Context(), pid)
-	case statemachine.ContractProvider:
+	case statemachine.DataspaceProvider:
 		contract, err = dh.store.GetProviderContract(req.Context(), pid)
 	default:
 		panic(fmt.Sprintf("unexpected statemachine.ContractRole: %#v", role))
@@ -132,48 +137,59 @@ func progressContractState[T any](
 
 	logger.Debug("Got contract message", "req", msg)
 
-	pState := statemachine.GetContractNegotiation(dh.store, contract, dh.provider, dh.client)
+	ctx, pState := statemachine.GetContractNegotiation(req.Context(), dh.store, contract, dh.provider, dh.reconciler)
+	logger = logging.Extract(ctx)
+	req = req.WithContext(ctx)
 
-	nextState, err := pState.Recv(req.Context(), msg)
+	ctx, nextState, err := pState.Recv(req.Context(), msg)
 	if err != nil {
 		returnError(w, http.StatusBadRequest, "Invalid request")
 		return
 	}
+	req = req.WithContext(ctx)
 
 	apply, err := nextState.Send(req.Context())
 	if err != nil {
 		returnError(w, http.StatusInternalServerError, "Not able to progress state")
 		return
 	}
-	defer apply()
 
 	if err := shared.EncodeValid(w, req, http.StatusOK, nextState.GetContractNegotiation()); err != nil {
-		logger.Error("Couldn't serve response", "error", err)
+		logger.Error("Couldn't serve response", "err", err)
 		returnError(w, http.StatusInternalServerError, "Failed to serve response")
 	}
+
+	go apply()
 }
 
 func (dh *dspHandlers) providerContractSpecificRequestHandler(w http.ResponseWriter, req *http.Request) {
+	ctx, _ := logging.InjectLabels(req.Context(), "handler", "providerContractSpecificRequestHandler")
+	req = req.WithContext(ctx)
 	progressContractState[shared.ContractRequestMessage](
-		dh, w, req, statemachine.ContractProvider, req.PathValue("providerPID"),
+		dh, w, req, statemachine.DataspaceProvider, req.PathValue("providerPID"),
 	)
 }
 
 func (dh *dspHandlers) providerContractEventHandler(w http.ResponseWriter, req *http.Request) {
+	ctx, _ := logging.InjectLabels(req.Context(), "handler", "providerContractEventHandler")
+	req = req.WithContext(ctx)
 	progressContractState[shared.ContractNegotiationEventMessage](
-		dh, w, req, statemachine.ContractProvider, req.PathValue("providerPID"),
+		dh, w, req, statemachine.DataspaceProvider, req.PathValue("providerPID"),
 	)
 }
 
 func (dh *dspHandlers) providerContractVerificationHandler(w http.ResponseWriter, req *http.Request) {
+	ctx, _ := logging.InjectLabels(req.Context(), "handler", "providerContractVerificationHandler")
+	req = req.WithContext(ctx)
 	progressContractState[shared.ContractAgreementVerificationMessage](
-		dh, w, req, statemachine.ContractProvider, req.PathValue("providerPID"),
+		dh, w, req, statemachine.DataspaceProvider, req.PathValue("providerPID"),
 	)
 }
 
 // TODO: Implement terminations.
 func (dh *dspHandlers) providerContractTerminationHandler(w http.ResponseWriter, req *http.Request) {
-	logger := logging.Extract(req.Context())
+	ctx, logger := logging.InjectLabels(req.Context(), "handler", "providerContractTerminationHandler")
+	req = req.WithContext(ctx)
 	providerPID := req.PathValue("providerPID")
 	if providerPID == "" {
 		returnError(w, http.StatusBadRequest, "Missing provider PID")
@@ -198,7 +214,8 @@ func (dh *dspHandlers) providerContractTerminationHandler(w http.ResponseWriter,
 }
 
 func (dh *dspHandlers) consumerContractOfferHandler(w http.ResponseWriter, req *http.Request) {
-	logger := logging.Extract(req.Context())
+	ctx, logger := logging.InjectLabels(req.Context(), "handler", "consumerContractOfferHandler")
+	req = req.WithContext(ctx)
 	contractOffer, err := shared.DecodeValid[shared.ContractOfferMessage](req)
 	if err != nil {
 		returnError(w, http.StatusBadRequest, "Invalid request")
@@ -223,55 +240,69 @@ func (dh *dspHandlers) consumerContractOfferHandler(w http.ResponseWriter, req *
 		panic(err.Error())
 	}
 	selfURL.Path = path.Join(selfURL.Path, "callback")
-	cState := statemachine.NewContract(
+	ctx, cState, err := statemachine.NewContract(
 		req.Context(),
-		dh.store, dh.provider, dh.client,
+		dh.store, dh.provider, dh.reconciler,
 		providerPID, uuid.UUID{},
 		statemachine.ContractStates.INITIAL,
 		odrl.Offer{MessageOffer: contractOffer.Offer},
-		cbURL, selfURL, statemachine.ContractConsumer,
+		cbURL, selfURL, statemachine.DataspaceConsumer,
 	)
+	logger = logging.Extract(ctx)
+	req = req.WithContext(ctx)
+	if err != nil {
+		returnError(w, http.StatusInternalServerError, "Couldn't create contract")
+		return
+	}
 
-	nextState, err := cState.Recv(req.Context(), contractOffer)
+	ctx, nextState, err := cState.Recv(req.Context(), contractOffer)
 	if err != nil {
 		returnError(w, http.StatusBadRequest, "Invalid request")
 		return
 	}
+	req = req.WithContext(ctx)
 
 	apply, err := nextState.Send(req.Context())
 	if err != nil {
 		returnError(w, http.StatusInternalServerError, "Not able to progress state")
 		return
 	}
-	defer apply()
 
 	if err := shared.EncodeValid(w, req, http.StatusOK, nextState.GetContractNegotiation()); err != nil {
-		logger.Error("Couldn't serve response", "error", err)
+		logger.Error("Couldn't serve response", "err", err)
 		returnError(w, http.StatusInternalServerError, "Failed to serve response")
 	}
+	go apply()
 }
 
 func (dh *dspHandlers) consumerContractSpecificOfferHandler(w http.ResponseWriter, req *http.Request) {
+	ctx, _ := logging.InjectLabels(req.Context(), "handler", "consumerContractSpecificOfferHandler")
+	req = req.WithContext(ctx)
 	progressContractState[shared.ContractOfferMessage](
-		dh, w, req, statemachine.ContractConsumer, req.PathValue("consumerPID"),
+		dh, w, req, statemachine.DataspaceConsumer, req.PathValue("consumerPID"),
 	)
 }
 
 func (dh *dspHandlers) consumerContractAgreementHandler(w http.ResponseWriter, req *http.Request) {
+	ctx, _ := logging.InjectLabels(req.Context(), "handler", "consumerContractAgreementHandler")
+	req = req.WithContext(ctx)
 	progressContractState[shared.ContractAgreementMessage](
-		dh, w, req, statemachine.ContractConsumer, req.PathValue("consumerPID"),
+		dh, w, req, statemachine.DataspaceConsumer, req.PathValue("consumerPID"),
 	)
 }
 
 func (dh *dspHandlers) consumerContractEventHandler(w http.ResponseWriter, req *http.Request) {
+	ctx, _ := logging.InjectLabels(req.Context(), "handler", "consumerContractEventHandler")
+	req = req.WithContext(ctx)
 	progressContractState[shared.ContractNegotiationEventMessage](
-		dh, w, req, statemachine.ContractConsumer, req.PathValue("consumerPID"),
+		dh, w, req, statemachine.DataspaceConsumer, req.PathValue("consumerPID"),
 	)
 }
 
 // TODO: Handle termination in the statemachine.
 func (dh *dspHandlers) consumerContractTerminationHandler(w http.ResponseWriter, req *http.Request) {
-	logger := logging.Extract(req.Context())
+	ctx, logger := logging.InjectLabels(req.Context(), "handler", "consumerContractTerminationHandler")
+	req = req.WithContext(ctx)
 	consumerPID := req.PathValue("consumerPID")
 	if consumerPID == "" {
 		returnError(w, http.StatusBadRequest, "Missing consumer PID")
@@ -297,7 +328,8 @@ func (dh *dspHandlers) consumerContractTerminationHandler(w http.ResponseWriter,
 }
 
 func (dh *dspHandlers) triggerConsumerContractRequestHandler(w http.ResponseWriter, req *http.Request) {
-	logger := logging.Extract(req.Context())
+	ctx, logger := logging.InjectLabels(req.Context(), "handler", "triggerConsumerContractRequestHandler")
+	req = req.WithContext(ctx)
 
 	datasetID, err := uuid.Parse(req.PathValue("datasetID"))
 	if err != nil {
@@ -311,9 +343,9 @@ func (dh *dspHandlers) triggerConsumerContractRequestHandler(w http.ResponseWrit
 		panic(err.Error())
 	}
 	selfURL.Path = path.Join(selfURL.Path, "callback")
-	cInit := statemachine.NewContract(
+	ctx, cInit, err := statemachine.NewContract(
 		req.Context(),
-		dh.store, dh.provider, dh.client,
+		dh.store, dh.provider, dh.reconciler,
 		uuid.UUID{}, uuid.New(),
 		statemachine.ContractStates.INITIAL,
 		odrl.Offer{
@@ -328,16 +360,77 @@ func (dh *dspHandlers) triggerConsumerContractRequestHandler(w http.ResponseWrit
 		},
 		dh.selfURL,
 		selfURL,
-		statemachine.ContractConsumer,
+		statemachine.DataspaceConsumer,
 	)
+	req = req.WithContext(ctx)
+	if err != nil {
+		returnError(w, http.StatusInternalServerError, "Couldn't create contract")
+		return
+	}
 	apply, err := cInit.Send(req.Context())
 	if err != nil {
 		returnError(w, http.StatusInternalServerError, err.Error())
+		return
 	}
-	defer apply()
 
 	if err := shared.EncodeValid(w, req, http.StatusOK, cInit.GetContractNegotiation()); err != nil {
-		logger.Error("Couldn't serve response", "error", err)
+		logger.Error("Couldn't serve response", "err", err)
 		returnError(w, http.StatusInternalServerError, "Failed to serve response")
 	}
+	go apply()
+}
+
+func (dh *dspHandlers) triggerTransferRequestHandler(w http.ResponseWriter, req *http.Request) {
+	ctx, logger := logging.InjectLabels(req.Context(), "handler", "triggerConsumerContractRequestHandler")
+	req = req.WithContext(ctx)
+
+	pid, err := uuid.Parse(req.PathValue("contractProviderPID"))
+	if err != nil {
+		returnError(w, http.StatusBadRequest, "Not a PID")
+		return
+	}
+
+	con, err := dh.store.GetProviderContract(ctx, pid)
+	if err != nil {
+		returnError(w, http.StatusNotFound, "No contract found")
+		return
+	}
+	logger.Debug("Got trigger request to start contract negotiation")
+	selfURL, err := url.Parse(dh.selfURL.String())
+	if err != nil {
+		panic(err.Error())
+	}
+	selfURL.Path = path.Join(selfURL.Path, "callback")
+
+	agreementID := uuid.MustParse(con.GetAgreement().ID)
+	cInit, err := statemachine.NewTransferRequest(
+		req.Context(),
+		dh.store,
+		dh.provider,
+		dh.reconciler,
+		uuid.New(),
+		agreementID,
+		"HTTP_PULL",
+		dh.selfURL,
+		selfURL,
+		statemachine.DataspaceConsumer,
+		statemachine.TransferRequestStates.TRANSFERINITIAL,
+		nil,
+	)
+	req = req.WithContext(ctx)
+	if err != nil {
+		returnError(w, http.StatusInternalServerError, "Couldn't create transfer request")
+		return
+	}
+	apply, err := cInit.Send(req.Context())
+	if err != nil {
+		returnError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	if err := shared.EncodeValid(w, req, http.StatusOK, cInit.GetTransferProcess()); err != nil {
+		logger.Error("Couldn't serve response", "err", err)
+		returnError(w, http.StatusInternalServerError, "Failed to serve response")
+	}
+	go apply()
 }

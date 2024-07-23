@@ -24,62 +24,33 @@ import (
 	"github.com/go-dataspace/run-dsp/dsp/shared"
 	"github.com/go-dataspace/run-dsp/logging"
 	providerv1 "github.com/go-dataspace/run-dsrpc/gen/go/provider/v1"
+	"github.com/google/uuid"
 )
 
-// TODO: dedup this and the other request function.
-//
-//nolint:dupl
 func makeTransferRequestFunction(
 	ctx context.Context,
-	requester Requester,
+	t *TransferRequest,
 	cu *url.URL,
 	reqBody []byte,
-	c *TransferRequest,
-	a Archiver,
 	destinationState TransferRequestState,
+	reconciler *Reconciler,
 ) func() {
-	return func() {
-		logger := logging.Extract(ctx)
-		logger.Debug("Sending request")
-		respBody, err := requester.SendHTTPRequest(ctx, "POST", cu, reqBody)
-		if err != nil {
-			logger.Error("Could not send request", "error", err)
-			return
-		}
-
-		if len(respBody) > 0 {
-			cneg, err := shared.UnmarshalAndValidate(ctx, respBody, shared.TransferProcess{})
-			if err != nil {
-				logger.Error("Could not parse response", "error", err)
-				return
-			}
-
-			state, err := ParseTransferRequestState(cneg.State)
-			if err != nil {
-				logger.Error("Invalid state returned", "state", cneg.State)
-				return
-			}
-
-			if state != destinationState {
-				logger.Error("Invalid state returned", "state", state)
-				return
-			}
-		}
-		err = c.SetState(destinationState)
-		if err != nil {
-			logger.Error("Tried to set invalid state", "error", err)
-			return
-		}
-		if c.role == TransferConsumer {
-			err = a.PutConsumerTransfer(ctx, c)
-		} else {
-			err = a.PutProviderTransfer(ctx, c)
-		}
-		if err != nil {
-			logger.Error("Could not store transfer request", "error", err)
-			return
-		}
+	var id uuid.UUID
+	if t.GetRole() == DataspaceConsumer {
+		id = t.GetConsumerPID()
+	} else {
+		id = t.GetProviderPID()
 	}
+	return makeRequestFunction(
+		ctx,
+		cu,
+		reqBody,
+		id,
+		t.GetRole(),
+		destinationState.String(),
+		ReconciliationTransferRequest,
+		reconciler,
+	)
 }
 
 func sendTransferRequest(ctx context.Context, tr *TransferRequestNegotiationInitial) (func(), error) {
@@ -95,7 +66,7 @@ func sendTransferRequest(ctx context.Context, tr *TransferRequestNegotiationInit
 
 	reqBody, err := shared.ValidateAndMarshal(ctx, transferRequest)
 	if err != nil {
-		logger.Error("Could not validate contract request", "error", err)
+		logger.Error("Could not validate contract request", "err", err)
 		return func() {}, fmt.Errorf("could not process request: %w", err)
 	}
 
@@ -103,8 +74,12 @@ func sendTransferRequest(ctx context.Context, tr *TransferRequestNegotiationInit
 	cu.Path = path.Join(cu.Path, "transfers", "request")
 
 	return makeTransferRequestFunction(
-		ctx, tr.GetRequester(), cu, reqBody, tr.GetTransferRequest(), tr.GetArchiver(),
+		ctx,
+		tr.GetTransferRequest(),
+		cu,
+		reqBody,
 		TransferRequestStates.TRANSFERREQUESTED,
+		tr.GetReconciler(),
 	), nil
 }
 
@@ -120,20 +95,24 @@ func sendTransferStart(ctx context.Context, tr *TransferRequestNegotiationReques
 
 	reqBody, err := shared.ValidateAndMarshal(ctx, startRequest)
 	if err != nil {
-		logger.Error("Could not validate start request", "error", err)
+		logger.Error("Could not validate start request", "err", err)
 		return func() {}, fmt.Errorf("could not process request: %w", err)
 	}
 
 	pid := tr.GetConsumerPID().String()
-	if tr.GetRole() == TransferConsumer {
+	if tr.GetRole() == DataspaceConsumer {
 		pid = tr.GetProviderPID().String()
 	}
 	cu := cloneURL(tr.GetCallback())
 	cu.Path = path.Join(cu.Path, "transfers", pid, "start")
 
 	return makeTransferRequestFunction(
-		ctx, tr.GetRequester(), cu, reqBody, tr.GetTransferRequest(), tr.GetArchiver(),
+		ctx,
+		tr.GetTransferRequest(),
+		cu,
+		reqBody,
 		TransferRequestStates.STARTED,
+		tr.GetReconciler(),
 	), nil
 }
 
@@ -148,12 +127,12 @@ func sendTransferCompletion(ctx context.Context, tr *TransferRequestNegotiationS
 
 	reqBody, err := shared.ValidateAndMarshal(ctx, startRequest)
 	if err != nil {
-		logger.Error("Could not validate start request", "error", err)
+		logger.Error("Could not validate start request", "err", err)
 		return func() {}, fmt.Errorf("could not process request: %w", err)
 	}
 
 	pid := tr.GetConsumerPID().String()
-	if tr.GetRole() == TransferConsumer {
+	if tr.GetRole() == DataspaceConsumer {
 		pid = tr.GetProviderPID().String()
 	}
 
@@ -161,8 +140,12 @@ func sendTransferCompletion(ctx context.Context, tr *TransferRequestNegotiationS
 	cu.Path = path.Join(cu.Path, "transfers", pid, "completion")
 
 	return makeTransferRequestFunction(
-		ctx, tr.GetRequester(), cu, reqBody, tr.GetTransferRequest(), tr.GetArchiver(),
+		ctx,
+		tr.GetTransferRequest(),
+		cu,
+		reqBody,
 		TransferRequestStates.COMPLETED,
+		tr.GetReconciler(),
 	), nil
 }
 

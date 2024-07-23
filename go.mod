@@ -9,6 +9,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/grpc-ecosystem/go-grpc-middleware/v2 v2.1.0
 	github.com/justinas/alice v1.2.0
+	github.com/lmittmann/tint v1.0.5
 	github.com/samber/slog-http v1.3.1
 	github.com/stretchr/testify v1.9.0
 	google.golang.org/grpc v1.64.0

@@ -39,7 +39,7 @@ func (ch *dspHandlers) catalogRequestHandler(w http.ResponseWriter, req *http.Re
 	logger := logging.Extract(req.Context())
 	catalogReq, err := shared.DecodeValid[shared.CatalogRequestMessage](req)
 	if err != nil {
-		logger.Error("Non validating catalog request", "error", err)
+		logger.Error("Non validating catalog request", "err", err)
 		returnError(w, http.StatusBadRequest, "Request did not validate")
 		return
 	}
@@ -67,7 +67,7 @@ func (ch *dspHandlers) catalogRequestHandler(w http.ResponseWriter, req *http.Re
 		Service:  []shared.DataService{dataService},
 	})
 	if err != nil {
-		logger.Error("failed to serve catalog", "error", err)
+		logger.Error("failed to serve catalog", "err", err)
 	}
 }
 
@@ -80,13 +80,13 @@ func (ch *dspHandlers) datasetRequestHandler(w http.ResponseWriter, req *http.Re
 	ctx, logger := logging.InjectLabels(req.Context(), "paramID", paramID)
 	id, err := uuid.Parse(paramID)
 	if err != nil {
-		logger.Error("Misformed uuid in path", "error", err)
+		logger.Error("Misformed uuid in path", "err", err)
 		returnError(w, http.StatusBadRequest, "Invalid ID")
 		return
 	}
 	datasetReq, err := shared.DecodeValid[shared.DatasetRequestMessage](req)
 	if err != nil {
-		logger.Error("Non validating dataset request", "error", err)
+		logger.Error("Non validating dataset request", "err", err)
 		returnError(w, http.StatusBadRequest, "Request did not validate")
 		return
 	}
@@ -101,7 +101,7 @@ func (ch *dspHandlers) datasetRequestHandler(w http.ResponseWriter, req *http.Re
 
 	err = shared.EncodeValid(w, req, http.StatusOK, processProviderDataset(resp.GetDataset(), dataService))
 	if err != nil {
-		logger.Error("failed to serve dataset", "error", err)
+		logger.Error("failed to serve dataset", "err", err)
 	}
 }
 

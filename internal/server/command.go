@@ -50,7 +50,7 @@ type Command struct {
 	ListenAddr string `help:"Listen address" default:"0.0.0.0" env:"LISTEN_ADDR"`
 	Port       int    `help:"Listen port" default:"8080" env:"PORT"`
 
-	ExternalURL *url.URL `help:"URL that RUN-DSP uses in the dataspace. Default: http://LISTEN_ADDR:PORT" env:"EXTERNAL_URL"`
+	ExternalURL *url.URL `help:"URL that RUN-DSP uses in the dataspace." default:"http://127.0.0.1:8080/" env:"EXTERNAL_URL"`
 
 	ProviderAddress       string `help:"Address of provider GRPC endpoint" required:"" env:"PROVIDER_URL"`
 	ProviderInsecure      bool   `help:"Provider connection does not use TLS" default:"false" env:"PROVIDER_INSECURE"`
@@ -122,6 +122,8 @@ func (c *Command) Run(p cli.Params) error {
 
 	store := statemachine.NewMemoryArchiver()
 	httpClient := &statemachine.HTTPRequester{}
+	reconciler := statemachine.NewReconciler(ctx, httpClient, store)
+	reconciler.Run()
 
 	mux := http.NewServeMux()
 
@@ -142,7 +144,7 @@ func (c *Command) Run(p cli.Params) error {
 		baseMW.Append(
 			jsonHeaderMiddleware,
 			authforwarder.HTTPMiddleware,
-		).Then(dsp.GetDSPRoutes(provider, store, httpClient, selfURL)),
+		).Then(dsp.GetDSPRoutes(provider, store, reconciler, selfURL)),
 	))
 
 	srv := &http.Server{

@@ -24,11 +24,11 @@ import (
 	"github.com/google/uuid"
 )
 
-type ContractRole int8
+type DataspaceRole int8
 
 const (
-	ContractConsumer ContractRole = iota
-	ContractProvider
+	DataspaceConsumer DataspaceRole = iota
+	DataspaceProvider
 )
 
 var validTransitions = map[ContractState][]ContractState{
@@ -72,7 +72,7 @@ type Contract struct {
 	agreement   odrl.Agreement
 	callback    *url.URL
 	self        *url.URL
-	role        ContractRole
+	role        DataspaceRole
 
 	initial bool
 }
@@ -84,7 +84,7 @@ func (cn *Contract) SetConsumerPID(u uuid.UUID)   { cn.providerPID = u }
 func (cn *Contract) GetState() ContractState      { return cn.state }
 func (cn *Contract) GetOffer() odrl.Offer         { return cn.offer }
 func (cn *Contract) GetAgreement() odrl.Agreement { return cn.agreement }
-func (cn *Contract) GetRole() ContractRole        { return cn.role }
+func (cn *Contract) GetRole() DataspaceRole       { return cn.role }
 func (cn *Contract) GetCallback() *url.URL        { return cn.callback }
 func (cn *Contract) GetSelf() *url.URL            { return cn.self }
 func (cn *Contract) GetContract() *Contract       { return cn }
@@ -116,4 +116,28 @@ func (cn *Contract) GetContractNegotiation() shared.ContractNegotiation {
 		ProviderPID: cn.GetProviderPID().URN(),
 		State:       cn.GetState().String(),
 	}
+}
+
+// Copy does a deep copy of a contract, here mostly for a workaround that will go away once
+// we implement a reconciliation loop.
+func (cn *Contract) Copy() *Contract {
+	return &Contract{
+		providerPID: cn.providerPID,
+		consumerPID: cn.consumerPID,
+		state:       cn.state,
+		offer:       cn.offer,
+		agreement:   cn.agreement,
+		callback:    mustURL(cn.callback),
+		self:        mustURL(cn.self),
+		role:        cn.role,
+		initial:     cn.initial,
+	}
+}
+
+func mustURL(u *url.URL) *url.URL {
+	n, err := url.Parse(u.String())
+	if err != nil {
+		panic(err.Error())
+	}
+	return n
 }

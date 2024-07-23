@@ -37,7 +37,7 @@ type TransferRequester interface {
 	GetCallback() *url.URL
 	GetSelf() *url.URL
 	GetState() TransferRequestState
-	GetRole() TransferRole
+	GetRole() DataspaceRole
 	SetState(state TransferRequestState) error
 	GetTransferRequest() *TransferRequest
 	GetPublishInfo() *providerv1.PublishInfo
@@ -51,7 +51,7 @@ type TransferRequestNegotiationState interface {
 	Send(ctx context.Context) (func(), error)
 	GetArchiver() Archiver
 	GetProvider() providerv1.ProviderServiceClient
-	GetRequester() Requester
+	GetReconciler() *Reconciler
 }
 
 type TransferRequestNegotiationInitial struct {
@@ -181,6 +181,16 @@ type TransferRequestNegotiationCompleted struct {
 	stateMachineDeps
 }
 
+func (tr *TransferRequestNegotiationCompleted) Recv(
+	ctx context.Context, message any,
+) (TransferRequestNegotiationState, error) {
+	return nil, fmt.Errorf("this is a final state")
+}
+
+func (tr *TransferRequestNegotiationCompleted) Send(ctx context.Context) (func(), error) {
+	return func() {}, nil
+}
+
 type TransferRequestNegotiationTerminated struct {
 	*TransferRequest
 	stateMachineDeps
@@ -190,11 +200,11 @@ func NewTransferRequest(
 	ctx context.Context,
 	store Archiver,
 	provider providerv1.ProviderServiceClient,
-	requester Requester,
+	reconciler *Reconciler,
 	consumerPID, agreementID uuid.UUID,
 	format string,
 	callback, self *url.URL,
-	role TransferRole,
+	role DataspaceRole,
 	state TransferRequestState,
 	publishInfo *providerv1.PublishInfo,
 ) (TransferRequestNegotiationState, error) {
@@ -217,11 +227,19 @@ func NewTransferRequest(
 	if publishInfo == nil {
 		traReq.transferDirection = DirectionPull
 	}
-	return GetTransferRequestNegotiation(store, traReq, provider, requester), nil
+	if role == DataspaceConsumer {
+		err = store.PutConsumerTransfer(ctx, traReq)
+	} else {
+		err = store.PutProviderTransfer(ctx, traReq)
+	}
+	if err != nil {
+		return nil, err
+	}
+	return GetTransferRequestNegotiation(store, traReq, provider, reconciler), nil
 }
 
 func GetTransferRequestNegotiation(
-	a Archiver, tr *TransferRequest, p providerv1.ProviderServiceClient, r Requester,
+	a Archiver, tr *TransferRequest, p providerv1.ProviderServiceClient, r *Reconciler,
 ) TransferRequestNegotiationState {
 	deps := stateMachineDeps{a: a, p: p, r: r}
 	switch tr.GetState() {
@@ -231,6 +249,8 @@ func GetTransferRequestNegotiation(
 		return &TransferRequestNegotiationRequested{TransferRequest: tr, stateMachineDeps: deps}
 	case TransferRequestStates.STARTED:
 		return &TransferRequestNegotiationStarted{TransferRequest: tr, stateMachineDeps: deps}
+	case TransferRequestStates.COMPLETED:
+		return &TransferRequestNegotiationCompleted{TransferRequest: tr, stateMachineDeps: deps}
 	default:
 		panic(fmt.Sprintf("No transition found for state %s", tr.GetState()))
 	}
@@ -298,7 +318,7 @@ func verifyAndTransformTransfer(
 		return nil, fmt.Errorf("could not set state: %w", err)
 	}
 	var err error
-	if tr.GetRole() == TransferConsumer {
+	if tr.GetRole() == DataspaceConsumer {
 		err = tr.GetArchiver().PutConsumerTransfer(ctx, tr.GetTransferRequest())
 	} else {
 		err = tr.GetArchiver().PutProviderTransfer(ctx, tr.GetTransferRequest())
@@ -307,5 +327,5 @@ func verifyAndTransformTransfer(
 		return nil, fmt.Errorf("failed to save contract: %w", err)
 	}
 	return GetTransferRequestNegotiation(
-		tr.GetArchiver(), tr.GetTransferRequest(), tr.GetProvider(), tr.GetRequester()), nil
+		tr.GetArchiver(), tr.GetTransferRequest(), tr.GetProvider(), tr.GetReconciler()), nil
 }

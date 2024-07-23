@@ -19,6 +19,7 @@ import (
 	"encoding/json"
 	"net/url"
 	"testing"
+	"time"
 
 	"github.com/go-dataspace/run-dsp/dsp/shared"
 	"github.com/go-dataspace/run-dsp/dsp/statemachine"
@@ -61,6 +62,10 @@ func decode[T any](d []byte) (T, error) {
 	return m, err
 }
 
+const (
+	reconcileWait = 10 * time.Millisecond
+)
+
 var (
 	target           = uuid.MustParse("68d3d534-06b9-4700-9890-915bc32ecb75")
 	consumerPID      = uuid.MustParse("d6bc4c28-973b-4c2f-b63f-08076c4fc65e")
@@ -95,6 +100,9 @@ func TestStateMachineConsumerInitConsumerPull(t *testing.T) {
 
 	logger := logging.NewJSON("error", true)
 	ctx := logging.Inject(context.Background(), logger)
+	ctx, done := context.WithCancel(ctx)
+	defer done()
+
 	store := statemachine.NewMemoryArchiver()
 	requester := &MockRequester{}
 
@@ -105,13 +113,18 @@ func TestStateMachineConsumerInitConsumerPull(t *testing.T) {
 		Dataset: &providerv1.Dataset{},
 	}, nil)
 
-	consumerInit := statemachine.NewContract(
-		ctx, store, mockProvider, requester, uuid.UUID{}, consumerPID,
-		statemachine.ContractStates.INITIAL, offer, providerCallback, consumerCallback, statemachine.ContractConsumer)
+	reconciler := statemachine.NewReconciler(ctx, requester, store)
+	reconciler.Run()
+
+	ctx, consumerInit, err := statemachine.NewContract(
+		ctx, store, mockProvider, reconciler, uuid.UUID{}, consumerPID,
+		statemachine.ContractStates.INITIAL, offer, providerCallback, consumerCallback, statemachine.DataspaceConsumer)
+	assert.Nil(t, err)
 	assert.Nil(t, consumerInit.GetArchiver().PutConsumerContract(ctx, consumerInit.GetContract()))
 	apply, err := consumerInit.Send(ctx)
 	assert.Nil(t, err)
 	apply()
+	time.Sleep(reconcileWait)
 
 	consumerInitRes, err := store.GetConsumerContract(ctx, consumerPID)
 	validateContract(t, err, consumerInitRes, statemachine.ContractStates.REQUESTED, false)
@@ -125,14 +138,14 @@ func TestStateMachineConsumerInitConsumerPull(t *testing.T) {
 	assert.Equal(t, consumerCallback.String(), reqMSG.CallbackAddress)
 	assert.Equal(t, target.URN(), reqMSG.Offer.Target)
 
-	requester = &MockRequester{}
-	providerInit := statemachine.NewContract(
-		ctx, store, mockProvider, requester, uuid.UUID{}, uuid.MustParse(reqMSG.ConsumerPID),
+	ctx, providerInit, err := statemachine.NewContract(
+		ctx, store, mockProvider, reconciler, uuid.UUID{}, uuid.MustParse(reqMSG.ConsumerPID),
 		statemachine.ContractStates.INITIAL, odrl.Offer{MessageOffer: reqMSG.Offer},
-		urlMustParse(reqMSG.CallbackAddress), providerCallback, statemachine.ContractProvider,
+		urlMustParse(reqMSG.CallbackAddress), providerCallback, statemachine.DataspaceProvider,
 	)
+	assert.Nil(t, err)
 
-	nextProvider, err := providerInit.Recv(ctx, reqMSG)
+	ctx, nextProvider, err := providerInit.Recv(ctx, reqMSG)
 	validateContract(t, err, nextProvider.GetContract(), statemachine.ContractStates.REQUESTED, false)
 
 	gProviderPID := nextProvider.GetProviderPID()
@@ -140,6 +153,7 @@ func TestStateMachineConsumerInitConsumerPull(t *testing.T) {
 	apply, err = nextProvider.Send(ctx)
 	assert.Nil(t, err)
 	apply()
+	time.Sleep(reconcileWait)
 
 	providerReqRes, err := store.GetProviderContract(ctx, gProviderPID)
 	validateContract(t, err, providerReqRes, statemachine.ContractStates.OFFERED, false)
@@ -159,9 +173,8 @@ func TestStateMachineConsumerInitConsumerPull(t *testing.T) {
 	consContract, err := store.GetConsumerContract(ctx, uuid.MustParse(offerMSG.ConsumerPID))
 	validateContract(t, err, consContract, statemachine.ContractStates.REQUESTED, false)
 
-	requester = &MockRequester{}
-	cState := statemachine.GetContractNegotiation(store, consContract, mockProvider, requester)
-	cNext, err := cState.Recv(ctx, offerMSG)
+	ctx, cState := statemachine.GetContractNegotiation(ctx, store, consContract, mockProvider, reconciler)
+	ctx, cNext, err := cState.Recv(ctx, offerMSG)
 	assert.Nil(t, err)
 	assert.Equal(t, statemachine.ContractStates.OFFERED, cNext.GetState())
 	assert.Equal(t, providerCallback, cNext.GetCallback())
@@ -171,6 +184,7 @@ func TestStateMachineConsumerInitConsumerPull(t *testing.T) {
 	apply, err = cNext.Send(ctx)
 	assert.Nil(t, err)
 	apply()
+	time.Sleep(reconcileWait)
 
 	cAcceptRes, err := store.GetConsumerContract(ctx, consumerPID)
 	validateContract(t, err, cAcceptRes, statemachine.ContractStates.ACCEPTED, false)
@@ -189,14 +203,14 @@ func TestStateMachineConsumerInitConsumerPull(t *testing.T) {
 	provContract, err := store.GetProviderContract(ctx, uuid.MustParse(acceptMessage.ProviderPID))
 	validateContract(t, err, provContract, statemachine.ContractStates.OFFERED, false)
 
-	requester = &MockRequester{}
-	pState := statemachine.GetContractNegotiation(store, provContract, mockProvider, requester)
-	pNext, err := pState.Recv(ctx, acceptMessage)
+	ctx, pState := statemachine.GetContractNegotiation(ctx, store, provContract, mockProvider, reconciler)
+	ctx, pNext, err := pState.Recv(ctx, acceptMessage)
 	validateContract(t, err, pNext.GetContract(), statemachine.ContractStates.ACCEPTED, false)
 
 	apply, err = pNext.Send(ctx)
 	assert.Nil(t, err)
 	apply()
+	time.Sleep(reconcileWait)
 
 	pAgreeRes, err := store.GetProviderContract(ctx, gProviderPID)
 	validateContract(t, err, pAgreeRes, statemachine.ContractStates.AGREED, false)
@@ -218,14 +232,14 @@ func TestStateMachineConsumerInitConsumerPull(t *testing.T) {
 	cContract, err := store.GetConsumerContract(ctx, uuid.MustParse(acceptMessage.ConsumerPID))
 	validateContract(t, err, cContract, statemachine.ContractStates.ACCEPTED, false)
 
-	requester = &MockRequester{}
-	cState = statemachine.GetContractNegotiation(store, cContract, mockProvider, requester)
-	cNext, err = cState.Recv(ctx, agreeMSG)
+	ctx, cState = statemachine.GetContractNegotiation(ctx, store, cContract, mockProvider, reconciler)
+	ctx, cNext, err = cState.Recv(ctx, agreeMSG)
 	validateContract(t, err, cNext.GetContract(), statemachine.ContractStates.AGREED, false)
 
 	apply, err = cNext.Send(ctx)
 	assert.Nil(t, err)
 	apply()
+	time.Sleep(reconcileWait)
 
 	cVerRes, err := store.GetConsumerContract(ctx, consumerPID)
 	validateContract(t, err, cVerRes, statemachine.ContractStates.VERIFIED, false)
@@ -243,14 +257,14 @@ func TestStateMachineConsumerInitConsumerPull(t *testing.T) {
 	pContract, err := store.GetProviderContract(ctx, uuid.MustParse(acceptMessage.ProviderPID))
 	validateContract(t, err, pContract, statemachine.ContractStates.AGREED, false)
 
-	requester = &MockRequester{}
-	pState = statemachine.GetContractNegotiation(store, pContract, mockProvider, requester)
-	pNext, err = pState.Recv(ctx, verMSG)
+	ctx, pState = statemachine.GetContractNegotiation(ctx, store, pContract, mockProvider, reconciler)
+	ctx, pNext, err = pState.Recv(ctx, verMSG)
 	validateContract(t, err, pNext.GetContract(), statemachine.ContractStates.VERIFIED, false)
 
 	apply, err = pNext.Send(ctx)
 	assert.Nil(t, err)
 	apply()
+	time.Sleep(reconcileWait)
 
 	pFinRes, err := store.GetProviderContract(ctx, gProviderPID)
 	validateContract(t, err, pFinRes, statemachine.ContractStates.FINALIZED, false)
@@ -269,25 +283,24 @@ func TestStateMachineConsumerInitConsumerPull(t *testing.T) {
 	cContract, err = store.GetConsumerContract(ctx, uuid.MustParse(finMSG.ConsumerPID))
 	validateContract(t, err, cContract, statemachine.ContractStates.VERIFIED, false)
 
-	requester = &MockRequester{}
-	cState = statemachine.GetContractNegotiation(store, cContract, mockProvider, requester)
-	cNext, err = cState.Recv(ctx, finMSG)
+	ctx, cState = statemachine.GetContractNegotiation(ctx, store, cContract, mockProvider, reconciler)
+	ctx, cNext, err = cState.Recv(ctx, finMSG)
 	validateContract(t, err, cNext.GetContract(), statemachine.ContractStates.FINALIZED, false)
 
 	agreementID := uuid.MustParse(gAgreement.ID)
 
-	requester = &MockRequester{}
 	trCPID := uuid.New()
 	cTransInit, err := statemachine.NewTransferRequest(
-		ctx, store, mockProvider, requester,
+		ctx, store, mockProvider, reconciler,
 		trCPID, agreementID, "HTTP_PULL",
-		providerCallback, consumerCallback, statemachine.TransferConsumer,
+		providerCallback, consumerCallback, statemachine.DataspaceConsumer,
 		statemachine.TransferRequestStates.TRANSFERINITIAL, nil,
 	)
 	assert.Nil(t, err)
 	apply, err = cTransInit.Send(ctx)
 	assert.Nil(t, err)
 	apply()
+	time.Sleep(reconcileWait)
 
 	cTransInitRes, err := store.GetConsumerTransfer(ctx, trCPID)
 	validateTransfer(t, err, cTransInitRes, statemachine.TransferRequestStates.TRANSFERREQUESTED, agreementID)
@@ -301,11 +314,10 @@ func TestStateMachineConsumerInitConsumerPull(t *testing.T) {
 	assert.Equal(t, "HTTP_PULL", trReqMSG.Format)
 	assert.Equal(t, consumerCallback.String(), trReqMSG.CallbackAddress)
 
-	requester = &MockRequester{}
 	pTransInit, err := statemachine.NewTransferRequest(
-		ctx, store, mockProvider, requester,
+		ctx, store, mockProvider, reconciler,
 		uuid.MustParse(trReqMSG.ConsumerPID), uuid.MustParse(trReqMSG.AgreementID), trReqMSG.Format,
-		urlMustParse(trReqMSG.CallbackAddress), providerCallback, statemachine.TransferProvider,
+		urlMustParse(trReqMSG.CallbackAddress), providerCallback, statemachine.DataspaceProvider,
 		statemachine.TransferRequestStates.TRANSFERINITIAL, nil,
 	)
 	assert.Nil(t, err)
@@ -335,6 +347,7 @@ func TestStateMachineConsumerInitConsumerPull(t *testing.T) {
 	apply, err = pTransNext.Send(ctx)
 	assert.Nil(t, err)
 	apply()
+	time.Sleep(reconcileWait)
 
 	pTransRes, err := store.GetProviderTransfer(ctx, trProviderPID)
 	validateTransfer(t, err, pTransRes, statemachine.TransferRequestStates.STARTED, agreementID)
@@ -360,14 +373,14 @@ func TestStateMachineConsumerInitConsumerPull(t *testing.T) {
 	cTraReq, err := store.GetConsumerTransfer(ctx, uuid.MustParse(trStartMSG.ConsumerPID))
 	validateTransfer(t, err, cTraReq, statemachine.TransferRequestStates.TRANSFERREQUESTED, agreementID)
 
-	requester = &MockRequester{}
-	cTransInit = statemachine.GetTransferRequestNegotiation(store, cTraReq, mockProvider, requester)
+	cTransInit = statemachine.GetTransferRequestNegotiation(store, cTraReq, mockProvider, reconciler)
 	cTransNext, err := cTransInit.Recv(ctx, trStartMSG)
 	validateTransfer(t, err, cTransNext.GetTransferRequest(), statemachine.TransferRequestStates.STARTED, agreementID)
 
 	apply, err = cTransNext.Send(ctx)
 	assert.Nil(t, err)
 	apply()
+	time.Sleep(reconcileWait)
 
 	cTransRes, err := store.GetConsumerTransfer(ctx, trCPID)
 	validateTransfer(t, err, cTransRes, statemachine.TransferRequestStates.COMPLETED, agreementID)
@@ -414,13 +427,17 @@ func TestContractStateMachineProviderInit(t *testing.T) {
 		Dataset: &providerv1.Dataset{},
 	}, nil)
 
-	pInit := statemachine.NewContract(
-		ctx, store, mockProvider, requester, providerPID, uuid.UUID{},
-		statemachine.ContractStates.INITIAL, offer, provInitCB, providerCallback, statemachine.ContractProvider)
-	assert.Nil(t, pInit.GetArchiver().PutProviderContract(ctx, pInit.GetContract()))
+	reconciler := statemachine.NewReconciler(ctx, requester, store)
+	reconciler.Run()
+
+	ctx, pInit, err := statemachine.NewContract(
+		ctx, store, mockProvider, reconciler, providerPID, uuid.UUID{},
+		statemachine.ContractStates.INITIAL, offer, provInitCB, providerCallback, statemachine.DataspaceProvider)
+	assert.Nil(t, err)
 	apply, err := pInit.Send(ctx)
 	assert.Nil(t, err)
 	apply()
+	time.Sleep(reconcileWait)
 
 	pInitC, err := store.GetProviderContract(ctx, providerPID)
 	validateContract(t, err, pInitC, statemachine.ContractStates.OFFERED, true)
@@ -434,14 +451,14 @@ func TestContractStateMachineProviderInit(t *testing.T) {
 	assert.Equal(t, providerCallback.String(), offMSG.CallbackAddress)
 	assert.Equal(t, target.URN(), offMSG.Offer.Target)
 
-	requester = &MockRequester{}
-	cInit := statemachine.NewContract(
-		ctx, store, mockProvider, requester, uuid.MustParse(offMSG.ProviderPID), uuid.UUID{},
+	ctx, cInit, err := statemachine.NewContract(
+		ctx, store, mockProvider, reconciler, uuid.MustParse(offMSG.ProviderPID), uuid.UUID{},
 		statemachine.ContractStates.INITIAL, odrl.Offer{MessageOffer: offMSG.Offer},
-		urlMustParse(offMSG.CallbackAddress), consumerCallback, statemachine.ContractConsumer,
+		urlMustParse(offMSG.CallbackAddress), consumerCallback, statemachine.DataspaceConsumer,
 	)
+	assert.Nil(t, err)
 
-	nextProvider, err := cInit.Recv(ctx, offMSG)
+	ctx, nextProvider, err := cInit.Recv(ctx, offMSG)
 	validateContract(t, err, nextProvider.GetContract(), statemachine.ContractStates.OFFERED, false)
 
 	gConsumerPID := nextProvider.GetConsumerPID()
@@ -449,6 +466,7 @@ func TestContractStateMachineProviderInit(t *testing.T) {
 	apply, err = nextProvider.Send(ctx)
 	assert.Nil(t, err)
 	apply()
+	time.Sleep(reconcileWait)
 
 	cReqRes, err := store.GetConsumerContract(ctx, gConsumerPID)
 	validateContract(t, err, cReqRes, statemachine.ContractStates.REQUESTED, false)
@@ -468,14 +486,14 @@ func TestContractStateMachineProviderInit(t *testing.T) {
 	pReqContract, err := store.GetProviderContract(ctx, uuid.MustParse(reqMSG.ProviderPID))
 	validateContract(t, err, pReqContract, statemachine.ContractStates.OFFERED, true)
 
-	requester = &MockRequester{}
-	pOffState := statemachine.GetContractNegotiation(store, pReqContract, mockProvider, requester)
-	pOffNext, err := pOffState.Recv(ctx, reqMSG)
+	ctx, pOffState := statemachine.GetContractNegotiation(ctx, store, pReqContract, mockProvider, reconciler)
+	ctx, pOffNext, err := pOffState.Recv(ctx, reqMSG)
 	validateContract(t, err, pOffNext.GetContract(), statemachine.ContractStates.REQUESTED, false)
 
 	apply, err = pOffNext.Send(ctx)
 	assert.Nil(t, err)
 	apply()
+	time.Sleep(reconcileWait)
 
 	pAgreedRes, err := store.GetProviderContract(ctx, providerPID)
 	validateContract(t, err, pAgreedRes, statemachine.ContractStates.AGREED, false)
@@ -495,14 +513,14 @@ func TestContractStateMachineProviderInit(t *testing.T) {
 	cContract, err := store.GetConsumerContract(ctx, uuid.MustParse(agreeMSG.ConsumerPID))
 	validateContract(t, err, cContract, statemachine.ContractStates.REQUESTED, false)
 
-	requester = &MockRequester{}
-	pOffState = statemachine.GetContractNegotiation(store, cContract, mockProvider, requester)
-	pOffNext, err = pOffState.Recv(ctx, agreeMSG)
+	ctx, pOffState = statemachine.GetContractNegotiation(ctx, store, cContract, mockProvider, reconciler)
+	ctx, pOffNext, err = pOffState.Recv(ctx, agreeMSG)
 	validateContract(t, err, pOffNext.GetContract(), statemachine.ContractStates.AGREED, false)
 
 	apply, err = pOffNext.Send(ctx)
 	assert.Nil(t, err)
 	apply()
+	time.Sleep(reconcileWait)
 
 	cVerRes, err := store.GetConsumerContract(ctx, gConsumerPID)
 	validateContract(t, err, cVerRes, statemachine.ContractStates.VERIFIED, false)
@@ -520,14 +538,14 @@ func TestContractStateMachineProviderInit(t *testing.T) {
 	pContract, err := store.GetProviderContract(ctx, uuid.MustParse(verMSG.ProviderPID))
 	validateContract(t, err, pContract, statemachine.ContractStates.AGREED, false)
 
-	requester = &MockRequester{}
-	pState := statemachine.GetContractNegotiation(store, pContract, mockProvider, requester)
-	pNext, err := pState.Recv(ctx, verMSG)
+	ctx, pState := statemachine.GetContractNegotiation(ctx, store, pContract, mockProvider, reconciler)
+	ctx, pNext, err := pState.Recv(ctx, verMSG)
 	validateContract(t, err, pNext.GetContract(), statemachine.ContractStates.VERIFIED, false)
 
 	apply, err = pNext.Send(ctx)
 	assert.Nil(t, err)
 	apply()
+	time.Sleep(reconcileWait)
 
 	pFinRes, err := store.GetProviderContract(ctx, providerPID)
 	validateContract(t, err, pFinRes, statemachine.ContractStates.FINALIZED, false)
@@ -546,9 +564,8 @@ func TestContractStateMachineProviderInit(t *testing.T) {
 	cContract, err = store.GetConsumerContract(ctx, uuid.MustParse(finMSG.ConsumerPID))
 	validateContract(t, err, cContract, statemachine.ContractStates.VERIFIED, false)
 
-	requester = &MockRequester{}
-	pOffState = statemachine.GetContractNegotiation(store, cContract, mockProvider, requester)
-	pOffNext, err = pOffState.Recv(ctx, finMSG)
+	ctx, pOffState = statemachine.GetContractNegotiation(ctx, store, cContract, mockProvider, reconciler)
+	_, pOffNext, err = pOffState.Recv(ctx, finMSG)
 	validateContract(t, err, pOffNext.GetContract(), statemachine.ContractStates.FINALIZED, false)
 }
 
@@ -558,7 +575,7 @@ func validateContract(
 	t.Helper()
 	assert.Nil(t, err)
 	assert.Equal(t, state, c.GetState())
-	if c.GetRole() == statemachine.ContractConsumer {
+	if c.GetRole() == statemachine.DataspaceConsumer {
 		assert.Equal(t, providerCallback, c.GetCallback())
 		assert.Equal(t, consumerCallback, c.GetSelf())
 	} else {
@@ -580,7 +597,7 @@ func validateTransfer(
 	assert.Nil(t, err)
 	assert.Equal(t, state, c.GetState())
 	assert.Equal(t, agreementID, c.GetAgreementID())
-	if c.GetRole() == statemachine.TransferConsumer {
+	if c.GetRole() == statemachine.DataspaceConsumer {
 		assert.Equal(t, providerCallback, c.GetCallback())
 		assert.Equal(t, consumerCallback, c.GetSelf())
 	} else {

@@ -34,8 +34,8 @@ type HTTPRequester struct {
 	Client *http.Client
 }
 
-func (hr *HTTPRequester) setDefaultClient() *http.Client {
-	return &http.Client{
+func (hr *HTTPRequester) setDefaultClient() {
+	hr.Client = &http.Client{
 		Transport: authforwarder.AuthRoundTripper{Proxied: http.DefaultTransport},
 	}
 }
@@ -50,21 +50,21 @@ func (hr *HTTPRequester) SendHTTPRequest(
 	logger.Debug("Doing HTTP request")
 	req, err := http.NewRequestWithContext(ctx, method, url.String(), bytes.NewReader(reqBody))
 	if err != nil {
-		logger.Error("Failed to create request", "error", err)
+		logger.Error("Failed to create request", "err", err)
 		return nil, err
 	}
 	req.Header.Add("Content-Type", "application/json")
 	req.Header.Add("Accept", "application/json")
 	resp, err := hr.Client.Do(req)
 	if err != nil {
-		logger.Error("Failed to send request", "error", err)
+		logger.Error("Failed to send request", "err", err)
 		return nil, err
 	}
 	defer resp.Body.Close()
 	// In the future we might want to return the reader to handle big bodies.
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
-		logger.Error("Failed to read body", "error", err)
+		logger.Error("Failed to read body", "err", err)
 		return nil, err
 	}
 

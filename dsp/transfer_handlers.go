@@ -40,7 +40,7 @@ func (dh *dspHandlers) providerTransferProcessHandler(w http.ResponseWriter, req
 		return
 	}
 	if err := shared.EncodeValid(w, req, http.StatusOK, contract.GetTransferProcess()); err != nil {
-		logger.Error("couldn't serve contract state: %w", "error", err)
+		logger.Error("couldn't serve contract state: %w", "err", err)
 	}
 }
 
@@ -72,11 +72,11 @@ func (dh *dspHandlers) providerTransferRequestHandler(w http.ResponseWriter, req
 
 	pState, err := statemachine.NewTransferRequest(
 		req.Context(),
-		dh.store, dh.provider, dh.client,
+		dh.store, dh.provider, dh.reconciler,
 		consumerPID, agreementID,
 		transferReq.Format,
 		cbURL, dh.selfURL,
-		statemachine.TransferProvider,
+		statemachine.DataspaceProvider,
 		statemachine.TransferRequestStates.TRANSFERINITIAL,
 		nil,
 	)
@@ -95,19 +95,17 @@ func (dh *dspHandlers) providerTransferRequestHandler(w http.ResponseWriter, req
 		returnError(w, http.StatusInternalServerError, "Not able to progress state")
 		return
 	}
-	defer apply()
 
 	if err := shared.EncodeValid(w, req, http.StatusOK, nextState.GetTransferProcess()); err != nil {
-		logger.Error("Couldn't serve response", "error", err)
+		logger.Error("Couldn't serve response", "err", err)
 		returnError(w, http.StatusInternalServerError, "Failed to serve response")
 	}
+	go apply()
 }
 
-// TODO: unify this with the other state progression func.
-//
-//nolint:dupl
 func progressTransferState[T any](
-	dh *dspHandlers, w http.ResponseWriter, req *http.Request, role statemachine.TransferRole, rawPID string,
+	dh *dspHandlers, w http.ResponseWriter, req *http.Request, role statemachine.DataspaceRole,
+	rawPID string, autoProgress bool,
 ) {
 	logger := logging.Extract(req.Context())
 	pid, err := uuid.Parse(rawPID)
@@ -118,9 +116,9 @@ func progressTransferState[T any](
 
 	var transfer *statemachine.TransferRequest
 	switch role {
-	case statemachine.TransferConsumer:
+	case statemachine.DataspaceConsumer:
 		transfer, err = dh.store.GetConsumerTransfer(req.Context(), pid)
-	case statemachine.TransferProvider:
+	case statemachine.DataspaceProvider:
 		transfer, err = dh.store.GetProviderTransfer(req.Context(), pid)
 	default:
 		panic(fmt.Sprintf("unexpected statemachine.TransferRole: %#v", role))
@@ -138,7 +136,7 @@ func progressTransferState[T any](
 
 	logger.Debug("Got contract message", "req", msg)
 
-	pState := statemachine.GetTransferRequestNegotiation(dh.store, transfer, dh.provider, dh.client)
+	pState := statemachine.GetTransferRequestNegotiation(dh.store, transfer, dh.provider, dh.reconciler)
 
 	nextState, err := pState.Recv(req.Context(), msg)
 	if err != nil {
@@ -146,28 +144,32 @@ func progressTransferState[T any](
 		return
 	}
 
-	apply, err := nextState.Send(req.Context())
-	if err != nil {
-		returnError(w, http.StatusInternalServerError, "Not able to progress state")
-		return
+	apply := func() {}
+	if autoProgress {
+		apply, err = nextState.Send(req.Context())
+		if err != nil {
+			returnError(w, http.StatusInternalServerError, "Not able to progress state")
+			return
+		}
+
 	}
-	defer apply()
 
 	if err := shared.EncodeValid(w, req, http.StatusOK, nextState.GetTransferProcess()); err != nil {
-		logger.Error("Couldn't serve response", "error", err)
+		logger.Error("Couldn't serve response", "err", err)
 		returnError(w, http.StatusInternalServerError, "Failed to serve response")
 	}
+	go apply()
 }
 
 func (dh *dspHandlers) providerTransferStartHandler(w http.ResponseWriter, req *http.Request) {
 	progressTransferState[shared.TransferStartMessage](
-		dh, w, req, statemachine.TransferProvider, req.PathValue("providerPID"),
+		dh, w, req, statemachine.DataspaceProvider, req.PathValue("providerPID"), false,
 	)
 }
 
 func (dh *dspHandlers) providerTransferCompletionHandler(w http.ResponseWriter, req *http.Request) {
 	progressTransferState[shared.TransferCompletionMessage](
-		dh, w, req, statemachine.TransferProvider, req.PathValue("providerPID"),
+		dh, w, req, statemachine.DataspaceProvider, req.PathValue("providerPID"), true,
 	)
 }
 
@@ -223,13 +225,13 @@ func (dh *dspHandlers) providerTransferSuspensionHandler(w http.ResponseWriter, 
 
 func (dh *dspHandlers) consumerTransferStartHandler(w http.ResponseWriter, req *http.Request) {
 	progressTransferState[shared.TransferStartMessage](
-		dh, w, req, statemachine.TransferConsumer, req.PathValue("consumePID"),
+		dh, w, req, statemachine.DataspaceConsumer, req.PathValue("consumerPID"), false,
 	)
 }
 
 func (dh *dspHandlers) consumerTransferCompletionHandler(w http.ResponseWriter, req *http.Request) {
-	progressTransferState[shared.TransferStartMessage](
-		dh, w, req, statemachine.TransferConsumer, req.PathValue("consumePID"),
+	progressTransferState[shared.TransferCompletionMessage](
+		dh, w, req, statemachine.DataspaceConsumer, req.PathValue("consumerPID"), true,
 	)
 }
 
@@ -281,4 +283,34 @@ func (dh *dspHandlers) consumerTransferSuspensionHandler(w http.ResponseWriter, 
 
 	// If all goes well, we just return a 200
 	w.WriteHeader(http.StatusOK)
+}
+
+func (dh *dspHandlers) completeTransferRequestHandler(w http.ResponseWriter, req *http.Request) {
+	ctx, logger := logging.InjectLabels(req.Context(), "handler", "triggerConsumerContractRequestHandler")
+	req = req.WithContext(ctx)
+
+	pid, err := uuid.Parse(req.PathValue("providerPID"))
+	if err != nil {
+		returnError(w, http.StatusBadRequest, "Not a PID")
+		return
+	}
+
+	transfer, err := dh.store.GetProviderTransfer(ctx, pid)
+	if err != nil {
+		returnError(w, http.StatusNotFound, "No contract found")
+		return
+	}
+
+	pState := statemachine.GetTransferRequestNegotiation(dh.store, transfer, dh.provider, dh.reconciler)
+	apply, err := pState.Send(req.Context())
+	if err != nil {
+		returnError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	if err := shared.EncodeValid(w, req, http.StatusOK, pState.GetTransferProcess()); err != nil {
+		logger.Error("Couldn't serve response", "err", err)
+		returnError(w, http.StatusInternalServerError, "Failed to serve response")
+	}
+	go apply()
 }

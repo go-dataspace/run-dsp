@@ -31,10 +31,10 @@ import (
 )
 
 type dspHandlers struct {
-	store    statemachine.Archiver
-	provider providerv1.ProviderServiceClient
-	client   statemachine.Requester
-	selfURL  *url.URL
+	store      statemachine.Archiver
+	provider   providerv1.ProviderServiceClient
+	reconciler *statemachine.Reconciler
+	selfURL    *url.URL
 }
 
 type errorResponse struct {
@@ -67,7 +67,7 @@ func routeNotImplemented(w http.ResponseWriter, req *http.Request) {
 }
 
 func grpcErrorHandler(w http.ResponseWriter, l *slog.Logger, err error) {
-	l.Error("Got GRPC error", "error", err)
+	l.Error("Got GRPC error", "err", err)
 	switch status.Code(err) { //nolint:exhaustive
 	case codes.Unauthenticated:
 		returnContent(w, http.StatusForbidden, "not authenticated")
@@ -78,7 +78,7 @@ func grpcErrorHandler(w http.ResponseWriter, l *slog.Logger, err error) {
 	case codes.NotFound:
 		returnContent(w, http.StatusNotFound, "not found")
 	default:
-		returnContent(w, http.StatusInternalServerError, "error")
+		returnContent(w, http.StatusInternalServerError, "err")
 	}
 }
 

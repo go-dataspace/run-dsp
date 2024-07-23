@@ -45,13 +45,6 @@ var validTransferTransitions = map[TransferRequestState][]TransferRequestState{
 	TransferRequestStates.COMPLETED: {},
 }
 
-type TransferRole uint8
-
-const (
-	TransferConsumer TransferRole = iota
-	TransferProvider
-)
-
 type TransferDirection uint8
 
 const (
@@ -70,7 +63,7 @@ type TransferRequest struct {
 	format            string
 	callback          *url.URL
 	self              *url.URL
-	role              TransferRole
+	role              DataspaceRole
 	publishInfo       *providerv1.PublishInfo
 	transferDirection TransferDirection
 }
@@ -83,7 +76,7 @@ func (tr *TransferRequest) GetFormat() string                       { return tr.
 func (tr *TransferRequest) GetCallback() *url.URL                   { return tr.callback }
 func (tr *TransferRequest) GetSelf() *url.URL                       { return tr.self }
 func (tr *TransferRequest) GetState() TransferRequestState          { return tr.state }
-func (tr *TransferRequest) GetRole() TransferRole                   { return tr.role }
+func (tr *TransferRequest) GetRole() DataspaceRole                  { return tr.role }
 func (tr *TransferRequest) GetTransferRequest() *TransferRequest    { return tr }
 func (tr *TransferRequest) GetPublishInfo() *providerv1.PublishInfo { return tr.publishInfo }
 func (tr *TransferRequest) GetTransferDirection() TransferDirection { return tr.transferDirection }
