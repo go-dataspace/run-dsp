@@ -103,6 +103,7 @@ func (dh *dspHandlers) providerTransferRequestHandler(w http.ResponseWriter, req
 	go apply()
 }
 
+//nolint:cyclop
 func progressTransferState[T any](
 	dh *dspHandlers, w http.ResponseWriter, req *http.Request, role statemachine.DataspaceRole,
 	rawPID string, autoProgress bool,
@@ -151,7 +152,6 @@ func progressTransferState[T any](
 			returnError(w, http.StatusInternalServerError, "Not able to progress state")
 			return
 		}
-
 	}
 
 	if err := shared.EncodeValid(w, req, http.StatusOK, nextState.GetTransferProcess()); err != nil {
