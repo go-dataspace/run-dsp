@@ -15,180 +15,165 @@
 package dsp
 
 import (
+	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 
 	"github.com/go-dataspace/run-dsp/dsp/shared"
-	"github.com/go-dataspace/run-dsp/internal/constants"
-	"github.com/go-dataspace/run-dsp/internal/dspstatemachine"
-	"github.com/go-dataspace/run-dsp/jsonld"
+	"github.com/go-dataspace/run-dsp/dsp/statemachine"
 	"github.com/go-dataspace/run-dsp/logging"
-	providerv1 "github.com/go-dataspace/run-dsrpc/gen/go/provider/v1"
 	"github.com/google/uuid"
 )
 
-func getTransferProcessReq() shared.TransferProcess {
-	return shared.TransferProcess{
-		Context:     jsonld.NewRootContext([]jsonld.ContextEntry{{ID: constants.DSPContext}}),
-		Type:        "dspace:TransferProcess",
-		ProviderPID: "urn:uuid:a343fcbf-99fc-4ce8-8e9b-148c97605aab",
-		ConsumerPID: "urn:uuid:32541fe6-c580-409e-85a8-8a9a32fbe833",
-		State:       "dspace:REQUESTED",
-	}
-}
-
 func (dh *dspHandlers) providerTransferProcessHandler(w http.ResponseWriter, req *http.Request) {
-	providerPID := req.PathValue("providerPID")
-	if providerPID == "" {
-		returnError(w, http.StatusBadRequest, "Missing provider PID")
+	logger := logging.Extract(req.Context())
+	providerPID, err := uuid.Parse(req.PathValue("providerPID"))
+	if err != nil {
+		returnError(w, http.StatusBadRequest, "Invalid provider PID")
 		return
 	}
 
-	validateMarshalAndReturn(req.Context(), w, http.StatusOK, getTransferProcessReq())
+	contract, err := dh.store.GetProviderTransfer(req.Context(), providerPID)
+	if err != nil {
+		returnError(w, http.StatusNotFound, "no transfer request found")
+		return
+	}
+	if err := shared.EncodeValid(w, req, http.StatusOK, contract.GetTransferProcess()); err != nil {
+		logger.Error("couldn't serve contract state: %w", "err", err)
+	}
 }
 
 func (dh *dspHandlers) providerTransferRequestHandler(w http.ResponseWriter, req *http.Request) {
-	reqBody, err := io.ReadAll(req.Body)
-	if err != nil {
-		returnError(w, http.StatusBadRequest, "Could not read body")
-		return
-	}
-	transferReq, err := shared.UnmarshalAndValidate(req.Context(), reqBody, shared.TransferRequestMessage{})
+	logger := logging.Extract(req.Context())
+	transferReq, err := shared.DecodeValid[shared.TransferRequestMessage](req)
 	if err != nil {
 		returnError(w, http.StatusBadRequest, "Invalid request")
 		return
 	}
 
-	consumerPID, err := shared.ParseUUIDURN(transferReq.ConsumerPID)
+	consumerPID, err := uuid.Parse(transferReq.ConsumerPID)
 	if err != nil {
 		returnError(w, http.StatusBadRequest, "Consumer PID is not a UUID")
 		return
 	}
 
-	stateStorage := dspstatemachine.GetStateStorage(req.Context())
-	agreement, err := stateStorage.FindAgreement(req.Context(), transferReq.AgreementID)
+	agreementID, err := uuid.Parse(transferReq.AgreementID)
 	if err != nil {
-		returnError(w, http.StatusBadRequest, "Consumer PID is not a UUID")
+		returnError(w, http.StatusBadRequest, "Agreement ID is not a UUID")
 		return
 	}
 
-	providerPID := uuid.New()
-	fileID, err := shared.ParseUUIDURN(agreement.Target)
+	cbURL, err := url.Parse(transferReq.CallbackAddress)
 	if err != nil {
-		returnError(w, http.StatusInternalServerError, "Consumer PID is not a UUID")
+		returnError(w, http.StatusBadRequest, "Invalid request: Non-valid callback URL.")
 		return
 	}
 
-	resp, err := dh.provider.PublishDataset(req.Context(), &providerv1.PublishDatasetRequest{
-		DatasetId: fileID.String(),
-		PublishId: providerPID.String(),
-	})
+	pState, err := statemachine.NewTransferRequest(
+		req.Context(),
+		dh.store, dh.provider, dh.reconciler,
+		consumerPID, agreementID,
+		transferReq.Format,
+		cbURL, dh.selfURL,
+		statemachine.DataspaceProvider,
+		statemachine.TransferRequestStates.TRANSFERINITIAL,
+		nil,
+	)
 	if err != nil {
-		grpcErrorHandler(w, logging.Extract(req.Context()), err)
-		return
-	}
-	publishInfo := processProviderPublishInfo(resp.PublishInfo)
-
-	transferArgs := dspstatemachine.TransferArgs{
-		BaseArgs: dspstatemachine.BaseArgs{
-			ParticipantRole:         dspstatemachine.Provider,
-			ConsumerProcessId:       consumerPID,
-			ProviderProcessId:       providerPID,
-			ConsumerCallbackAddress: transferReq.CallbackAddress,
-		},
-		AgreementID:  transferReq.AgreementID,
-		PublishInfo:  publishInfo,
-		StateStorage: stateStorage,
+		returnError(w, http.StatusInternalServerError, "could not create transfer request")
 	}
 
-	transferProcess, err := dspstatemachine.ProviderCheckTransferRequestMessage(req.Context(), transferArgs)
+	nextState, err := pState.Recv(req.Context(), transferReq)
 	if err != nil {
-		returnError(w, http.StatusInternalServerError, err.Error())
+		returnError(w, http.StatusBadRequest, "Invalid request")
 		return
 	}
-	validateMarshalAndReturn(req.Context(), w, http.StatusCreated, transferProcess)
-	go sendUUID(req.Context(), transferArgs.ProviderProcessId, dspstatemachine.Transfer)
+
+	apply, err := nextState.Send(req.Context())
+	if err != nil {
+		returnError(w, http.StatusInternalServerError, "Not able to progress state")
+		return
+	}
+
+	if err := shared.EncodeValid(w, req, http.StatusOK, nextState.GetTransferProcess()); err != nil {
+		logger.Error("Couldn't serve response", "err", err)
+		returnError(w, http.StatusInternalServerError, "Failed to serve response")
+	}
+	go apply()
 }
 
-func processProviderPublishInfo(ppi *providerv1.PublishInfo) shared.PublishInfo {
-	return shared.PublishInfo{
-		URL:   ppi.GetUrl(),
-		Token: ppi.GetPassword(),
+//nolint:cyclop
+func progressTransferState[T any](
+	dh *dspHandlers, w http.ResponseWriter, req *http.Request, role statemachine.DataspaceRole,
+	rawPID string, autoProgress bool,
+) {
+	logger := logging.Extract(req.Context())
+	pid, err := uuid.Parse(rawPID)
+	if err != nil {
+		returnError(w, http.StatusBadRequest, "Invalid PID")
+		return
 	}
+
+	var transfer *statemachine.TransferRequest
+	switch role {
+	case statemachine.DataspaceConsumer:
+		transfer, err = dh.store.GetConsumerTransfer(req.Context(), pid)
+	case statemachine.DataspaceProvider:
+		transfer, err = dh.store.GetProviderTransfer(req.Context(), pid)
+	default:
+		panic(fmt.Sprintf("unexpected statemachine.TransferRole: %#v", role))
+	}
+	if err != nil {
+		returnError(w, http.StatusNotFound, "Contract not found")
+		return
+	}
+
+	msg, err := shared.DecodeValid[T](req)
+	if err != nil {
+		returnError(w, http.StatusBadRequest, "Invalid request")
+		return
+	}
+
+	logger.Debug("Got contract message", "req", msg)
+
+	pState := statemachine.GetTransferRequestNegotiation(dh.store, transfer, dh.provider, dh.reconciler)
+
+	nextState, err := pState.Recv(req.Context(), msg)
+	if err != nil {
+		returnError(w, http.StatusBadRequest, "Invalid request")
+		return
+	}
+
+	apply := func() {}
+	if autoProgress {
+		apply, err = nextState.Send(req.Context())
+		if err != nil {
+			returnError(w, http.StatusInternalServerError, "Not able to progress state")
+			return
+		}
+	}
+
+	if err := shared.EncodeValid(w, req, http.StatusOK, nextState.GetTransferProcess()); err != nil {
+		logger.Error("Couldn't serve response", "err", err)
+		returnError(w, http.StatusInternalServerError, "Failed to serve response")
+	}
+	go apply()
 }
 
 func (dh *dspHandlers) providerTransferStartHandler(w http.ResponseWriter, req *http.Request) {
-	logger := logging.Extract(req.Context())
-	providerPID := req.PathValue("providerPID")
-	if providerPID == "" {
-		returnError(w, http.StatusBadRequest, "Missing provider PID")
-		return
-	}
-	reqBody, err := io.ReadAll(req.Body)
-	if err != nil {
-		returnError(w, http.StatusBadRequest, "Could not read body")
-		return
-	}
-	start, err := shared.UnmarshalAndValidate(req.Context(), reqBody, shared.TransferStartMessage{})
-	if err != nil {
-		returnError(w, http.StatusBadRequest, "Invalid request")
-		return
-	}
-
-	logger.Debug("Got transfer start", "start", start)
-
-	// If all goes well, we just return a 200
-	w.WriteHeader(http.StatusOK)
+	progressTransferState[shared.TransferStartMessage](
+		dh, w, req, statemachine.DataspaceProvider, req.PathValue("providerPID"), false,
+	)
 }
 
 func (dh *dspHandlers) providerTransferCompletionHandler(w http.ResponseWriter, req *http.Request) {
-	logger := logging.Extract(req.Context())
-	providerPIDString := req.PathValue("providerPID")
-	if providerPIDString == "" {
-		returnError(w, http.StatusBadRequest, "Missing provider PID")
-		return
-	}
-	providerPID, err := uuid.Parse(providerPIDString)
-	if err != nil {
-		returnError(w, http.StatusBadRequest, "Provider PID is not a UUID")
-	}
-	reqBody, err := io.ReadAll(req.Body)
-	if err != nil {
-		returnError(w, http.StatusBadRequest, "Could not read body")
-		return
-	}
-	completion, err := shared.UnmarshalAndValidate(req.Context(), reqBody, shared.TransferCompletionMessage{})
-	if err != nil {
-		returnError(w, http.StatusBadRequest, "Invalid request")
-		return
-	}
-
-	logger.Debug("Got transfer completion", "completion", completion)
-
-	transferArgs := dspstatemachine.TransferArgs{
-		BaseArgs: dspstatemachine.BaseArgs{
-			ParticipantRole:   dspstatemachine.Provider,
-			ProviderProcessId: providerPID,
-		},
-		StateStorage: dspstatemachine.GetStateStorage(req.Context()),
-	}
-
-	_, err = dh.provider.UnpublishDataset(req.Context(), &providerv1.UnpublishDatasetRequest{
-		PublishId: providerPID.String(),
-	})
-	if err != nil {
-		grpcErrorHandler(w, logger, err)
-		return
-	}
-
-	transferProcess, err := dspstatemachine.ProviderCheckTransferCompletionMessage(req.Context(), transferArgs)
-	if err != nil {
-		returnError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-	validateMarshalAndReturn(req.Context(), w, http.StatusCreated, transferProcess)
+	progressTransferState[shared.TransferCompletionMessage](
+		dh, w, req, statemachine.DataspaceProvider, req.PathValue("providerPID"), true,
+	)
 }
 
+// TODO: Handle termination.
 func (dh *dspHandlers) providerTransferTerminationHandler(w http.ResponseWriter, req *http.Request) {
 	logger := logging.Extract(req.Context())
 	providerPID := req.PathValue("providerPID")
@@ -213,6 +198,7 @@ func (dh *dspHandlers) providerTransferTerminationHandler(w http.ResponseWriter,
 	w.WriteHeader(http.StatusOK)
 }
 
+// TODO: Handle suspension.
 func (dh *dspHandlers) providerTransferSuspensionHandler(w http.ResponseWriter, req *http.Request) {
 	logger := logging.Extract(req.Context())
 	providerPID := req.PathValue("providerPID")
@@ -238,77 +224,18 @@ func (dh *dspHandlers) providerTransferSuspensionHandler(w http.ResponseWriter, 
 }
 
 func (dh *dspHandlers) consumerTransferStartHandler(w http.ResponseWriter, req *http.Request) {
-	logger := logging.Extract(req.Context())
-	consumerPIDString := req.PathValue("consumerPID")
-	if consumerPIDString == "" {
-		returnError(w, http.StatusBadRequest, "Missing consumer PID")
-		return
-	}
-	consumerPID, err := uuid.Parse(consumerPIDString)
-	if err != nil {
-		returnError(w, http.StatusBadRequest, "Consumer PID is not a UUID")
-		return
-	}
-	reqBody, err := io.ReadAll(req.Body)
-	if err != nil {
-		returnError(w, http.StatusBadRequest, "Could not read body")
-		return
-	}
-	start, err := shared.UnmarshalAndValidate(req.Context(), reqBody, shared.TransferStartMessage{})
-	if err != nil {
-		returnError(w, http.StatusBadRequest, "Invalid request")
-		return
-	}
-
-	logger.Debug("Got transfer start from provider", "suspension", start)
-
-	providerPID, err := shared.ParseUUIDURN(start.ProviderPID)
-	if err != nil {
-		returnError(w, http.StatusBadRequest, "Provider PID is not a UUID")
-		return
-	}
-	transferArgs := dspstatemachine.TransferArgs{
-		BaseArgs: dspstatemachine.BaseArgs{
-			ParticipantRole:   dspstatemachine.Provider,
-			ConsumerProcessId: consumerPID,
-			ProviderProcessId: providerPID,
-		},
-		StateStorage: dspstatemachine.GetStateStorage(req.Context()),
-	}
-
-	transferProcess, err := dspstatemachine.ConsumerCheckTransferStartMessage(req.Context(), transferArgs)
-	if err != nil {
-		returnError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-
-	validateMarshalAndReturn(req.Context(), w, http.StatusCreated, transferProcess)
+	progressTransferState[shared.TransferStartMessage](
+		dh, w, req, statemachine.DataspaceConsumer, req.PathValue("consumerPID"), false,
+	)
 }
 
 func (dh *dspHandlers) consumerTransferCompletionHandler(w http.ResponseWriter, req *http.Request) {
-	logger := logging.Extract(req.Context())
-	providerPID := req.PathValue("consumerPID")
-	if providerPID == "" {
-		returnError(w, http.StatusBadRequest, "Missing provider PID")
-		return
-	}
-	reqBody, err := io.ReadAll(req.Body)
-	if err != nil {
-		returnError(w, http.StatusBadRequest, "Could not read body")
-		return
-	}
-	completion, err := shared.UnmarshalAndValidate(req.Context(), reqBody, shared.TransferCompletionMessage{})
-	if err != nil {
-		returnError(w, http.StatusBadRequest, "Invalid request")
-		return
-	}
-
-	logger.Debug("Got transfer completion", "completion", completion)
-
-	// If all goes well, we just return a 200
-	w.WriteHeader(http.StatusOK)
+	progressTransferState[shared.TransferCompletionMessage](
+		dh, w, req, statemachine.DataspaceConsumer, req.PathValue("consumerPID"), true,
+	)
 }
 
+// TODO: Handle termination.
 func (dh *dspHandlers) consumerTransferTerminationHandler(w http.ResponseWriter, req *http.Request) {
 	logger := logging.Extract(req.Context())
 	consumerPID := req.PathValue("providerPID")
@@ -333,6 +260,7 @@ func (dh *dspHandlers) consumerTransferTerminationHandler(w http.ResponseWriter,
 	w.WriteHeader(http.StatusOK)
 }
 
+// TODO: Handle suspension.
 func (dh *dspHandlers) consumerTransferSuspensionHandler(w http.ResponseWriter, req *http.Request) {
 	logger := logging.Extract(req.Context())
 	consumerPID := req.PathValue("providerPID")
@@ -355,4 +283,34 @@ func (dh *dspHandlers) consumerTransferSuspensionHandler(w http.ResponseWriter, 
 
 	// If all goes well, we just return a 200
 	w.WriteHeader(http.StatusOK)
+}
+
+func (dh *dspHandlers) completeTransferRequestHandler(w http.ResponseWriter, req *http.Request) {
+	ctx, logger := logging.InjectLabels(req.Context(), "handler", "triggerConsumerContractRequestHandler")
+	req = req.WithContext(ctx)
+
+	pid, err := uuid.Parse(req.PathValue("providerPID"))
+	if err != nil {
+		returnError(w, http.StatusBadRequest, "Not a PID")
+		return
+	}
+
+	transfer, err := dh.store.GetProviderTransfer(ctx, pid)
+	if err != nil {
+		returnError(w, http.StatusNotFound, "No contract found")
+		return
+	}
+
+	pState := statemachine.GetTransferRequestNegotiation(dh.store, transfer, dh.provider, dh.reconciler)
+	apply, err := pState.Send(req.Context())
+	if err != nil {
+		returnError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	if err := shared.EncodeValid(w, req, http.StatusOK, pState.GetTransferProcess()); err != nil {
+		logger.Error("Couldn't serve response", "err", err)
+		returnError(w, http.StatusInternalServerError, "Failed to serve response")
+	}
+	go apply()
 }

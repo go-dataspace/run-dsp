@@ -19,6 +19,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"slices"
 
 	"github.com/go-dataspace/run-dsp/logging"
@@ -37,6 +38,7 @@ func init() {
 
 func TransferProcessState(fl validator.FieldLevel) bool {
 	states := []string{
+		"INITIAL",
 		"dspace:REQUESTED",
 		"dspace:STARTED",
 		"dspace:TERMINATED",
@@ -59,6 +61,32 @@ func ContractNegotiationState(fl validator.FieldLevel) bool {
 	return slices.Contains(states, fl.Field().String())
 }
 
+func EncodeValid[T any](w http.ResponseWriter, r *http.Request, status int, v T) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	if err := validate.Struct(v); err != nil {
+		return handleValidationError(err, logging.Extract(r.Context()))
+	}
+	if err := json.NewEncoder(w).Encode(v); err != nil {
+		return fmt.Errorf("encode json: %w", err)
+	}
+	return nil
+}
+
+func DecodeValid[T any](r *http.Request) (T, error) {
+	defer r.Body.Close()
+	var v T
+	if err := json.NewDecoder(r.Body).Decode(&v); err != nil {
+		return v, fmt.Errorf("decode json: %w", err)
+	}
+
+	if err := validate.Struct(v); err != nil {
+		return v, handleValidationError(err, logging.Extract(r.Context()))
+	}
+
+	return v, nil
+}
+
 func ValidateAndMarshal[T any](ctx context.Context, s T) ([]byte, error) {
 	logger := logging.Extract(ctx)
 	if err := validate.Struct(s); err != nil {
@@ -72,7 +100,7 @@ func UnmarshalAndValidate[T any](ctx context.Context, b []byte, s T) (T, error) 
 	logger := logging.Extract(ctx)
 	err := json.Unmarshal(b, &s)
 	if err != nil {
-		logger.Error("Couldn't unmarshal JSON", "error", err)
+		logger.Error("Couldn't unmarshal JSON", "err", err)
 		return s, fmt.Errorf("Couldn't unmarshal JSON")
 	}
 
@@ -86,7 +114,7 @@ func UnmarshalAndValidate[T any](ctx context.Context, b []byte, s T) (T, error) 
 func handleValidationError(err error, logger *slog.Logger) error {
 	// This should rarely if ever happen, but guard for it anyway.
 	if _, ok := err.(*validator.InvalidValidationError); ok { //nolint:errorlint
-		logger.Error("Invalid validation", "error", err)
+		logger.Error("Invalid validation", "err", err)
 		return fmt.Errorf("Invalid Validation")
 	}
 
@@ -105,7 +133,7 @@ func handleValidationError(err error, logger *slog.Logger) error {
 		)
 		return fmt.Errorf("Validation Error")
 	}
-	logger.Error("Unknown error", "error", err)
+	logger.Error("Unknown error", "err", err)
 	return err
 }
 

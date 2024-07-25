@@ -27,10 +27,24 @@ const (
 	contextKey contextKeyType = "authheader"
 )
 
+// HTTPMiddleware injects the authorization header into the context.
 func HTTPMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		authContents := req.Header.Get("Authorization")
 		req = req.WithContext(context.WithValue(req.Context(), contextKey, authContents))
 		next.ServeHTTP(w, req)
 	})
+}
+
+// AuthRoundTripper is a http client "middleware" that extracts the auth middleware out of the
+// context and injects it into the request.
+type AuthRoundTripper struct {
+	Proxied http.RoundTripper
+}
+
+// Roundtrip does the actual injection.
+func (art AuthRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	authVal := ExtractAuthorization(req.Context())
+	req.Header.Add("Authorization", authVal)
+	return art.Proxied.RoundTrip(req)
 }

@@ -19,6 +19,8 @@ import (
 	"context"
 	"log/slog"
 	"os"
+
+	"github.com/lmittmann/tint"
 )
 
 // create a new type for the context key, as context doesn't allow string as the key for
@@ -50,7 +52,10 @@ func NewJSON(requestedLevel string, humanReadable bool) *slog.Logger {
 	var handler slog.Handler
 	handler = slog.NewJSONHandler(os.Stdout, &opts)
 	if humanReadable {
-		handler = slog.NewTextHandler(os.Stdout, &opts)
+		handler = tint.NewHandler(os.Stdout, &tint.Options{
+			AddSource: true,
+			Level:     level,
+		})
 	}
 	return slog.New(handler)
 }

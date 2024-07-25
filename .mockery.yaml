@@ -12,27 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-BINARY_NAME := run-dsp
-
-build:
-	-mkdir _build
-	go mod download
-	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 GO111MODULE=on go build -ldflags="-extldflags=-static" -o _build/$(BINARY_NAME) ./cmd/
-
-docker_build:
-	docker build --tag docker.io/dwa-backend/dwa-backend:dev .
-
-podman_build:
-	podman build --tag docker.io/dwa-backend/dwa-backend:dev .
-
-test:
-	go test -v ./...
-
-lint:
-	golangci-lint run
-
-vulncheck:
-	govulncheck ./...
-
-generate:
-	go generate ./...
+with-expecter: true
+packages:
+  github.com/go-dataspace/run-dsrpc/gen/go/provider/v1:
+    interfaces:
+      ProviderServiceClient:

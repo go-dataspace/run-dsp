@@ -15,13 +15,14 @@
 package dsp
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net/http"
+	"net/url"
 
 	"github.com/go-dataspace/run-dsp/dsp/shared"
+	"github.com/go-dataspace/run-dsp/dsp/statemachine"
 	"github.com/go-dataspace/run-dsp/internal/constants"
 	"github.com/go-dataspace/run-dsp/jsonld"
 	providerv1 "github.com/go-dataspace/run-dsrpc/gen/go/provider/v1"
@@ -30,7 +31,10 @@ import (
 )
 
 type dspHandlers struct {
-	provider providerv1.ProviderServiceClient
+	store      statemachine.Archiver
+	provider   providerv1.ProviderServiceClient
+	reconciler *statemachine.Reconciler
+	selfURL    *url.URL
 }
 
 type errorResponse struct {
@@ -51,15 +55,6 @@ func returnContent(w http.ResponseWriter, status int, content string) {
 	fmt.Fprint(w, content)
 }
 
-func validateMarshalAndReturn[T any](ctx context.Context, w http.ResponseWriter, successStatus int, s T) {
-	respBody, err := shared.ValidateAndMarshal(ctx, s)
-	if err != nil {
-		returnError(w, http.StatusInternalServerError, "Could not render response")
-		return
-	}
-	returnContent(w, successStatus, string(respBody))
-}
-
 func returnError(w http.ResponseWriter, status int, e string) {
 	errResp := errorString(e)
 	returnContent(w, status, errResp)
@@ -72,7 +67,7 @@ func routeNotImplemented(w http.ResponseWriter, req *http.Request) {
 }
 
 func grpcErrorHandler(w http.ResponseWriter, l *slog.Logger, err error) {
-	l.Error("Got GRPC error", "error", err)
+	l.Error("Got GRPC error", "err", err)
 	switch status.Code(err) { //nolint:exhaustive
 	case codes.Unauthenticated:
 		returnContent(w, http.StatusForbidden, "not authenticated")
@@ -83,7 +78,7 @@ func grpcErrorHandler(w http.ResponseWriter, l *slog.Logger, err error) {
 	case codes.NotFound:
 		returnContent(w, http.StatusNotFound, "not found")
 	default:
-		returnContent(w, http.StatusInternalServerError, "error")
+		returnContent(w, http.StatusInternalServerError, "err")
 	}
 }
 
