@@ -14,6 +14,6 @@
 
 with-expecter: true
 packages:
-  github.com/go-dataspace/run-dsrpc/gen/go/provider/v1:
+  github.com/go-dataspace/run-dsrpc/gen/go/dsp/v1alpha1:
     interfaces:
       ProviderServiceClient:

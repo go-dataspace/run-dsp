@@ -20,7 +20,7 @@ import (
 	"net/url"
 
 	"github.com/go-dataspace/run-dsp/dsp/statemachine"
-	providerv1 "github.com/go-dataspace/run-dsrpc/gen/go/provider/v1"
+	providerv1 "github.com/go-dataspace/run-dsrpc/gen/go/dsp/v1alpha1"
 )
 
 // GetRoutes gets all the dataspace routes.

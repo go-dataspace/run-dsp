@@ -10,6 +10,8 @@ github.com/gabriel-vasile/mimetype v1.4.4 h1:QjV6pZ7/XZ7ryI2KuyeEDE8wnh7fHP9YnQy
 github.com/gabriel-vasile/mimetype v1.4.4/go.mod h1:JwLei5XPtWdGiMFB5Pjle1oEeoSeEuJfJE+TtfvdB/s=
 github.com/go-dataspace/run-dsrpc v0.0.0-20240627145957-5231d8809908 h1:4rd+x85I9ofdA7u6zcBCEUlMwKkAaLma+c+pt+QIYis=
 github.com/go-dataspace/run-dsrpc v0.0.0-20240627145957-5231d8809908/go.mod h1:LuGi7aKGllDAc13Re677LwF6WOqK0hHsl0Aq16ytcIY=
+github.com/go-dataspace/run-dsrpc v0.0.1-alpha1 h1:5AidaX66NMAjjVGjKRm/DMEw+xEySdn5dm8WUzWI73M=
+github.com/go-dataspace/run-dsrpc v0.0.1-alpha1/go.mod h1:GS4hV6keaQWCn9KTwMqNgzOdIgPnJ/+NSHSvgrsLbTE=
 github.com/go-playground/assert/v2 v2.2.0 h1:JvknZsQTYeFEAhQwI4qEt9cyV5ONwRHC+lYKSsYSR8s=
 github.com/go-playground/assert/v2 v2.2.0/go.mod h1:VDjEfimB/XKnb+ZQfWdccd7VUvScMdVu0Titje2rxJ4=
 github.com/go-playground/locales v0.14.1 h1:EWaQ/wswjilfKLTECiXz7Rh+3BjFhfDFKv/oXslEjJA=

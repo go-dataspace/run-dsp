@@ -25,7 +25,7 @@ import (
 	"github.com/go-dataspace/run-dsp/dsp/statemachine"
 	"github.com/go-dataspace/run-dsp/internal/constants"
 	"github.com/go-dataspace/run-dsp/jsonld"
-	providerv1 "github.com/go-dataspace/run-dsrpc/gen/go/provider/v1"
+	providerv1 "github.com/go-dataspace/run-dsrpc/gen/go/dsp/v1alpha1"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
