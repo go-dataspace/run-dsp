@@ -22,6 +22,7 @@ import (
 	"net/url"
 	"time"
 
+	"github.com/go-dataspace/run-dsp/dsp/shared"
 	"github.com/go-dataspace/run-dsp/logging"
 	"github.com/google/uuid"
 )
@@ -58,11 +59,11 @@ type ReconciliationEntry struct {
 type Reconciler struct {
 	ctx context.Context
 	c   chan ReconciliationEntry
-	r   Requester
+	r   shared.Requester
 	a   Archiver
 }
 
-func NewReconciler(ctx context.Context, r Requester, a Archiver) *Reconciler {
+func NewReconciler(ctx context.Context, r shared.Requester, a Archiver) *Reconciler {
 	return &Reconciler{
 		ctx: ctx,
 		c:   make(chan ReconciliationEntry),

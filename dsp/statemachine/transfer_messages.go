@@ -194,7 +194,7 @@ func publishInfoToDataAddress(pi *providerv1.PublishInfo) shared.DataAddress {
 			},
 		}
 	case providerv1.AuthenticationType_AUTHENTICATION_TYPE_UNSPECIFIED:
-		panic(fmt.Sprintf("unexpected providerv1.AuthenticationType: %#v", pi.AuthenticationType))
+		da.EndpointProperties = []shared.EndpointProperty{}
 	default:
 		panic(fmt.Sprintf("unexpected providerv1.AuthenticationType: %#v", pi.AuthenticationType))
 	}

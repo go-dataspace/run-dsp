@@ -264,9 +264,10 @@ func dataAddressToPublishInfo(d shared.DataAddress) (*providerv1.PublishInfo, er
 	pi := &providerv1.PublishInfo{
 		Url: d.Endpoint,
 	}
+
 	authType, ok := p["authType"]
 	if !ok {
-		return nil, fmt.Errorf("no authtype defined")
+		return pi, nil
 	}
 	switch authType {
 	case "bearer":

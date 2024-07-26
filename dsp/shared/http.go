@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package statemachine
+package shared
 
 import (
 	"bytes"
@@ -48,7 +48,11 @@ func (hr *HTTPRequester) SendHTTPRequest(
 	}
 	logger := logging.Extract(ctx).With("method", method, "target_url", url)
 	logger.Debug("Doing HTTP request")
-	req, err := http.NewRequestWithContext(ctx, method, url.String(), bytes.NewReader(reqBody))
+	var payload io.Reader
+	if reqBody != nil {
+		payload = bytes.NewReader(reqBody)
+	}
+	req, err := http.NewRequestWithContext(ctx, method, url.String(), payload)
 	if err != nil {
 		logger.Error("Failed to create request", "err", err)
 		return nil, err
@@ -74,4 +78,12 @@ func (hr *HTTPRequester) SendHTTPRequest(
 	}
 
 	return respBody, nil
+}
+
+func MustParseURL(u string) *url.URL {
+	pu, err := url.Parse(u)
+	if err != nil {
+		panic(err.Error())
+	}
+	return pu
 }
