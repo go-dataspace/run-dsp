@@ -57,7 +57,11 @@ func UnaryInterceptor(
 		return nil, errMissingMetadata
 	}
 	authContents := md["authorization"]
-	ctx = context.WithValue(ctx, contextKey, authContents)
+	ac := ""
+	if len(authContents) > 0 {
+		ac = authContents[0]
+	}
+	ctx = context.WithValue(ctx, contextKey, ac)
 	return handler(ctx, req)
 }
 
@@ -81,7 +85,11 @@ func StreamInterceptor(
 		return errMissingMetadata
 	}
 	authContents := md["authorization"]
-	ctx = context.WithValue(ctx, contextKey, authContents)
+	ac := ""
+	if len(authContents) > 0 {
+		ac = authContents[0]
+	}
+	ctx = context.WithValue(ctx, contextKey, ac)
 	return handler(srv, &serverStream{ss, ctx})
 }
 
