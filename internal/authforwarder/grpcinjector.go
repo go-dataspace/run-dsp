@@ -18,8 +18,12 @@ import (
 	"context"
 
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/status"
 )
+
+var errMissingMetadata = status.Errorf(codes.InvalidArgument, "missing metadata")
 
 // UnaryClientInterceptor extracts the auth header value from the context and appends it to the
 // outgoing metadata.
@@ -43,6 +47,42 @@ func StreamClientInterceptor(
 	val := ExtractAuthorization(ctx)
 	ctx = metadata.AppendToOutgoingContext(ctx, "authorization", val)
 	return streamer(ctx, desc, cc, method, opts...)
+}
+
+func UnaryInterceptor(
+	ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler,
+) (any, error) {
+	md, ok := metadata.FromIncomingContext(ctx)
+	if !ok {
+		return nil, errMissingMetadata
+	}
+	authContents := md["authorization"]
+	ctx = context.WithValue(ctx, contextKey, authContents)
+	return handler(ctx, req)
+}
+
+type serverStream struct {
+	grpc.ServerStream
+	ctx context.Context
+}
+
+func (s *serverStream) Context() context.Context {
+	return s.ctx
+}
+
+// StreamInterceptor will process the authorization header, convert it to a prefix, and then
+// inject it into the context, but for streams.
+func StreamInterceptor(
+	srv interface{}, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler,
+) error {
+	ctx := ss.Context()
+	md, ok := metadata.FromIncomingContext(ctx)
+	if !ok {
+		return errMissingMetadata
+	}
+	authContents := md["authorization"]
+	ctx = context.WithValue(ctx, contextKey, authContents)
+	return handler(srv, &serverStream{ss, ctx})
 }
 
 // ExtractAuthorization shouldn't be public, but it temporarily is to keep things working.
