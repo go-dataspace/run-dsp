@@ -208,10 +208,12 @@ func (c *Command) Run(p cli.Params) error {
 		).Then(dsp.GetDSPRoutes(provider, store, reconciler, selfURL)),
 	))
 
-	ctlSVC := control.New(httpClient, store, reconciler, provider, selfURL)
-	err = c.startControl(ctx, wg, ctlSVC)
-	if err != nil {
-		return err
+	if c.ControlEnabled {
+		ctlSVC := control.New(httpClient, store, reconciler, provider, selfURL)
+		err = c.startControl(ctx, wg, ctlSVC)
+		if err != nil {
+			return err
+		}
 	}
 
 	srv := &http.Server{
