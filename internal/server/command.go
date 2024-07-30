@@ -91,13 +91,17 @@ func (c *Command) Validate() error {
 		}
 	}
 
-	if !c.ControlEnabled && !c.ControlInsecure {
+	if c.ControlEnabled {
 		return c.validateControl()
 	}
 	return nil
 }
 
 func (c *Command) validateControl() error {
+	if c.ControlInsecure {
+		return nil
+	}
+
 	certSupplied, err := checkFile(c.ControlCert)
 	if err != nil {
 		return fmt.Errorf("Control interface certificate: %w", err)
