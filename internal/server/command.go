@@ -54,7 +54,7 @@ type Command struct {
 	ListenAddr string `help:"Listen address" default:"0.0.0.0" env:"LISTEN_ADDR"`
 	Port       int    `help:"Listen port" default:"8080" env:"PORT"`
 
-	ExternalURL *url.URL `help:"URL that RUN-DSP uses in the dataspace." env:"EXTERNAL_URL"`
+	ExternalURL *url.URL `help:"URL that RUN-DSP uses in the dataspace." required:"" env:"EXTERNAL_URL"`
 
 	// GRPC settings for the provider
 	ProviderAddress       string `help:"Address of provider GRPC endpoint" required:"" env:"PROVIDER_URL"`
