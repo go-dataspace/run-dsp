@@ -54,7 +54,7 @@ type Command struct {
 	ListenAddr string `help:"Listen address" default:"0.0.0.0" env:"LISTEN_ADDR"`
 	Port       int    `help:"Listen port" default:"8080" env:"PORT"`
 
-	ExternalURL *url.URL `help:"URL that RUN-DSP uses in the dataspace." default:"http://127.0.0.1:8080/" env:"EXTERNAL_URL"`
+	ExternalURL *url.URL `help:"URL that RUN-DSP uses in the dataspace." env:"EXTERNAL_URL"`
 
 	// GRPC settings for the provider
 	ProviderAddress       string `help:"Address of provider GRPC endpoint" required:"" env:"PROVIDER_URL"`
@@ -173,7 +173,11 @@ func (c *Command) Run(p cli.Params) error {
 	wg := &sync.WaitGroup{}
 	logger := logging.Extract(ctx)
 
-	logger.Info("Starting server", "listenAddr", c.ListenAddr, "port", c.Port)
+	logger.Info("Starting server",
+		"listenAddr", c.ListenAddr,
+		"port", c.Port,
+		"externalURL", c.ExternalURL,
+	)
 
 	provider, conn, err := c.getProvider(ctx)
 	if err != nil {
