@@ -549,6 +549,15 @@ func verifyAndTransform(
 		logger.Error("Could not set state", "err", err)
 		return ctx, nil, fmt.Errorf("failed to save contract: %w", err)
 	}
+
+	if cn.GetContract().role == DataspaceConsumer && targetState == ContractStates.FINALIZED {
+		err = cn.GetArchiver().PutAgreement(ctx, &cn.GetContract().Copy().agreement)
+		if err != nil {
+			logger.Error("Could not set state", "err", err)
+			return ctx, nil, fmt.Errorf("failed to save agreement: %w", err)
+		}
+	}
+
 	ctx, cns := GetContractNegotiation(ctx, cn.GetArchiver(), cn.GetContract(), cn.GetProvider(), cn.GetReconciler())
 	return ctx, cns, nil
 }
