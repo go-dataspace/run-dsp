@@ -17,14 +17,12 @@ package dsp
 import (
 	"encoding/json"
 	"fmt"
-	"log/slog"
 	"net/http"
 	"net/url"
 
 	"github.com/go-dataspace/run-dsp/dsp/shared"
 	"github.com/go-dataspace/run-dsp/dsp/statemachine"
 	"github.com/go-dataspace/run-dsp/internal/constants"
-	"github.com/go-dataspace/run-dsp/jsonld"
 	providerv1 "github.com/go-dataspace/run-dsrpc/gen/go/dsp/v1alpha1"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -66,25 +64,24 @@ func routeNotImplemented(w http.ResponseWriter, req *http.Request) {
 	returnError(w, http.StatusNotImplemented, fmt.Sprintf("%s %s has not been implemented", method, path))
 }
 
-func grpcErrorHandler(w http.ResponseWriter, l *slog.Logger, err error) {
-	l.Error("Got GRPC error", "err", err)
+func grpcErrorHandler(err error) CatalogError {
 	switch status.Code(err) { //nolint:exhaustive
 	case codes.Unauthenticated:
-		returnContent(w, http.StatusForbidden, "not authenticated")
+		return catalogError(err.Error(), http.StatusForbidden, "403", "Not authenticated")
 	case codes.PermissionDenied:
-		returnContent(w, http.StatusUnauthorized, "permission denied")
+		return catalogError(err.Error(), http.StatusUnauthorized, "401", "Permission denied")
 	case codes.InvalidArgument:
-		returnContent(w, http.StatusBadRequest, "invalid argument")
+		return catalogError(err.Error(), http.StatusBadRequest, "400", "Invalid argument")
 	case codes.NotFound:
-		returnContent(w, http.StatusNotFound, "not found")
+		return catalogError(err.Error(), http.StatusNotFound, "404", "Not found")
 	default:
-		returnContent(w, http.StatusInternalServerError, "err")
+		return catalogError(err.Error(), http.StatusInternalServerError, "500", "Internal server error")
 	}
 }
 
-func dspaceVersionHandler(w http.ResponseWriter, req *http.Request) {
+func dspaceVersionHandler(w http.ResponseWriter, req *http.Request) error {
 	vResp := shared.VersionResponse{
-		Context: jsonld.NewRootContext([]jsonld.ContextEntry{{ID: constants.DSPContext}}),
+		Context: shared.GetDSPContext(),
 		ProtocolVersions: []shared.ProtocolVersion{
 			{
 				Version: constants.DSPVersion,
@@ -94,11 +91,10 @@ func dspaceVersionHandler(w http.ResponseWriter, req *http.Request) {
 	}
 	data, err := shared.ValidateAndMarshal(req.Context(), vResp)
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		fmt.Fprint(w, errorString("Error while trying to fetch dataspace versions"))
-		return
+		return err
 	}
 
 	w.WriteHeader(http.StatusOK)
 	fmt.Fprint(w, string(data))
+	return nil
 }

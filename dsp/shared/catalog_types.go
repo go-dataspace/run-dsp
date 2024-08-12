@@ -45,14 +45,6 @@ type CatalogAcknowledgement struct {
 	Homepage      string        `json:"foaf:homepage,omitempty"`
 }
 
-// CatalogError is a standardised error for catalog requests.
-type CatalogError struct {
-	Context jsonld.Context   `json:"@context"`
-	Type    string           `json:"@type" validate:"required,eq=dspace:CatalogError"`
-	Code    string           `json:"dspace:code"`
-	Reason  []map[string]any `json:"dspace:reason"`
-}
-
 // Dataset is a DCAT dataset.
 type Dataset struct {
 	Resource

@@ -75,16 +75,6 @@ type TransferProcess struct {
 	State       string         `json:"dspace:state" validate:"required,transfer_state"`
 }
 
-// TransferError signals the suspension of a datatransfer.
-type TransferError struct {
-	Context     jsonld.Context   `json:"@context,omitempty"`
-	Type        string           `json:"@type,omitempty" validate:"required,eq=dspace:TransferError"`
-	ProviderPID string           `json:"dspace:providerPid,omitempty" validate:"required"`
-	ConsumerPID string           `json:"dspace:consumerPid,omitempty" validate:"required"`
-	Code        string           `json:"code,omitempty"`
-	Reason      []map[string]any `json:"reason,omitempty"`
-}
-
 // DataAddress represents a dataspace data address.
 type DataAddress struct {
 	Type               string             `json:"@type,omitempty" validate:"required,eq=dspace:DataAddress"`

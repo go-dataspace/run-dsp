@@ -45,3 +45,14 @@ type PublishInfo struct {
 	URL   string
 	Token string
 }
+
+// Error is an amalgamation of all DSP errors combined into one.
+type Error struct {
+	Context     jsonld.Context  `json:"@context"`
+	Type        string          `json:"@type"`
+	ProviderPID string          `json:"dspace:providerPid,omitempty"`
+	ConsumerPID string          `json:"dspace:consumerPid,omitempty"`
+	Code        string          `json:"dspace:code,omitempty"`
+	Reason      []Multilanguage `json:"dspace:reason,omitempty"`
+	Description []Multilanguage `json:"dct:description,omitempty"`
+}
