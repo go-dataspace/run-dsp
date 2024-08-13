@@ -27,7 +27,7 @@ import (
 func GetWellKnownRoutes() http.Handler {
 	mux := http.NewServeMux()
 
-	mux.HandleFunc("GET /dspace-version", dspaceVersionHandler)
+	mux.Handle("GET /dspace-version", WrapHandlerWithError(dspaceVersionHandler))
 	// This is an optional proof endpoint for protected datasets.
 	mux.HandleFunc("GET /dspace-trust", routeNotImplemented)
 	return mux
@@ -43,8 +43,8 @@ func GetDSPRoutes(
 
 	ch := dspHandlers{provider: provider, store: store, reconciler: reconciler, selfURL: selfURL}
 	// Catalog endpoints
-	mux.HandleFunc("POST /catalog/request", ch.catalogRequestHandler)
-	mux.HandleFunc("GET /catalog/datasets/{id}", ch.datasetRequestHandler)
+	mux.Handle("POST /catalog/request", WrapHandlerWithError(ch.catalogRequestHandler))
+	mux.Handle("GET /catalog/datasets/{id}", WrapHandlerWithError(ch.datasetRequestHandler))
 
 	// Contract negotiation endpoints
 	mux.HandleFunc("GET /negotiations/{providerPID}", ch.providerContractStateHandler)

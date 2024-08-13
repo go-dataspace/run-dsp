@@ -84,14 +84,3 @@ type ContractNegotiation struct {
 	ConsumerPID string         `json:"dspace:consumerPid" validate:"required"`
 	State       string         `json:"dspace:state" validate:"required"`
 }
-
-// ContractNegotiationError is a response to show the state of the contract negotiation.
-type ContractNegotiationError struct {
-	Context     jsonld.Context   `json:"@context,omitempty"`
-	Type        string           `json:"@type,omitempty" validate:"required,eq=dspace:ContractNegotiationError"`
-	ProviderPID string           `json:"dspace:providerPid,omitempty" validate:"required"`
-	ConsumerPID string           `json:"dspace:consumerPid,omitempty" validate:"required"`
-	Code        string           `json:"dspace:code,omitempty"`
-	Reason      []map[string]any `json:"dspace:reason,omitempty"`
-	Description []Multilanguage  `json:"dct:description,omitempty"`
-}

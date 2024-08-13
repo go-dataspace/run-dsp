@@ -22,6 +22,8 @@ import (
 	"net/http"
 	"slices"
 
+	"github.com/go-dataspace/run-dsp/internal/constants"
+	"github.com/go-dataspace/run-dsp/jsonld"
 	"github.com/go-dataspace/run-dsp/logging"
 	"github.com/go-dataspace/run-dsp/odrl"
 	"github.com/go-playground/validator/v10"
@@ -147,4 +149,10 @@ func RegisterValidators(v *validator.Validate) error {
 		return err
 	}
 	return odrl.RegisterValidators(v)
+}
+
+// GetDSPContext returns the DSP context.
+// TODO: Replace all the hardcoded ones with this function.
+func GetDSPContext() jsonld.Context {
+	return jsonld.NewRootContext([]jsonld.ContextEntry{{ID: constants.DSPContext}})
 }
