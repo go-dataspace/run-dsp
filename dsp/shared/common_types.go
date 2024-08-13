@@ -46,8 +46,8 @@ type PublishInfo struct {
 	Token string
 }
 
-// Error is an amalgamation of all DSP errors combined into one.
-type Error struct {
+// DSPError is an amalgamation of all DSP errors combined into one.
+type DSPError struct {
 	Context     jsonld.Context  `json:"@context"`
 	Type        string          `json:"@type"`
 	ProviderPID string          `json:"dspace:providerPid,omitempty"`

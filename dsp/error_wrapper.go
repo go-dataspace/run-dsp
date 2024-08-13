@@ -22,9 +22,9 @@ import (
 	"github.com/go-dataspace/run-dsp/logging"
 )
 
-// HTTPError is an interface for a dataspace protocol error, containing all the information
+// HTTPReturnError is an interface for a dataspace protocol error, containing all the information
 // needed to return a sane dataspace error over HTTP.
-type HTTPError interface {
+type HTTPReturnError interface {
 	error
 	StatusCode() int
 	ErrorType() string
@@ -46,14 +46,14 @@ func WrapHandlerWithError(h func(w http.ResponseWriter, r *http.Request) error) 
 			logger := logging.Extract(r.Context())
 			logger.Error("HTTP handler returned error", "err", err.Error())
 
-			var httpError HTTPError
+			var httpError HTTPReturnError
 			if errors.As(err, &httpError) {
 				handleHTTPError(w, r, httpError)
 				return
 			}
 
 			// If a normal error we just return a generic 500 with a generic error.
-			if err := shared.EncodeValid(w, r, http.StatusInternalServerError, shared.Error{
+			if err := shared.EncodeValid(w, r, http.StatusInternalServerError, shared.DSPError{
 				Context: shared.GetDSPContext(),
 				Type:    "dspace:UnknownError",
 				Code:    "INTERNAL",
@@ -70,8 +70,8 @@ func WrapHandlerWithError(h func(w http.ResponseWriter, r *http.Request) error) 
 	})
 }
 
-func handleHTTPError(w http.ResponseWriter, r *http.Request, err HTTPError) {
-	dErr := shared.Error{
+func handleHTTPError(w http.ResponseWriter, r *http.Request, err HTTPReturnError) {
+	dErr := shared.DSPError{
 		Context:     shared.GetDSPContext(),
 		Type:        err.ErrorType(),
 		ProviderPID: err.ProviderPID(),
