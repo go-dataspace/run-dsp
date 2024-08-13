@@ -47,19 +47,23 @@ func GetDSPRoutes(
 	mux.Handle("GET /catalog/datasets/{id}", WrapHandlerWithError(ch.datasetRequestHandler))
 
 	// Contract negotiation endpoints
-	mux.HandleFunc("GET /negotiations/{providerPID}", ch.providerContractStateHandler)
-	mux.HandleFunc("POST /negotiations/request", ch.providerContractRequestHandler)
-	mux.HandleFunc("POST /negotiations/{providerPID}/request", ch.providerContractSpecificRequestHandler)
-	mux.HandleFunc("POST /negotiations/{providerPID}/events", ch.providerContractEventHandler)
-	mux.HandleFunc("POST /negotiations/{providerPID}/agreement/verification", ch.providerContractVerificationHandler)
-	mux.HandleFunc("POST /negotiations/{providerPID}/termination", ch.providerContractTerminationHandler)
+	mux.Handle("GET /negotiations/{providerPID}", WrapHandlerWithError(ch.providerContractStateHandler))
+	mux.Handle("POST /negotiations/request", WrapHandlerWithError(ch.providerContractRequestHandler))
+	mux.Handle("POST /negotiations/{providerPID}/request", WrapHandlerWithError(ch.providerContractSpecificRequestHandler))
+	mux.Handle("POST /negotiations/{providerPID}/events", WrapHandlerWithError(ch.providerContractEventHandler))
+	mux.Handle("POST /negotiations/{providerPID}/agreement/verification",
+		WrapHandlerWithError(ch.providerContractVerificationHandler))
+	mux.Handle("POST /negotiations/{providerPID}/termination", WrapHandlerWithError(ch.providerContractTerminationHandler))
 
-	// Contract negotiation consumer callbacks
-	mux.HandleFunc("POST /negotiations/offers", ch.consumerContractOfferHandler)
-	mux.HandleFunc("POST /callback/negotiations/{consumerPID}/offers", ch.consumerContractSpecificOfferHandler)
-	mux.HandleFunc("POST /callback/negotiations/{consumerPID}/agreement", ch.consumerContractAgreementHandler)
-	mux.HandleFunc("POST /callback/negotiations/{consumerPID}/events", ch.consumerContractEventHandler)
-	mux.HandleFunc("POST /callback/negotiations/{consumerPID}/termination", ch.consumerContractTerminationHandler)
+	// Contract negotiation consumer callbacks)
+	mux.Handle("POST /negotiations/offers", WrapHandlerWithError(ch.consumerContractOfferHandler))
+	mux.Handle("POST /callback/negotiations/{consumerPID}/offers",
+		WrapHandlerWithError(ch.consumerContractSpecificOfferHandler))
+	mux.Handle("POST /callback/negotiations/{consumerPID}/agreement",
+		WrapHandlerWithError(ch.consumerContractAgreementHandler))
+	mux.Handle("POST /callback/negotiations/{consumerPID}/events", WrapHandlerWithError(ch.consumerContractEventHandler))
+	mux.Handle("POST /callback/negotiations/{consumerPID}/termination",
+		WrapHandlerWithError(ch.consumerContractTerminationHandler))
 
 	// Transfer process endpoints
 	mux.HandleFunc("GET /transfers/{providerPID}", ch.providerTransferProcessHandler)
@@ -74,8 +78,8 @@ func GetDSPRoutes(
 	mux.HandleFunc("POST /callback/transfers/{consumerPID}/termination", ch.consumerTransferTerminationHandler)
 	mux.HandleFunc("POST /callback/transfers/{consumerPID}/suspension", ch.consumerTransferSuspensionHandler)
 
-	mux.HandleFunc("GET /triggerconsumer/{datasetID}", ch.triggerConsumerContractRequestHandler)
-	mux.HandleFunc("GET /triggertransfer/{contractProviderPID}", ch.triggerTransferRequestHandler)
+	mux.Handle("GET /triggerconsumer/{datasetID}", WrapHandlerWithError(ch.triggerConsumerContractRequestHandler))
+	mux.Handle("GET /triggertransfer/{contractProviderPID}", WrapHandlerWithError(ch.triggerTransferRequestHandler))
 	mux.HandleFunc("GET /completetransfer/{providerPID}", ch.completeTransferRequestHandler)
 
 	return mux
