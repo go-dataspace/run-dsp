@@ -66,21 +66,24 @@ func GetDSPRoutes(
 		WrapHandlerWithError(ch.consumerContractTerminationHandler))
 
 	// Transfer process endpoints
-	mux.HandleFunc("GET /transfers/{providerPID}", ch.providerTransferProcessHandler)
-	mux.HandleFunc("POST /transfers/request", ch.providerTransferRequestHandler)
-	mux.HandleFunc("POST /transfers/{providerPID}/start", ch.providerTransferStartHandler)
-	mux.HandleFunc("POST /transfers/{providerPID}/completion", ch.providerTransferCompletionHandler)
-	mux.HandleFunc("POST /transfers/{providerPID}/termination", ch.providerTransferTerminationHandler)
-	mux.HandleFunc("POST /transfers/{providerPID}/suspension", ch.providerTransferSuspensionHandler)
+	mux.Handle("GET /transfers/{providerPID}", WrapHandlerWithError(ch.providerTransferProcessHandler))
+	mux.Handle("POST /transfers/request", WrapHandlerWithError(ch.providerTransferRequestHandler))
+	mux.Handle("POST /transfers/{providerPID}/start", WrapHandlerWithError(ch.providerTransferStartHandler))
+	mux.Handle("POST /transfers/{providerPID}/completion", WrapHandlerWithError(ch.providerTransferCompletionHandler))
+	mux.Handle("POST /transfers/{providerPID}/termination", WrapHandlerWithError(ch.providerTransferTerminationHandler))
+	mux.Handle("POST /transfers/{providerPID}/suspension", WrapHandlerWithError(ch.providerTransferSuspensionHandler))
 	// Transfer process consumer callbacks
-	mux.HandleFunc("POST /callback/transfers/{consumerPID}/start", ch.consumerTransferStartHandler)
-	mux.HandleFunc("POST /callback/transfers/{consumerPID}/completion", ch.consumerTransferCompletionHandler)
-	mux.HandleFunc("POST /callback/transfers/{consumerPID}/termination", ch.consumerTransferTerminationHandler)
-	mux.HandleFunc("POST /callback/transfers/{consumerPID}/suspension", ch.consumerTransferSuspensionHandler)
+	mux.Handle("POST /callback/transfers/{consumerPID}/start", WrapHandlerWithError(ch.consumerTransferStartHandler))
+	mux.Handle("POST /callback/transfers/{consumerPID}/completion",
+		WrapHandlerWithError(ch.consumerTransferCompletionHandler))
+	mux.Handle("POST /callback/transfers/{consumerPID}/termination",
+		WrapHandlerWithError(ch.consumerTransferTerminationHandler))
+	mux.Handle("POST /callback/transfers/{consumerPID}/suspension",
+		WrapHandlerWithError(ch.consumerTransferSuspensionHandler))
 
 	mux.Handle("GET /triggerconsumer/{datasetID}", WrapHandlerWithError(ch.triggerConsumerContractRequestHandler))
 	mux.Handle("GET /triggertransfer/{contractProviderPID}", WrapHandlerWithError(ch.triggerTransferRequestHandler))
-	mux.HandleFunc("GET /completetransfer/{providerPID}", ch.completeTransferRequestHandler)
+	mux.Handle("GET /completetransfer/{providerPID}", WrapHandlerWithError(ch.completeTransferRequestHandler))
 
 	return mux
 }
