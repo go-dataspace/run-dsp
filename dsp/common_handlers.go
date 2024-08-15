@@ -39,29 +39,17 @@ type errorResponse struct {
 	Error string `json:"error"`
 }
 
-func errorString(e string) string {
-	er := errorResponse{Error: e}
+func routeNotImplemented(w http.ResponseWriter, req *http.Request) {
+	path := req.URL.Path
+	method := req.Method
+	er := errorResponse{Error: fmt.Sprintf("%s %s has not been implemented", method, path)}
 	s, err := json.Marshal(er)
 	if err != nil {
 		panic(fmt.Sprintf("Couldn't marshal error message: %s", err.Error()))
 	}
-	return string(s)
-}
 
-func returnContent(w http.ResponseWriter, status int, content string) {
-	w.WriteHeader(status)
-	fmt.Fprint(w, content)
-}
-
-func returnError(w http.ResponseWriter, status int, e string) {
-	errResp := errorString(e)
-	returnContent(w, status, errResp)
-}
-
-func routeNotImplemented(w http.ResponseWriter, req *http.Request) {
-	path := req.URL.Path
-	method := req.Method
-	returnError(w, http.StatusNotImplemented, fmt.Sprintf("%s %s has not been implemented", method, path))
+	w.WriteHeader(http.StatusNotImplemented)
+	fmt.Fprint(w, string(s))
 }
 
 func grpcErrorHandler(err error) CatalogError {
