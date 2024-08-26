@@ -32,7 +32,7 @@ type TransferRequester interface {
 	GetProviderPID() uuid.UUID
 	GetConsumerPID() uuid.UUID
 	GetAgreementID() uuid.UUID
-	GetTarget() uuid.UUID
+	GetTarget() string
 	GetFormat() string
 	GetCallback() *url.URL
 	GetSelf() *url.URL
@@ -65,7 +65,7 @@ func (tr *TransferRequestNegotiationInitial) Recv(
 	switch t := message.(type) {
 	case shared.TransferRequestMessage:
 		_, err := tr.GetProvider().GetDataset(ctx, &providerv1.GetDatasetRequest{
-			DatasetId: tr.GetTarget().String(),
+			DatasetId: tr.GetTarget(),
 		})
 		if err != nil {
 			return nil, fmt.Errorf("could not find target: %w", err)
@@ -116,7 +116,7 @@ func (tr *TransferRequestNegotiationRequested) Send(ctx context.Context) (func()
 	switch tr.GetTransferDirection() {
 	case DirectionPull:
 		resp, err := tr.GetProvider().PublishDataset(ctx, &providerv1.PublishDatasetRequest{
-			DatasetId: tr.GetTarget().String(),
+			DatasetId: tr.GetTarget(),
 			PublishId: tr.GetProviderPID().String(),
 		})
 		if err != nil {
@@ -212,11 +212,15 @@ func NewTransferRequest(
 	if err != nil {
 		return nil, fmt.Errorf("no agreement found")
 	}
+	targetID, err := shared.URNtoRawID(agreement.Target)
+	if err != nil {
+		return nil, fmt.Errorf("couldn't parse target URN: %w", err)
+	}
 	traReq := &TransferRequest{
 		state:             state,
 		consumerPID:       consumerPID,
 		agreementID:       agreementID,
-		target:            uuid.MustParse(agreement.Target),
+		target:            targetID,
 		format:            format,
 		callback:          callback,
 		self:              self,

@@ -378,10 +378,7 @@ func (dh *dspHandlers) triggerConsumerContractRequestHandler(w http.ResponseWrit
 	ctx, logger := logging.InjectLabels(req.Context(), "handler", "triggerConsumerContractRequestHandler")
 	req = req.WithContext(ctx)
 
-	datasetID, err := uuid.Parse(req.PathValue("datasetID"))
-	if err != nil {
-		return fmt.Errorf("Dataset ID is not a UUID")
-	}
+	datasetID := shared.IDToURN(req.PathValue("datasetID"))
 
 	logger.Debug("Got trigger request to start contract negotiation")
 	selfURL, err := url.Parse(dh.selfURL.String())
@@ -401,7 +398,7 @@ func (dh *dspHandlers) triggerConsumerContractRequestHandler(w http.ResponseWrit
 					ID:                 uuid.New().URN(),
 				},
 				Type:   "odrl:Offer",
-				Target: datasetID.URN(),
+				Target: datasetID,
 			},
 		},
 		dh.selfURL,
