@@ -128,7 +128,7 @@ func (ch *dspHandlers) datasetRequestHandler(w http.ResponseWriter, req *http.Re
 func processProviderDataset(pds *providerv1.Dataset, service shared.DataService) shared.Dataset {
 	ds := shared.Dataset{
 		Resource: shared.Resource{
-			ID:       fmt.Sprintf("urn:uuid:%s", pds.GetId()),
+			ID:       shared.IDToURN(pds.GetId()),
 			Type:     "dcat:Dataset",
 			Title:    pds.GetTitle(),
 			Issued:   pds.GetIssued().AsTime().Format(time.RFC3339),

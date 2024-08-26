@@ -91,14 +91,14 @@ func (cn *ContractNegotiationInitial) Recv(
 		)
 		logger.Debug("Received message")
 
-		target, err := uuid.Parse(cn.GetOffer().Target)
+		target, err := shared.URNtoRawID(cn.GetOffer().Target)
 		if err != nil {
-			logger.Error("target is not a valid UUID", "err", err)
-			return ctx, nil, fmt.Errorf("target is not a valid UUID: %w", err)
+			logger.Error("can't parse URN", "err", err)
+			return ctx, nil, fmt.Errorf("can't parse URN: %w", err)
 		}
 		// This is the initial request, we can assume all data is freshly made based on the request.
 		_, err = cn.GetProvider().GetDataset(ctx, &providerv1.GetDatasetRequest{
-			DatasetId: target.String(),
+			DatasetId: target,
 		})
 		if err != nil {
 			logger.Error("target dataset not found", "err", err)
@@ -159,13 +159,13 @@ func (cn *ContractNegotiationInitial) Send(ctx context.Context) (func(), error) 
 		}
 		return sendContractRequest(ctx, cn.GetReconciler(), cn.GetContract())
 	case cn.GetProviderPID() != emptyUUID:
-		u, err := uuid.Parse(cn.GetOffer().Target)
+		targetID, err := shared.URNtoRawID(cn.GetOffer().Target)
 		if err != nil {
-			logger.Error("invalid UUID", "err", err)
-			return func() {}, fmt.Errorf("invalid UUID `%s`: %w", cn.GetOffer().Target, err)
+			logger.Error("invalid URN", "err", err)
+			return func() {}, fmt.Errorf("invalid URN `%s`: %w", cn.GetOffer().Target, err)
 		}
 		_, err = cn.GetProvider().GetDataset(ctx, &providerv1.GetDatasetRequest{
-			DatasetId: u.String(),
+			DatasetId: targetID,
 		})
 		if err != nil {
 			logger.Error("Dataset not found", "err", err)

@@ -59,7 +59,7 @@ type TransferRequest struct {
 	providerPID       uuid.UUID
 	consumerPID       uuid.UUID
 	agreementID       uuid.UUID
-	target            uuid.UUID
+	target            string
 	format            string
 	callback          *url.URL
 	self              *url.URL
@@ -71,7 +71,7 @@ type TransferRequest struct {
 func (tr *TransferRequest) GetProviderPID() uuid.UUID               { return tr.providerPID }
 func (tr *TransferRequest) GetConsumerPID() uuid.UUID               { return tr.consumerPID }
 func (tr *TransferRequest) GetAgreementID() uuid.UUID               { return tr.agreementID }
-func (tr *TransferRequest) GetTarget() uuid.UUID                    { return tr.target }
+func (tr *TransferRequest) GetTarget() string                       { return tr.target }
 func (tr *TransferRequest) GetFormat() string                       { return tr.format }
 func (tr *TransferRequest) GetCallback() *url.URL                   { return tr.callback }
 func (tr *TransferRequest) GetSelf() *url.URL                       { return tr.self }
