@@ -103,7 +103,7 @@ func TestOID_String(t *testing.T) {
 		want string
 	}{
 		{
-			name: "Check formating on normal OID",
+			name: "Check formatting on normal OID",
 			o:    oid.OID{1, 3, 6, 1, 4, 1, 311, 21, 20},
 			want: "1.3.6.1.4.1.311.21.20",
 		},
@@ -122,7 +122,7 @@ func TestOID_URN(t *testing.T) {
 		want string
 	}{
 		{
-			name: "Check formating on normal OID",
+			name: "Check formatting on normal OID",
 			o:    oid.OID{1, 3, 6, 1, 4, 1, 311, 21, 20},
 			want: "urn:oid:1.3.6.1.4.1.311.21.20",
 		},

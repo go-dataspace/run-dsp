@@ -49,7 +49,7 @@ func IDToURN(s string) string {
 // This function returns an error when we can't properly split it.
 // TODO: Verify that all providers support URNs so that we can remove this function.
 func URNtoRawID(s string) (string, error) {
-	// If it the ID doesn't start with "urn:", we just return it.
+	// If the ID doesn't start with "urn:", we just return it.
 	if !strings.HasPrefix(strings.ToLower(s), "urn:") {
 		return s, nil
 	}
