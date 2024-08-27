@@ -137,11 +137,6 @@ func (s *Server) GetProviderDataset(
 		return nil, err
 	}
 
-	id, err := uuid.Parse(req.DatasetId)
-	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "Dataset ID is not a valid UUID.")
-	}
-
 	providerURL.Path = path.Join(providerURL.Path, "catalog", "datasets", req.DatasetId)
 	resp, err := encodeRequestDecode[shared.DatasetRequestMessage, shared.Dataset](
 		ctx,
@@ -151,7 +146,7 @@ func (s *Server) GetProviderDataset(
 		shared.DatasetRequestMessage{
 			Context: dspaceContext,
 			Type:    "dspace:DatasetRequestMessage",
-			Dataset: id.URN(),
+			Dataset: shared.IDToURN(req.DatasetId),
 		},
 	)
 	if err != nil {
