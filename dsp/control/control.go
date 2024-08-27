@@ -170,11 +170,6 @@ func (s *Server) GetProviderDatasetDownloadInformation(
 		return nil, err
 	}
 
-	datasetID, err := uuid.Parse(req.GetDatasetId())
-	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "Dataset ID is not a valid UUID.")
-	}
-
 	consumerPID := uuid.New()
 	selfURL := shared.MustParseURL(s.selfURL.String())
 	selfURL.Path = path.Join(selfURL.Path, "callback")
@@ -190,7 +185,7 @@ func (s *Server) GetProviderDatasetDownloadInformation(
 					ID:                 uuid.New().URN(),
 				},
 				Type:   "odrl:Offer",
-				Target: datasetID.URN(),
+				Target: shared.IDToURN(req.GetDatasetId()),
 			},
 		},
 		providerURL,

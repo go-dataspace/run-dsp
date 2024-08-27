@@ -22,7 +22,6 @@ import (
 	"github.com/go-dataspace/run-dsp/dsp/shared"
 	"github.com/go-dataspace/run-dsp/logging"
 	providerv1 "github.com/go-dataspace/run-dsrpc/gen/go/dsp/v1alpha1"
-	"github.com/google/uuid"
 )
 
 var dataService = shared.DataService{
@@ -102,17 +101,13 @@ func (ch *dspHandlers) datasetRequestHandler(w http.ResponseWriter, req *http.Re
 		return catalogError("no ID in path", http.StatusBadRequest, "400", "No ID given in path")
 	}
 	ctx, logger := logging.InjectLabels(req.Context(), "paramID", paramID)
-	id, err := uuid.Parse(paramID)
-	if err != nil {
-		return catalogError(err.Error(), http.StatusBadRequest, "400", "Invalid dataset ID")
-	}
 	datasetReq, err := shared.DecodeValid[shared.DatasetRequestMessage](req)
 	if err != nil {
 		return catalogError(err.Error(), http.StatusBadRequest, "400", "Invalid dataset request")
 	}
 	logger.Debug("Got dataset request", "req", datasetReq)
 	resp, err := ch.provider.GetDataset(ctx, &providerv1.GetDatasetRequest{
-		DatasetId: id.String(),
+		DatasetId: paramID,
 	})
 	if err != nil {
 		return grpcErrorHandler(err)
