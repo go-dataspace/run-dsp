@@ -38,10 +38,18 @@ func GetDSPRoutes(
 	store statemachine.Archiver,
 	reconciler *statemachine.Reconciler,
 	selfURL *url.URL,
+	pingResponse *providerv1.PingResponse,
 ) http.Handler {
 	mux := http.NewServeMux()
 
-	ch := dspHandlers{provider: provider, store: store, reconciler: reconciler, selfURL: selfURL}
+	ch := dspHandlers{
+		provider:            provider,
+		store:               store,
+		reconciler:          reconciler,
+		selfURL:             selfURL,
+		dataserviceID:       pingResponse.GetDataserviceId(),
+		dataserviceEndpoint: pingResponse.GetDataserviceUrl(),
+	}
 	// Catalog endpoints
 	mux.Handle("POST /catalog/request", WrapHandlerWithError(ch.catalogRequestHandler))
 	mux.Handle("GET /catalog/datasets/{id}", WrapHandlerWithError(ch.datasetRequestHandler))
