@@ -24,14 +24,6 @@ import (
 	providerv1 "github.com/go-dataspace/run-dsrpc/gen/go/dsp/v1alpha1"
 )
 
-var dataService = shared.DataService{
-	Resource: shared.Resource{
-		ID:   "urn:uuid:7acb5d82-33b0-47c0-a22b-2fc470c8e3cb",
-		Type: "dcat:DataService",
-	},
-	EndpointURL: "https://insert-url-here.dsp/",
-}
-
 // CatalogError implements HTTPError for catalog requests.
 type CatalogError struct {
 	status  int
@@ -61,6 +53,26 @@ func catalogError(err string, statusCode int, dspCode string, reason string) Cat
 	}
 }
 
+func (dh *dspHandlers) getDataService() shared.DataService {
+	id := dh.dataserviceID
+	// If no ID found we just use a hardcoded one.
+	if id == "" {
+		id = "urn:uuid:09a761b1-8ab5-4d53-a57a-df52080298b4"
+	}
+	endpoint := dh.dataserviceEndpoint
+	// Use an obvious wrong endpoint under example.org.
+	if endpoint == "" {
+		endpoint = "http://unknown.example.org"
+	}
+	return shared.DataService{
+		Resource: shared.Resource{
+			ID:   id,
+			Type: "dcat:DataService",
+		},
+		EndpointURL: endpoint,
+	}
+}
+
 func (ch *dspHandlers) catalogRequestHandler(w http.ResponseWriter, req *http.Request) error {
 	logger := logging.Extract(req.Context())
 	catalogReq, err := shared.DecodeValid[shared.CatalogRequestMessage](req)
@@ -86,8 +98,8 @@ func (ch *dspHandlers) catalogRequestHandler(w http.ResponseWriter, req *http.Re
 			},
 		},
 		Context:  shared.GetDSPContext(),
-		Datasets: processProviderCatalogue(resp.GetDatasets(), dataService),
-		Service:  []shared.DataService{dataService},
+		Datasets: processProviderCatalogue(resp.GetDatasets(), ch.getDataService()),
+		Service:  []shared.DataService{ch.getDataService()},
 	})
 	if err != nil {
 		logger.Error("failed to serve catalog after accepting", "err", err)
@@ -113,7 +125,7 @@ func (ch *dspHandlers) datasetRequestHandler(w http.ResponseWriter, req *http.Re
 		return grpcErrorHandler(err)
 	}
 
-	err = shared.EncodeValid(w, req, http.StatusOK, processProviderDataset(resp.GetDataset(), dataService))
+	err = shared.EncodeValid(w, req, http.StatusOK, processProviderDataset(resp.GetDataset(), ch.getDataService()))
 	if err != nil {
 		logger.Error("failed to serve dataset", "err", err)
 	}

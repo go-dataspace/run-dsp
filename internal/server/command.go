@@ -185,6 +185,11 @@ func (c *Command) Run(p cli.Params) error {
 	}
 	defer conn.Close()
 
+	pingResponse, err := provider.Ping(ctx, &providerv1.PingRequest{})
+	if err != nil {
+		return fmt.Errorf("could not ping provider: %w", err)
+	}
+
 	store := statemachine.NewMemoryArchiver()
 	httpClient := &shared.HTTPRequester{}
 	reconciler := statemachine.NewReconciler(ctx, httpClient, store)
@@ -209,7 +214,7 @@ func (c *Command) Run(p cli.Params) error {
 		baseMW.Append(
 			jsonHeaderMiddleware,
 			authforwarder.HTTPMiddleware,
-		).Then(dsp.GetDSPRoutes(provider, store, reconciler, selfURL)),
+		).Then(dsp.GetDSPRoutes(provider, store, reconciler, selfURL, pingResponse)),
 	))
 
 	if c.ControlEnabled {
@@ -343,10 +348,6 @@ func (c *Command) getProvider(ctx context.Context) (providerv1.ProviderServiceCl
 	}
 
 	provider := providerv1.NewProviderServiceClient(conn)
-	_, err = provider.Ping(ctx, &providerv1.PingRequest{})
-	if err != nil {
-		return nil, nil, fmt.Errorf("could not ping provider: %w", err)
-	}
 	return provider, conn, nil
 }
 

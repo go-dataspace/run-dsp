@@ -29,10 +29,12 @@ import (
 )
 
 type dspHandlers struct {
-	store      statemachine.Archiver
-	provider   providerv1.ProviderServiceClient
-	reconciler *statemachine.Reconciler
-	selfURL    *url.URL
+	store               statemachine.Archiver
+	provider            providerv1.ProviderServiceClient
+	reconciler          *statemachine.Reconciler
+	selfURL             *url.URL
+	dataserviceID       string
+	dataserviceEndpoint string
 }
 
 type errorResponse struct {
