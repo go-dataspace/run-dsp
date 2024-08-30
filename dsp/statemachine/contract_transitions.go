@@ -289,13 +289,7 @@ func (cn *ContractNegotiationOffered) Recv(
 		targetState = receivedStatus
 		logger.Debug("Received message")
 	case shared.ContractNegotiationTerminationMessage:
-		logger := logging.Extract(ctx)
-		logger = logger.With("termination_code", t.Code)
-		for _, reason := range t.Reason {
-			logger = logger.With(fmt.Sprintf("reason_%s", reason.Language), reason.Value)
-		}
-		ctx = logging.Inject(ctx, logger)
-		return verifyAndTransform(ctx, cn, t.ProviderPID, t.ConsumerPID, cn.GetCallback().String(), ContractStates.TERMINATED)
+		return processTermination(ctx, t, cn)
 	default:
 		return ctx, nil, fmt.Errorf("unsupported message type")
 	}
