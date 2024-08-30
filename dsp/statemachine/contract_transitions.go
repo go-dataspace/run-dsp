@@ -220,6 +220,8 @@ func (cn *ContractNegotiationRequested) Recv(
 		ctx, logger = logging.InjectLabels(ctx,
 			"recv_msg_type", fmt.Sprintf("%T", t),
 		)
+	case shared.ContractNegotiationTerminationMessage:
+		return processTermination(ctx, t, cn)
 	default:
 		return ctx, nil, fmt.Errorf("unsupported message type")
 	}
@@ -286,6 +288,8 @@ func (cn *ContractNegotiationOffered) Recv(
 		}
 		targetState = receivedStatus
 		logger.Debug("Received message")
+	case shared.ContractNegotiationTerminationMessage:
+		return processTermination(ctx, t, cn)
 	default:
 		return ctx, nil, fmt.Errorf("unsupported message type")
 	}
@@ -315,16 +319,19 @@ func (cn *ContractNegotiationAccepted) Recv(
 ) (context.Context, ContractNegotiationState, error) {
 	ctx, logger := logging.InjectLabels(ctx, "recv_type", fmt.Sprintf("%T", cn))
 	logger.Debug("Receiving message")
-	m, ok := message.(shared.ContractAgreementMessage)
-	if !ok {
+	switch t := message.(type) {
+	case shared.ContractAgreementMessage:
+		ctx, logger = logging.InjectLabels(ctx,
+			"recv_msg_type", fmt.Sprintf("%T", t),
+		)
+		logger.Debug("Received message")
+		cn.agreement = t.Agreement
+		return verifyAndTransform(ctx, cn, t.ProviderPID, t.ConsumerPID, t.CallbackAddress, ContractStates.AGREED)
+	case shared.ContractNegotiationTerminationMessage:
+		return processTermination(ctx, t, cn)
+	default:
 		return ctx, nil, fmt.Errorf("unsupported message type")
 	}
-	ctx, logger = logging.InjectLabels(ctx,
-		"recv_msg_type", fmt.Sprintf("%T", m),
-	)
-	logger.Debug("Received message")
-	cn.agreement = m.Agreement
-	return verifyAndTransform(ctx, cn, m.ProviderPID, m.ConsumerPID, m.CallbackAddress, ContractStates.AGREED)
 }
 
 func (cn *ContractNegotiationAccepted) Send(ctx context.Context) (func(), error) {
@@ -341,16 +348,18 @@ func (cn *ContractNegotiationAgreed) Recv(
 	ctx context.Context, message any,
 ) (context.Context, ContractNegotiationState, error) {
 	ctx, logger := logging.InjectLabels(ctx, "recv_type", fmt.Sprintf("%T", cn))
-	logger.Info("Receiving me")
-	m, ok := message.(shared.ContractAgreementVerificationMessage)
-	if !ok {
+	logger.Info("Receiving message")
+	switch t := message.(type) {
+	case shared.ContractAgreementVerificationMessage:
+		ctx, _ = logging.InjectLabels(ctx,
+			"recv_msg_type", fmt.Sprintf("%T", t),
+		)
+		return verifyAndTransform(ctx, cn, t.ProviderPID, t.ConsumerPID, cn.GetCallback().String(), ContractStates.VERIFIED)
+	case shared.ContractNegotiationTerminationMessage:
+		return processTermination(ctx, t, cn)
+	default:
 		return ctx, nil, fmt.Errorf("unsupported message type")
 	}
-	ctx, logger = logging.InjectLabels(ctx,
-		"recv_msg_type", fmt.Sprintf("%T", m),
-	)
-	logger.Debug("Received message")
-	return verifyAndTransform(ctx, cn, m.ProviderPID, m.ConsumerPID, cn.GetCallback().String(), ContractStates.VERIFIED)
 }
 
 func (cn *ContractNegotiationAgreed) Send(ctx context.Context) (func(), error) {
@@ -368,26 +377,29 @@ func (cn *ContractNegotiationVerified) Recv(
 ) (context.Context, ContractNegotiationState, error) {
 	ctx, logger := logging.InjectLabels(ctx, "recv_type", fmt.Sprintf("%T", cn))
 	logger.Debug("Receiving message")
-	m, ok := message.(shared.ContractNegotiationEventMessage)
-	if !ok {
+	switch t := message.(type) {
+	case shared.ContractNegotiationEventMessage:
+		ctx, logger = logging.InjectLabels(ctx,
+			"recv_msg_type", fmt.Sprintf("%T", t),
+			"event_type", t.EventType,
+		)
+		receivedStatus, err := ParseContractState(t.EventType)
+		if err != nil {
+			logger.Error("event does not contain the proper status", "err", err)
+			return ctx, nil, fmt.Errorf("event %s does not contain proper status: %w", t.EventType, err)
+		}
+		if receivedStatus != ContractStates.FINALIZED {
+			logger.Error("invalid status")
+			return ctx, nil, fmt.Errorf("invalid status: %s", receivedStatus)
+		}
+		logger.Debug("Received message")
+		return verifyAndTransform(
+			ctx, cn, t.ProviderPID, t.ConsumerPID, cn.GetCallback().String(), ContractStates.FINALIZED)
+	case shared.ContractNegotiationTerminationMessage:
+		return processTermination(ctx, t, cn)
+	default:
 		return ctx, nil, fmt.Errorf("unsupported message type")
 	}
-	ctx, logger = logging.InjectLabels(ctx,
-		"recv_msg_type", fmt.Sprintf("%T", m),
-		"event_type", m.EventType,
-	)
-	receivedStatus, err := ParseContractState(m.EventType)
-	if err != nil {
-		logger.Error("event does not contain the proper status", "err", err)
-		return ctx, nil, fmt.Errorf("event %s does not contain proper status: %w", m.EventType, err)
-	}
-	if receivedStatus != ContractStates.FINALIZED {
-		logger.Error("invalid status")
-		return ctx, nil, fmt.Errorf("invalid status: %s", receivedStatus)
-	}
-	logger.Debug("Received message")
-	return verifyAndTransform(
-		ctx, cn, m.ProviderPID, m.ConsumerPID, cn.GetCallback().String(), ContractStates.FINALIZED)
 }
 
 func (cn *ContractNegotiationVerified) Send(ctx context.Context) (func(), error) {
@@ -560,4 +572,16 @@ func verifyAndTransform(
 
 	ctx, cns := GetContractNegotiation(ctx, cn.GetArchiver(), cn.GetContract(), cn.GetProvider(), cn.GetReconciler())
 	return ctx, cns, nil
+}
+
+func processTermination(
+	ctx context.Context, t shared.ContractNegotiationTerminationMessage, cn ContractNegotiationState,
+) (context.Context, ContractNegotiationState, error) {
+	logger := logging.Extract(ctx)
+	logger = logger.With("termination_code", t.Code)
+	for _, reason := range t.Reason {
+		logger = logger.With(fmt.Sprintf("reason_%s", reason.Language), reason.Value)
+	}
+	ctx = logging.Inject(ctx, logger)
+	return verifyAndTransform(ctx, cn, t.ProviderPID, t.ConsumerPID, cn.GetCallback().String(), ContractStates.TERMINATED)
 }

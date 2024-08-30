@@ -569,6 +569,82 @@ func TestContractStateMachineProviderInit(t *testing.T) {
 	validateContract(t, err, pOffNext.GetContract(), statemachine.ContractStates.FINALIZED, false)
 }
 
+//nolint:funlen
+func TestTermination(t *testing.T) {
+	t.Parallel()
+
+	offer := odrl.Offer{
+		MessageOffer: odrl.MessageOffer{
+			PolicyClass: odrl.PolicyClass{
+				AbstractPolicyRule: odrl.AbstractPolicyRule{},
+				ID:                 uuid.New().URN(),
+			},
+			Type:   "odrl:Offer",
+			Target: target.URN(),
+		},
+	}
+
+	logger := logging.NewJSON("error", true)
+	ctx := logging.Inject(context.Background(), logger)
+	ctx, done := context.WithCancel(ctx)
+	defer done()
+
+	store := statemachine.NewMemoryArchiver()
+	requester := &MockRequester{}
+
+	mockProvider := mockprovider.NewMockProviderServiceClient(t)
+
+	reconciler := statemachine.NewReconciler(ctx, requester, store)
+	reconciler.Run()
+
+	for _, role := range []statemachine.DataspaceRole{
+		statemachine.DataspaceConsumer,
+		statemachine.DataspaceProvider,
+	} {
+		for _, state := range []statemachine.ContractState{
+			statemachine.ContractStates.REQUESTED,
+			statemachine.ContractStates.OFFERED,
+			statemachine.ContractStates.ACCEPTED,
+			statemachine.ContractStates.AGREED,
+			statemachine.ContractStates.VERIFIED,
+		} {
+			consumerPID := uuid.New()
+			providerPID := uuid.New()
+			ctx, consumerInit, err := statemachine.NewContract(
+				ctx, store, mockProvider, reconciler, providerPID, consumerPID,
+				state, offer, providerCallback, consumerCallback, role)
+			assert.Nil(t, err)
+			msg := shared.ContractNegotiationTerminationMessage{
+				Context:     shared.GetDSPContext(),
+				Type:        "dspace:ContractNegotiationTerminationMessage",
+				ProviderPID: providerPID.URN(),
+				ConsumerPID: consumerPID.URN(),
+				Code:        "meh",
+				Reason: []shared.Multilanguage{
+					{
+						Language: "en",
+						Value:    "test",
+					},
+				},
+			}
+			ctx, next, err := consumerInit.Recv(ctx, msg)
+			assert.IsType(t, &statemachine.ContractNegotiationTerminated{}, next)
+			assert.Nil(t, err)
+			_, err = next.Send(ctx)
+			assert.Nil(t, err)
+			var contract *statemachine.Contract
+			switch role {
+			case statemachine.DataspaceProvider:
+				contract, err = store.GetProviderContract(ctx, providerPID)
+			case statemachine.DataspaceConsumer:
+				contract, err = store.GetConsumerContract(ctx, consumerPID)
+			}
+			assert.Nil(t, err)
+			assert.Equal(t, statemachine.ContractStates.TERMINATED, contract.GetState())
+		}
+	}
+}
+
 func validateContract(
 	t *testing.T, err error, c *statemachine.Contract, state statemachine.ContractState, provInit bool,
 ) {

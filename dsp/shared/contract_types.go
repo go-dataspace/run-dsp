@@ -68,12 +68,12 @@ type ContractNegotiationEventMessage struct {
 
 // ContractNegotiationTerminationMessage terminates the negotiation.
 type ContractNegotiationTerminationMessage struct {
-	Context     jsonld.Context   `json:"@context"`
-	Type        string           `json:"@type" validate:"required,eq=dspace:ContractNegotiationTerminationMessage"`
-	ProviderPID string           `json:"dspace:providerPid" validate:"required"`
-	ConsumerPID string           `json:"dspace:consumerPid" validate:"required"`
-	Code        string           `json:"dspace:code"`
-	Reason      []map[string]any `json:"dspace:reason"`
+	Context     jsonld.Context  `json:"@context"`
+	Type        string          `json:"@type" validate:"required,eq=dspace:ContractNegotiationTerminationMessage"`
+	ProviderPID string          `json:"dspace:providerPid" validate:"required"`
+	ConsumerPID string          `json:"dspace:consumerPid" validate:"required"`
+	Code        string          `json:"dspace:code"`
+	Reason      []Multilanguage `json:"dspace:reason"`
 }
 
 // ContractNegotiation is a response to show the state of the contract negotiation.
