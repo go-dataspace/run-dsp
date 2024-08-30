@@ -16,7 +16,6 @@ package dsp
 
 import (
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"path"
@@ -236,29 +235,12 @@ func (dh *dspHandlers) providerContractVerificationHandler(w http.ResponseWriter
 	)
 }
 
-// TODO: Implement terminations.
 func (dh *dspHandlers) providerContractTerminationHandler(w http.ResponseWriter, req *http.Request) error {
-	ctx, logger := logging.InjectLabels(req.Context(), "handler", "providerContractTerminationHandler")
+	ctx, _ := logging.InjectLabels(req.Context(), "handler", "providerContractVerificationHandler")
 	req = req.WithContext(ctx)
-	providerPID := req.PathValue("providerPID")
-	if providerPID == "" {
-		return contractError("missing provider PID", http.StatusBadRequest, "400", "Missing provider PID", nil)
-	}
-	reqBody, err := io.ReadAll(req.Body)
-	if err != nil {
-		return contractError("could not read body", http.StatusInternalServerError, "500", "could not read body", nil)
-	}
-	verification, err := shared.UnmarshalAndValidate(
-		req.Context(), reqBody, shared.ContractNegotiationTerminationMessage{})
-	if err != nil {
-		return contractError("invalid request", http.StatusBadGateway, "400", "invalid request", nil)
-	}
-
-	logger.Debug("Got contract termination", "termination", verification)
-
-	// If all goes well, we just return a 200
-	w.WriteHeader(http.StatusOK)
-	return nil
+	return progressContractState[shared.ContractNegotiationTerminationMessage](
+		dh, w, req, statemachine.DataspaceProvider, req.PathValue("providerPID"),
+	)
 }
 
 func (dh *dspHandlers) consumerContractOfferHandler(w http.ResponseWriter, req *http.Request) error {
@@ -347,31 +329,12 @@ func (dh *dspHandlers) consumerContractEventHandler(w http.ResponseWriter, req *
 	)
 }
 
-// TODO: Handle termination in the statemachine.
 func (dh *dspHandlers) consumerContractTerminationHandler(w http.ResponseWriter, req *http.Request) error {
-	ctx, logger := logging.InjectLabels(req.Context(), "handler", "consumerContractTerminationHandler")
+	ctx, _ := logging.InjectLabels(req.Context(), "handler", "consumerContractEventHandler")
 	req = req.WithContext(ctx)
-	consumerPID := req.PathValue("consumerPID")
-	if consumerPID == "" {
-		return contractError("missing consumer PID", http.StatusBadRequest, "400", "Missing consumer PID", nil)
-	}
-	reqBody, err := io.ReadAll(req.Body)
-	if err != nil {
-		return contractError("could not read body", http.StatusInternalServerError, "500", "could not read body", nil)
-	}
-
-	// This should have the event FINALIZED
-	termination, err := shared.UnmarshalAndValidate(req.Context(), reqBody, shared.ContractNegotiationTerminationMessage{})
-	if err != nil {
-		return contractError("invalid request", http.StatusBadGateway, "400", "invalid request", nil)
-	}
-
-	logger.Debug("Got contract event", "termination", termination)
-
-	// If all goes well, we just return a 200
-	w.WriteHeader(http.StatusOK)
-
-	return nil
+	return progressContractState[shared.ContractNegotiationTerminationMessage](
+		dh, w, req, statemachine.DataspaceConsumer, req.PathValue("consumerPID"),
+	)
 }
 
 func (dh *dspHandlers) triggerConsumerContractRequestHandler(w http.ResponseWriter, req *http.Request) error {
