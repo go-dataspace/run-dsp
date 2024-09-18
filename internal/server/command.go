@@ -196,7 +196,6 @@ func (c *Command) Run(p cli.Params) error {
 	reconciler.Run()
 
 	mux := http.NewServeMux()
-
 	baseMW := alice.New(
 		sloghttp.Recovery,
 		sloghttp.New(logger),
@@ -206,7 +205,6 @@ func (c *Command) Run(p cli.Params) error {
 		"/.well-known",
 		baseMW.Append(jsonHeaderMiddleware).Then(dsp.GetWellKnownRoutes()),
 	))
-
 	selfURL := cloneURL(c.ExternalURL)
 	selfURL.Path = path.Join(selfURL.Path, constants.APIPath)
 	mux.Handle(constants.APIPath+"/", http.StripPrefix(
