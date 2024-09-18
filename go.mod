@@ -4,7 +4,7 @@ go 1.22.5
 
 require (
 	github.com/alecthomas/kong v0.9.0
-	github.com/go-dataspace/run-dsrpc v0.0.2-alpha1
+	github.com/go-dataspace/run-dsrpc v0.0.3-alpha1
 	github.com/go-playground/validator/v10 v10.22.0
 	github.com/google/uuid v1.6.0
 	github.com/grpc-ecosystem/go-grpc-middleware/v2 v2.1.0

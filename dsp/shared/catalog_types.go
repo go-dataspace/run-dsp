@@ -69,14 +69,28 @@ type Resource struct {
 
 // Distribution is a DCAT distribution.
 type Distribution struct {
-	Type          string          `json:"@type" validate:"required,eq=dcat:Distribution"`
-	Format        string          `json:"dct:format,omitempty"`
-	Title         string          `json:"dct:title,omitempty"`
-	Description   []Multilanguage `json:"dct:description,omitempty"`
-	Issued        string          `json:"dct:issued,omitempty"`
-	Modified      string          `json:"dct:modified,omitempty"`
-	HasPolicy     []odrl.Offer    `json:"odrl:hasPolicy,omitempty"`
-	AccessService []DataService   `json:"dcat:accessService" validate:"required,gte=1"`
+	Type           string          `json:"@type,omitempty" validate:"required,eq=dcat:Distribution"`
+	Format         string          `json:"dct:format,omitempty"`
+	Title          string          `json:"dct:title,omitempty"`
+	Description    []Multilanguage `json:"dct:description,omitempty"`
+	Issued         string          `json:"dct:issued,omitempty"`
+	Modified       string          `json:"dct:modified,omitempty"`
+	HasPolicy      []odrl.Offer    `json:"odrl:hasPolicy,omitempty"`
+	AccessService  []DataService   `json:"dcat:accessService,omitempty" validate:"required,gte=1"`
+	License        string          `json:"dcterms:license,omitempty"`
+	AccessRights   string          `json:"dcterms:accessRights,omitempty"`
+	Rights         string          `json:"dcterms:rights,omitempty"`
+	ByteSize       int             `json:"dcat:byteSize,omitempty"`
+	MediaType      string          `json:"dcat:mediaType,omitempty"`
+	CompressFormat string          `json:"dcat:compressFormat,omitempty"`
+	PackageFormat  string          `json:"dcat:packageFormat,omitempty"`
+	Checksum       *Checksum       `json:"spdx:checksum,omitempty"`
+}
+
+// Checksum is a DCAT checksum.
+type Checksum struct {
+	Algorithm string `json:"spdx:algorithm,omitempty"`
+	Value     string `json:"spdx:checksumValue,omitempty"`
 }
 
 // DataService is a DCAT dataservice.

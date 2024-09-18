@@ -15,13 +15,12 @@
 package dsp
 
 import (
-	"fmt"
 	"net/http"
 	"time"
 
 	"github.com/go-dataspace/run-dsp/dsp/shared"
 	"github.com/go-dataspace/run-dsp/logging"
-	providerv1 "github.com/go-dataspace/run-dsrpc/gen/go/dsp/v1alpha1"
+	providerv1alpha1 "github.com/go-dataspace/run-dsrpc/gen/go/dsp/v1alpha1"
 )
 
 // CatalogError implements HTTPError for catalog requests.
@@ -81,7 +80,7 @@ func (ch *dspHandlers) catalogRequestHandler(w http.ResponseWriter, req *http.Re
 	}
 	logger.Debug("Got catalog request", "req", catalogReq)
 	// As the filter option is undefined, we will not fill anything
-	resp, err := ch.provider.GetCatalogue(req.Context(), &providerv1.GetCatalogueRequest{})
+	resp, err := ch.provider.GetCatalogue(req.Context(), &providerv1alpha1.GetCatalogueRequest{})
 	if err != nil {
 		return grpcErrorHandler(err)
 	}
@@ -118,7 +117,7 @@ func (ch *dspHandlers) datasetRequestHandler(w http.ResponseWriter, req *http.Re
 		return catalogError(err.Error(), http.StatusBadRequest, "400", "Invalid dataset request")
 	}
 	logger.Debug("Got dataset request", "req", datasetReq)
-	resp, err := ch.provider.GetDataset(ctx, &providerv1.GetDatasetRequest{
+	resp, err := ch.provider.GetDataset(ctx, &providerv1alpha1.GetDatasetRequest{
 		DatasetId: paramID,
 	})
 	if err != nil {
@@ -132,7 +131,7 @@ func (ch *dspHandlers) datasetRequestHandler(w http.ResponseWriter, req *http.Re
 	return nil
 }
 
-func processProviderDataset(pds *providerv1.Dataset, service shared.DataService) shared.Dataset {
+func processProviderDataset(pds *providerv1alpha1.Dataset, service shared.DataService) shared.Dataset {
 	ds := shared.Dataset{
 		Resource: shared.Resource{
 			ID:       shared.IDToURN(pds.GetId()),
@@ -144,15 +143,36 @@ func processProviderDataset(pds *providerv1.Dataset, service shared.DataService)
 			Creator:  pds.GetCreator(),
 		},
 		Distribution: []shared.Distribution{{
-			Type:          "dcat:Distribution",
-			Format:        fmt.Sprintf("dspace:%s", pds.GetAccessMethods()),
-			AccessService: []shared.DataService{service},
+			Type:           "dcat:Distribution",
+			AccessService:  []shared.DataService{service},
+			MediaType:      pds.GetMediaType(),
+			License:        pds.GetLicense(),
+			AccessRights:   pds.GetAccessRights(),
+			Rights:         pds.GetRights(),
+			ByteSize:       int(pds.GetByteSize()),
+			CompressFormat: pds.GetCompressFormat(),
+			PackageFormat:  pds.GetPackageFormat(),
+			Checksum:       nil,
 		}},
+	}
+
+	for _, desc := range pds.GetDescription() {
+		ds.Distribution[0].Description = append(ds.Distribution[0].Description, shared.Multilanguage{
+			Value:    desc.GetValue(),
+			Language: desc.GetValue(),
+		})
+	}
+
+	if ck := pds.GetChecksum(); ck != nil {
+		ds.Distribution[0].Checksum = &shared.Checksum{
+			Algorithm: ck.GetAlgorithm(),
+			Value:     ck.GetValue(),
+		}
 	}
 	return ds
 }
 
-func processProviderCatalogue(gdc []*providerv1.Dataset, service shared.DataService) []shared.Dataset {
+func processProviderCatalogue(gdc []*providerv1alpha1.Dataset, service shared.DataService) []shared.Dataset {
 	datasets := make([]shared.Dataset, len(gdc))
 	for i, f := range gdc {
 		datasets[i] = processProviderDataset(f, service)
