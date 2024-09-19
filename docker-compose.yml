@@ -1,0 +1,26 @@
+version: '3.9'
+services:
+  run-dsp:
+    build:
+      context: .
+    command: server
+    environment:
+      - LOGLEVEL=debug
+      - PROVIDER_INSECURE=true
+      - PROVIDER_URL=reference-provider:9090
+      - EXTERNAL_URL=http://127.0.0.1:8080/
+    ports:
+      - '8080'
+    depends_on:
+      - reference-provider
+  reference-provider:
+    image: ghcr.io/go-dataspace/reference-provider:main
+    command: server
+    environment:
+      - LOGLEVEL=debug
+      - PROVIDER_INSECURE=true
+      - EXTERNAL_URL=http://127.0.0.1:9091/
+    volumes:
+    - .:/var/lib/run-dsp/fsprovider
+    ports:
+      - '9091'
