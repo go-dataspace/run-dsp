@@ -19,12 +19,6 @@ build:
 	go mod download
 	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 GO111MODULE=on go build -ldflags="-extldflags=-static" -o _build/$(BINARY_NAME) ./cmd/
 
-docker_build:
-	docker build --tag docker.io/dwa-backend/dwa-backend:dev .
-
-podman_build:
-	podman build --tag docker.io/dwa-backend/dwa-backend:dev .
-
 test:
 	go test -v ./...
 
