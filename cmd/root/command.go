@@ -59,7 +59,7 @@ func init() {
 	cobra.OnInitialize(initConfig)
 	cobra.EnableTraverseRunHooks = true
 
-	rootCmd.PersistentFlags().StringVarP(&cfgFile, "config", "c", "", "config file (default is /etc/run-dsp/run-dsp.yaml)")
+	rootCmd.PersistentFlags().StringVarP(&cfgFile, "config", "c", "", "config file (default is /etc/run-dsp/run-dsp.toml)")
 	rootCmd.PersistentFlags().BoolP("debug", "d", false, "enable debug mode")
 	rootCmd.PersistentFlags().StringP(
 		"log-level", "l", "info", fmt.Sprintf("set log level, valid levels: %v", validLogLevels))
