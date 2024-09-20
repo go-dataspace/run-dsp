@@ -11,15 +11,10 @@
             "mode": "auto",
             "program": "${workspaceFolder}/cmd/",
             "args": [
+                "-c",
+                "${workspaceFolder}/conf/localdev.toml",
                 "server",
-                "--debug",
-                "--provider-address",
-                "127.0.0.1:9090",
-                "--provider-insecure",
-                "--control-enabled",
-                "--control-insecure",
-                "--external-url=http://127.0.0.1:8080",
-            ]
+            ],
         },
         {
             "name": "Run DSP devcontainer",
@@ -31,14 +26,9 @@
                 "-buildvcs=false"
             ],
             "args": [
+                "-c",
+                "${workspaceFolder}/conf/devcontainer.toml",
                 "server",
-                "--debug",
-                "--provider-address",
-                "reference-provider:9090",
-                "--provider-insecure",
-                "--control-enabled",
-                "--control-insecure",
-                "--external-url=http://127.0.0.1:8080",
             ]
         }
     ]
