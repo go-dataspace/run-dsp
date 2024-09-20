@@ -34,12 +34,14 @@ import (
 	"github.com/go-dataspace/run-dsp/dsp/shared"
 	"github.com/go-dataspace/run-dsp/dsp/statemachine"
 	"github.com/go-dataspace/run-dsp/internal/authforwarder"
-	"github.com/go-dataspace/run-dsp/internal/cli"
+	"github.com/go-dataspace/run-dsp/internal/cfg"
 	"github.com/go-dataspace/run-dsp/internal/constants"
 	"github.com/go-dataspace/run-dsp/logging"
 	providerv1 "github.com/go-dataspace/run-dsrpc/gen/go/dsp/v1alpha1"
 	grpclog "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/logging"
 	"github.com/justinas/alice"
+	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
@@ -47,129 +49,167 @@ import (
 	sloghttp "github.com/samber/slog-http"
 )
 
-// Command contains all the server parameters.
-//
-//nolint:lll
-type Command struct {
-	ListenAddr string `help:"Listen address" default:"0.0.0.0" env:"LISTEN_ADDR"`
-	Port       int    `help:"Listen port" default:"8080" env:"PORT"`
+// init initialises all the flags for the command.
+func init() {
+	cfg.AddPersistentFlag(
+		Command, "server.dsp.address", "dsp-address", "address to listen on for dataspace operations", "0.0.0.0")
+	cfg.AddPersistentFlag(
+		Command, "server.dsp.port", "dsp-port", "port to listen on for dataspace operations", 8080)
+	cfg.AddPersistentFlag(
+		Command,
+		"server.dsp.externalURL",
+		"external-url",
+		"URL that the dataspace service is reachable by from the dataspace",
+		"",
+	)
 
-	ExternalURL *url.URL `help:"URL that RUN-DSP uses in the dataspace." required:"" env:"EXTERNAL_URL"`
+	cfg.AddPersistentFlag(
+		Command, "server.provider.address", "provider-address", "Address of the provider gRPC endpoint", "")
+	cfg.AddPersistentFlag(
+		Command, "server.provider.insecure", "provider-insecure", "Disable TLS when connecting to provider", false)
+	cfg.AddPersistentFlag(
+		Command, "server.provider.caCert", "provider-ca-cert", "CA certificate of provider cert issuer", "")
+	cfg.AddPersistentFlag(
+		Command, "server.provider.clientCert", "provider-client-cert", "Client certificate to use with provider", "")
+	cfg.AddPersistentFlag(
+		Command, "server.provider.clientCertKey", "provider-client-cert-key", "Key for client certificate", "")
 
-	// GRPC settings for the provider
-	ProviderAddress       string `help:"Address of provider GRPC endpoint" required:"" env:"PROVIDER_URL"`
-	ProviderInsecure      bool   `help:"Provider connection does not use TLS" default:"false" env:"PROVIDER_INSECURE"`
-	ProviderCACert        string `help:"Custom CA certificate for provider's TLS certificate" env:"PROVIDER_CA"`
-	ProviderClientCert    string `help:"Client certificate to use to authenticate with provider" env:"PROVIDER_CLIENT_CERT"`
-	ProviderClientCertKey string `help:"Key to the client certificate" env:"PROVIDER_CLIENT_CERT_KEY"`
-
-	// GRPC control interface settings.
-	ControlEnabled                  bool   `help:"Enable to GRPC control interface" default:"false" env:"CONTROL_ENABLED"`
-	ControlListenAddr               string `help:"Listen address for the control interface" default:"0.0.0.0" env:"CONTROL_ADDR"`
-	ControlPort                     int    `help:"Port for the control interface" default:"8081" env:"CONTROL_PORT"`
-	ControlInsecure                 bool   `help:"Disable TLS for the control interface" default:"false" env:"CONTROL_INSECURE"`
-	ControlCert                     string `help:"Certificate to use for the control interface" env:"CONTROL_CERT"`
-	ControlCertKey                  string `help:"Key to the control interface" env:"CONTROL_CERT_KEY"`
-	ControlVerifyClientCertificates bool   `help:"Require validated client certificates to connect to control interface" default:"false" env:"CONTROL_VERIFY_CLIENT_CERTIFICATES" `
-	ControlClientCACert             string `help:"Custom CA certificate to verify client certificates with" env:"CONTROL_PROVIDER_CA"`
+	cfg.AddPersistentFlag(Command, "server.control.enabled", "control-enabled", "enable gRPC control service", false)
+	cfg.AddPersistentFlag(
+		Command, "server.control.address", "control-address", "address for the control service to listen on", "0.0.0.0")
+	cfg.AddPersistentFlag(
+		Command, "server.control.port", "control-port", "port for the control service to listen on", 8081)
+	cfg.AddPersistentFlag(
+		Command, "server.control.insecure", "control-insecure", "disable TLS for the control service", false)
+	cfg.AddPersistentFlag(
+		Command, "server.control.cert", "control-cert", "TLS certificate for the control service", "")
+	cfg.AddPersistentFlag(
+		Command, "server.control.certKey", "control-cert-key", "Key for control service certificate", "")
+	cfg.AddPersistentFlag(
+		Command,
+		"server.control.verifyClientCerts",
+		"control-verify-client-certs",
+		"Require CA issued client certificates",
+		false,
+	)
+	cfg.AddPersistentFlag(
+		Command, "server.control.clientCACert", "control-client-ca-cert", "CA certificate of client cert issuer", "")
 }
 
-// Validate checks if the parameters are correct.
-func (c *Command) Validate() error {
-	if c.ExternalURL == nil {
-		u, err := url.Parse(fmt.Sprintf("http://%s:%d", c.ListenAddr, c.Port))
+// Command validates the configuration and then runs the server.
+var Command = &cobra.Command{
+	Use:   "server",
+	Short: "Start the RUN-DSP server",
+	Long: `Starts the RUN-DSP connector, which then connects to the provider and will start
+				serving dataspace requests`,
+	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+		_, err := url.Parse(viper.GetString("server.dsp.externalURL"))
 		if err != nil {
-			return fmt.Errorf("broken default URL, see your listen address and port")
+			return fmt.Errorf("Invalid external URL: %w", err)
 		}
-		c.ExternalURL = u
-	}
-
-	if !c.ProviderInsecure {
-		err := c.validateTLS()
+		err = cfg.CheckListenPort(viper.GetString("server.dsp.address"), viper.GetInt("server.dsp.port"))
 		if err != nil {
 			return err
 		}
-	}
 
-	if c.ControlEnabled {
-		return c.validateControl()
-	}
-	return nil
-}
+		err = cfg.CheckConnectAddr(viper.GetString("server.provider.address"))
+		if err != nil {
+			return err
+		}
 
-func (c *Command) validateControl() error {
-	if c.ControlInsecure {
+		if !viper.GetBool("server.provider.insecure") {
+			err = cfg.CheckFilesExist(
+				viper.GetString("server.provider.caCert"),
+				viper.GetString("server.provider.clientCert"),
+				viper.GetString("server.provider.clientCertKey"),
+			)
+			if err != nil {
+				return err
+			}
+		}
+
+		if viper.GetBool("server.control.enabled") {
+			err = cfg.CheckListenPort(viper.GetString("server.control.address"), viper.GetInt("server.control.port"))
+			if err != nil {
+				return err
+			}
+			if !viper.GetBool("server.control.insecure") {
+				err = cfg.CheckFilesExist(
+					viper.GetString("server.control.cert"),
+					viper.GetString("server.control.certKey"),
+				)
+				if err != nil {
+					return err
+				}
+				if viper.GetBool("server.control.verifyClientCerts") {
+					err = cfg.CheckFilesExist(viper.GetString("server.control.clientCACert"))
+					if err != nil {
+						return err
+					}
+				}
+			}
+
+		}
+
 		return nil
-	}
-
-	certSupplied, err := checkFile(c.ControlCert)
-	if err != nil {
-		return fmt.Errorf("Control interface certificate: %w", err)
-	}
-	keySupplied, err := checkFile(c.ControlCertKey)
-	if err != nil {
-		return fmt.Errorf("Control interface certificate key: %w", err)
-	}
-
-	if !certSupplied {
-		return fmt.Errorf("Control interface certificate not supplied")
-	}
-
-	if !keySupplied {
-		return fmt.Errorf("Control interface certificate key not supplied")
-	}
-
-	if c.ControlVerifyClientCertificates {
-		caSupplied, err := checkFile(c.ControlClientCACert)
+	},
+	RunE: func(cmd *cobra.Command, args []string) error {
+		u, err := url.Parse(viper.GetString("server.dsp.externalURL"))
 		if err != nil {
-			return fmt.Errorf("Control interface client CA certificate: %w", err)
+			panic(err.Error())
 		}
-		if !caSupplied {
-			return fmt.Errorf("Control interface client CA certificate required when using client cert auth")
+		c := command{
+			ListenAddr:                      viper.GetString("server.dsp.address"),
+			Port:                            viper.GetInt("server.dsp.port"),
+			ExternalURL:                     u,
+			ProviderAddress:                 viper.GetString("server.provider.address"),
+			ProviderInsecure:                viper.GetBool("server.provider.insecure"),
+			ProviderCACert:                  viper.GetString("server.provider.caCert"),
+			ProviderClientCert:              viper.GetString("server.provider.clientCert"),
+			ProviderClientCertKey:           viper.GetString("server.provider.clientCert"),
+			ControlEnabled:                  viper.GetBool("server.control.enabled"),
+			ControlListenAddr:               viper.GetString("server.control.address"),
+			ControlPort:                     viper.GetInt("server.control.port"),
+			ControlInsecure:                 viper.GetBool("server.control.insecure"),
+			ControlCert:                     viper.GetString("server.control.cert"),
+			ControlCertKey:                  viper.GetString("server.control.certKey"),
+			ControlVerifyClientCertificates: viper.GetBool("server.control.verifyClientCerts"),
+			ControlClientCACert:             viper.GetString("server.control.clientCACert"),
 		}
-	}
-
-	return nil
+		ctx, ok := viper.Get("initCTX").(context.Context)
+		if !ok {
+			return fmt.Errorf("couldn't fetch initial context")
+		}
+		return c.Run(ctx)
+	},
 }
 
-func (c *Command) validateTLS() error {
-	_, err := checkFile(c.ProviderCACert)
-	if err != nil {
-		return fmt.Errorf("Provider CA certificate: %w", err)
-	}
+type command struct {
+	ListenAddr string
+	Port       int
 
-	certSupplied, err := checkFile(c.ProviderClientCert)
-	if err != nil {
-		return fmt.Errorf("Provider client certificate: %w", err)
-	}
-	keySupplied, err := checkFile(c.ProviderClientCertKey)
-	if err != nil {
-		return fmt.Errorf("Provider client certificate key: %w", err)
-	}
+	ExternalURL *url.URL
 
-	if certSupplied != keySupplied {
-		return fmt.Errorf("Need to supply both client certificate and its key.")
-	}
-	return nil
-}
+	// GRPC settings for the provider
+	ProviderAddress       string
+	ProviderInsecure      bool
+	ProviderCACert        string
+	ProviderClientCert    string
+	ProviderClientCertKey string
 
-func checkFile(l string) (bool, error) {
-	if l != "" {
-		f, err := os.Stat(l)
-		if err != nil {
-			return true, fmt.Errorf("could not read %s: %w", l, err)
-		}
-		if f.IsDir() {
-			return true, fmt.Errorf("%s is a directory", l)
-		}
-		return true, nil
-	}
-	return false, nil
+	// GRPC control interface settings.
+	ControlEnabled                  bool
+	ControlListenAddr               string
+	ControlPort                     int
+	ControlInsecure                 bool
+	ControlCert                     string
+	ControlCertKey                  string
+	ControlVerifyClientCertificates bool
+	ControlClientCACert             string
 }
 
 // Run starts the server.
-func (c *Command) Run(p cli.Params) error {
-	ctx := p.Context()
+func (c *command) Run(ctx context.Context) error {
 	wg := &sync.WaitGroup{}
 	logger := logging.Extract(ctx)
 
@@ -231,7 +271,7 @@ func (c *Command) Run(p cli.Params) error {
 	return srv.ListenAndServe()
 }
 
-func (c *Command) startControl(
+func (c *command) startControl(
 	ctx context.Context, wg *sync.WaitGroup,
 	controlSVC *control.Server,
 ) error {
@@ -287,7 +327,7 @@ func (c *Command) startControl(
 	return nil
 }
 
-func (c *Command) loadControlTLSCredentials() (credentials.TransportCredentials, error) {
+func (c *command) loadControlTLSCredentials() (credentials.TransportCredentials, error) {
 	if c.ControlInsecure {
 		return insecure.NewCredentials(), nil
 	}
@@ -319,7 +359,7 @@ func (c *Command) loadControlTLSCredentials() (credentials.TransportCredentials,
 	return credentials.NewTLS(config), nil
 }
 
-func (c *Command) getProvider(ctx context.Context) (providerv1.ProviderServiceClient, *grpc.ClientConn, error) {
+func (c *command) getProvider(ctx context.Context) (providerv1.ProviderServiceClient, *grpc.ClientConn, error) {
 	logger := logging.Extract(ctx)
 	tlsCredentials, err := c.loadTLSCredentials()
 	if err != nil {
@@ -349,7 +389,7 @@ func (c *Command) getProvider(ctx context.Context) (providerv1.ProviderServiceCl
 	return provider, conn, nil
 }
 
-func (c *Command) loadTLSCredentials() (credentials.TransportCredentials, error) {
+func (c *command) loadTLSCredentials() (credentials.TransportCredentials, error) {
 	if c.ProviderInsecure {
 		return insecure.NewCredentials(), nil
 	}

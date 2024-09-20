@@ -15,26 +15,11 @@
 package main
 
 import (
-	"os"
 	_ "time/tzdata"
 
-	"github.com/alecthomas/kong"
-	"github.com/go-dataspace/run-dsp/internal/cli"
-	"github.com/go-dataspace/run-dsp/internal/server"
+	"github.com/go-dataspace/run-dsp/cmd/root"
 )
 
-var ui struct {
-	cli.GlobalOptions
-	Server server.Command `cmd:"" help:"Run server"`
-}
-
 func main() {
-	if len(os.Args) == 1 {
-		os.Args = append(os.Args, "--help")
-	}
-
-	ctx := kong.Parse(&ui)
-	params := cli.GenParams(ui.GlobalOptions)
-	ctx.BindTo(params, (*cli.Params)(nil))
-	ctx.FatalIfErrorf(ctx.Run())
+	root.Execute()
 }
