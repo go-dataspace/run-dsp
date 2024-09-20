@@ -1,4 +1,4 @@
-FROM golang:1.22
+FROM docker.io/library/golang:1.22
 
 RUN apt-get update && \
     # Go tools:
