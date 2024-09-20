@@ -6,9 +6,8 @@ services:
       context: ../
       dockerfile: ./.devcontainer/Dockerfile
     volumes:
-      - ${HOME}/.ssh:/root/.ssh:ro
-      - ../:/workspace:cached
-      - /var/run/docker.sock:/var/run/docker.sock
+      - ${HOME}/.ssh:/root/.ssh:ro,z
+      - ../:/workspace:cached,z
   reference-provider:
     image: ghcr.io/go-dataspace/reference-provider:main
     command: server

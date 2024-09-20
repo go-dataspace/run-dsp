@@ -17,10 +17,7 @@ RUN apt-get update && \
     # https://go.dev/security/vuln/
     go install golang.org/x/vuln/cmd/govulncheck@latest && \
     # Graphviz for visualizing go test pprof profiles.
-    apt-get -y install graphviz && \
-    # Docker cli
-    curl -fsSL https://get.docker.com -o get-docker.sh && \
-    sh get-docker.sh
+    apt-get -y install graphviz
 
 ADD . /workspace
 WORKDIR /workspace
