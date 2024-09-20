@@ -5,7 +5,7 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Run DSP",
+            "name": "Run DSP local",
             "type": "go",
             "request": "launch",
             "mode": "auto",
@@ -15,6 +15,26 @@
                 "--debug",
                 "--provider-address",
                 "127.0.0.1:9090",
+                "--provider-insecure",
+                "--control-enabled",
+                "--control-insecure",
+                "--external-url=http://127.0.0.1:8080",
+            ]
+        },
+        {
+            "name": "Run DSP devcontainer",
+            "type": "go",
+            "request": "launch",
+            "mode": "auto",
+            "program": "${workspaceFolder}/cmd/",
+            "buildFlags": [
+                "-buildvcs=false"
+            ],
+            "args": [
+                "server",
+                "--debug",
+                "--provider-address",
+                "reference-provider:9090",
                 "--provider-insecure",
                 "--control-enabled",
                 "--control-insecure",

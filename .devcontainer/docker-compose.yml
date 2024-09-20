@@ -1,0 +1,21 @@
+version: '3.9'
+services:
+  godev:
+    container_name: godev
+    build:
+      context: ../
+      dockerfile: ./.devcontainer/Dockerfile
+    volumes:
+      - ${HOME}/.ssh:/root/.ssh:ro,z
+      - ../:/workspace:cached,z
+  reference-provider:
+    image: ghcr.io/go-dataspace/reference-provider:main
+    command: server
+    environment:
+      - LOGLEVEL=debug
+      - PROVIDER_INSECURE=true
+      - EXTERNAL_URL=http://127.0.0.1:9091/
+    volumes:
+    - .:/var/lib/run-dsp/fsprovider
+    ports:
+      - '9091'

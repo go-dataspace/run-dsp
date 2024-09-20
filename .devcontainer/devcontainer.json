@@ -1,0 +1,18 @@
+{
+    "name": "godev",
+    "workspaceFolder": "/workspace",
+    "dockerComposeFile": [
+        "docker-compose.yml"
+    ],
+    "service": "godev",
+    "postStartCommand": "go version",
+	"forwardPorts": [8080],
+	"customizations": {
+        "vscode": {
+            "extensions": [
+                "golang.go",
+                "ms-azuretools.vscode-docker"
+            ]
+        }
+    }
+}
