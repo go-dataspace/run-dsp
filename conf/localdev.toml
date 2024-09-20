@@ -13,8 +13,8 @@ externalURL = "http://127.0.0.1:8080" # Address that we are reachable by to othe
 
 ## Provider gRPC settings
 [server.provider]
-address = "127.0.0.1:9090" # The address of the provider service. ($SERVER.PROVIDER.ADDRESS)
-insecure = true            # Disable TLS when connecting to the provider. ($SERVER.PROVIDER.INSECURE)
+address = "127.0.0.1:19090" # The address of the provider service. ($SERVER.PROVIDER.ADDRESS)
+insecure = true             # Disable TLS when connecting to the provider. ($SERVER.PROVIDER.INSECURE)
 
 ## Control service settings
 [server.control]
