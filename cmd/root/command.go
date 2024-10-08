@@ -17,11 +17,12 @@ package root
 import (
 	"context"
 	"fmt"
-	"log"
 	"os"
 	"slices"
 
+	"github.com/go-dataspace/run-dsp/internal/client"
 	"github.com/go-dataspace/run-dsp/internal/server"
+	"github.com/go-dataspace/run-dsp/internal/ui"
 	"github.com/go-dataspace/run-dsp/logging"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -77,6 +78,7 @@ func init() {
 	viper.SetDefault("logLevel", "info")
 
 	rootCmd.AddCommand(server.Command)
+	rootCmd.AddCommand(client.Command)
 }
 
 func initConfig() {
@@ -90,13 +92,13 @@ func initConfig() {
 
 	viper.AutomaticEnv()
 	if err := viper.ReadInConfig(); err == nil {
-		log.Println("Using config file:", viper.ConfigFileUsed())
+		ui.Print(fmt.Sprintln("Using config file:", viper.ConfigFileUsed()))
 	}
 }
 
 func Execute() {
 	if err := rootCmd.Execute(); err != nil {
-		fmt.Fprintln(os.Stderr, err)
+		ui.Error(err.Error())
 		os.Exit(1)
 	}
 }

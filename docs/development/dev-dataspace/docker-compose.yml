@@ -1,0 +1,47 @@
+# This compose file sets up a "mini-dataspace".
+# This means that it sets up two RUN-DSP instances using the current source tree, and one
+# instance of the reference provider.
+#
+# The control service of the "client" RUN-DSP instance is open on port 18081 and can be controlled
+# with the RUN-DSP client.
+# The reference provider (which is used by both RUN-DSP instances) has its publish service
+# reachable on port 19091.
+#
+# This setup is useful to test if separate instances can communicate using the dataspace protocol.
+version: '3.9'
+services:
+  run-dsp-client:
+    build:
+      context: ../../../
+    command: server
+    environment:
+      - LOGLEVEL=debug
+      - SERVER.PROVIDER.ADDRESS=reference-provider:9090
+      - SERVER.PROVIDER.INSECURE=true
+      - SERVER.DSP.EXTERNALURL=http://run-dsp-client:8080/
+      - SERVER.CONTROL.ENABLED=true
+      - SERVER.CONTROL.INSECURE=true
+    ports:
+      - '18081:8081'
+    depends_on:
+      - reference-provider
+  run-dsp-provider:
+    build:
+      context: ../../../
+    command: server
+    environment:
+      - LOGLEVEL=debug
+      - SERVER.PROVIDER.ADDRESS=reference-provider:9090
+      - SERVER.PROVIDER.INSECURE=true
+      - SERVER.DSP.EXTERNALURL=http://run-dsp-provider:8080/
+    depends_on:
+      - reference-provider
+  reference-provider:
+    image: ghcr.io/go-dataspace/reference-provider:main
+    command: server
+    environment:
+      - LOGLEVEL=debug
+      - PROVIDER_INSECURE=true
+      - EXTERNAL_URL=http://127.0.0.1:19091/
+    ports:
+      - '19091:9091'
