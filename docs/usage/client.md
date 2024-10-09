@@ -24,7 +24,7 @@ even though only dataspace operations are implemented at this time.
 
 ## Dependencies
 
-The client depdends on a running RUN-DSP instance, with the control service enabled, as this
+The client depends on a running RUN-DSP instance, with the control service enabled, as this
 client does all its operations via or on this instance. This client will not do dataspace operations
 itself, but offloads those to RUN-DSP.
 
