@@ -89,9 +89,5 @@ func GetDSPRoutes(
 	mux.Handle("POST /callback/transfers/{consumerPID}/suspension",
 		WrapHandlerWithError(ch.consumerTransferSuspensionHandler))
 
-	mux.Handle("GET /triggerconsumer/{datasetID}", WrapHandlerWithError(ch.triggerConsumerContractRequestHandler))
-	mux.Handle("GET /triggertransfer/{contractProviderPID}", WrapHandlerWithError(ch.triggerTransferRequestHandler))
-	mux.Handle("GET /completetransfer/{providerPID}", WrapHandlerWithError(ch.completeTransferRequestHandler))
-
 	return mux
 }
