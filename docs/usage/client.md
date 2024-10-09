@@ -45,7 +45,7 @@ All subcommands also accept the `--help` flag.
 
 ### Configuration file
 We supply a [reference configuration file](../../conf/reference.toml)
-that documents all all configuration keys, and their corresponding environment variables.
+that documents all configuration keys, and their corresponding environment variables.
 RUN-DSP will by default search for the configuration in `/etc/run-dsp/run-dsp.toml`, but you can
 supply any with the `-c` flag.
 
