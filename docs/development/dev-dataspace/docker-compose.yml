@@ -12,7 +12,7 @@
 # The following client configuration file will be able to use this:
 #
 # [client]
-# address = "127.0.0.1:8080"
+# address = "127.0.0.1:18080"
 # insecure = true
 # authMD = "User1"
 #
