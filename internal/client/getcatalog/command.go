@@ -34,7 +34,7 @@ func init() {
 var (
 	printJSON bool
 	Command   = &cobra.Command{
-		Use:   "getcatalog",
+		Use:   "getcatalog <provider_url>",
 		Short: "Get catalog from dataspace provider.",
 		Long:  "Uses RUN-DSP instance to get the catalog of a dataspace provider",
 		Args:  cobra.ExactArgs(1),

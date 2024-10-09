@@ -34,7 +34,7 @@ func init() {
 var (
 	printJSON bool
 	Command   = &cobra.Command{
-		Use:   "getdataset",
+		Use:   "getdataset <provider_url> <dataset_id>",
 		Short: "Get dataset info from dataspace provider.",
 		Long:  "Uses RUN-DSP instance to get dataset information of a dataspace provider",
 		Args:  cobra.ExactArgs(2),

@@ -25,7 +25,9 @@ import (
 
 	"github.com/alecthomas/chroma/v2/quick"
 	"github.com/fatih/color"
+	"github.com/go-dataspace/run-dsp/internal/ui"
 	dspv1alpha1 "github.com/go-dataspace/run-dsrpc/gen/go/dsp/v1alpha1"
+	"github.com/spf13/viper"
 )
 
 // PrintCatalogue prints out a catalogue, either as a table or as JSON.
@@ -53,6 +55,10 @@ func pprintJSON[T any](o T) error {
 	err = json.Indent(&buf, b, "", "  ")
 	if err != nil {
 		return fmt.Errorf("could not indent JSON: %w", err)
+	}
+	if viper.GetBool(NoColor) {
+		ui.Print(buf.String())
+		return nil
 	}
 	return quick.Highlight(os.Stdout, buf.String(), "json", "terminal256", "catppuccin-mocha")
 }

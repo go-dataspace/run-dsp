@@ -26,4 +26,7 @@ const (
 	ClientCert    = "client.clientCert"
 	ClientCertKey = "client.clientCertKey"
 	AuthMD        = "client.authMD"
+
+	// Some global vars.
+	NoColor = "noColor"
 )

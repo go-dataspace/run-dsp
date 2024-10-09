@@ -41,10 +41,10 @@ func init() {
 var (
 	outputDir string
 	Command   = &cobra.Command{
-		Use:   "downloaddataset",
+		Use:   "downloaddataset <provider_url> <dataset_id>",
 		Short: "Download dataset from dataspace provider.",
 		Long: `Uses RUN-DSP instance to get dataset download information of a dataset
-					and then downloads it into an output directory.`,
+and then downloads it into an output directory.`,
 		Args: cobra.ExactArgs(2),
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			_, err := url.Parse(args[0])
@@ -128,6 +128,10 @@ var (
 
 func downloadFile(o string, pi *dspv1alpha1.PublishInfo) (string, error) {
 	fName := path.Base(pi.Url)
+	fName, err := url.PathUnescape(fName)
+	if err != nil {
+		return "", fmt.Errorf("couldn't unescape file name %s: %w", fName, err)
+	}
 	dlPath := path.Join(o, fName)
 	fh, err := os.Create(dlPath)
 	if err != nil {

@@ -8,6 +8,14 @@
 # reachable on port 19091.
 #
 # This setup is useful to test if separate instances can communicate using the dataspace protocol.
+#
+# The following client configuration file will be able to use this:
+#
+# [client]
+# address = "127.0.0.1:8080"
+# insecure = true
+# authMD = "User1"
+#
 version: '3.9'
 services:
   run-dsp-client:

@@ -16,6 +16,9 @@
 package client
 
 import (
+	"fmt"
+	"os"
+
 	"github.com/fatih/color"
 	"github.com/go-dataspace/run-dsp/internal/cfg"
 	"github.com/go-dataspace/run-dsp/internal/client/downloaddataset"
@@ -51,8 +54,16 @@ var (
 				}
 			}
 
-			if noColour {
+			o, err := os.Stdout.Stat()
+			if err != nil {
+				return fmt.Errorf("could not stat stdout: %w", err)
+			}
+
+			isTerminal := o.Mode()&os.ModeCharDevice == os.ModeCharDevice
+
+			if noColour || !isTerminal {
 				color.NoColor = true
+				viper.Set(shared.NoColor, true)
 			}
 
 			return nil
@@ -74,7 +85,7 @@ func init() {
 	cfg.AddPersistentFlag(
 		Command, shared.AuthMD, "authorization-metadata", "Auth metadata to add to gRPC requests.", "")
 
-	Command.Flags().BoolVar(&noColour, "no-colour", false, "Disable colour in output.")
+	Command.PersistentFlags().BoolVar(&noColour, "no-colour", false, "Disable colour in output.")
 	Command.AddCommand(getcatalog.Command)
 	Command.AddCommand(getdataset.Command)
 	Command.AddCommand(downloaddataset.Command)

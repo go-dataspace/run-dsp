@@ -1,6 +1,6 @@
 ## This shows all configuration options of RUN-DSP, what they do and the corresponsing environment variables.###### RUN-DSP reference configuration file #####
 ## The default location of the configuration file is /etc/run-dsp/run-dsp.toml but you can change that
-## with the `-d` command line flag
+## with the `-c` command line flag
 
 ### GLOBAL OPTIONS ###
 debug = true      # Sets the output to a human readable format and sets the log level to debug. ($DEBUG)
@@ -33,3 +33,11 @@ cert = "/path/to/control.crt"    # TLS certificate to use for the control servic
 certKey = "/path/to/control.key" # Key to the above mentioned certificate. ($SERVER.CONTROL.CERTKEY)
 verifyClientCerts = true         # Only allow access to clients with a certificate issued by the CA defined below. ($SERVER.CONTROL.VERIFYCLIENTCERTS)
 clientCACert = "/etc/hosts"      # Certificate of the CA that issues client certificates. ($SERVER.CONTROL.CLIENTCACERT)
+
+[client]
+address = "127.0.0.1:8080"            # Address to the RUN-DSP control service we want to connect to. ($CLIENT.ADDRESS)
+insecure = false                      # Disable TLS for the control service connection. ($CLIENT.INSECURE)
+caCert = "/path/to/ca.crt"            # Path to the CA certificate of the CA that issued the certificate of the control service. ($CLIENT.CACERT)
+clientCert = "/path/to/client.crt"    # Client certificate to authenticate with to the control service. ($CLIENT.CLIENTCERT)
+clientCertKey = "/path/to/client.key" # Key to the above mentioned certificate. ($CLIENT.CLIENTCERTKEY)
+authMD = "Bearer abcde"               # What to put in the gRPC authorization metadata. ($CLIENT.AUTHMD)

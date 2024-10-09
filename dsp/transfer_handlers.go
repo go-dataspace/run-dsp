@@ -325,31 +325,3 @@ func (dh *dspHandlers) consumerTransferSuspensionHandler(w http.ResponseWriter, 
 	w.WriteHeader(http.StatusOK)
 	return nil
 }
-
-func (dh *dspHandlers) completeTransferRequestHandler(w http.ResponseWriter, req *http.Request) error {
-	ctx, logger := logging.InjectLabels(req.Context(), "handler", "triggerConsumerContractRequestHandler")
-	req = req.WithContext(ctx)
-
-	pid, err := uuid.Parse(req.PathValue("providerPID"))
-	if err != nil {
-		return err
-	}
-
-	transfer, err := dh.store.GetProviderTransfer(ctx, pid)
-	if err != nil {
-		return err
-	}
-
-	pState := statemachine.GetTransferRequestNegotiation(dh.store, transfer, dh.provider, dh.reconciler)
-	apply, err := pState.Send(req.Context())
-	if err != nil {
-		return err
-	}
-
-	if err := shared.EncodeValid(w, req, http.StatusOK, pState.GetTransferProcess()); err != nil {
-		logger.Error("Couldn't serve response", "err", err)
-	}
-	go apply()
-
-	return nil
-}
