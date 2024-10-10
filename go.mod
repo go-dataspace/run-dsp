@@ -3,6 +3,7 @@ module github.com/go-dataspace/run-dsp
 go 1.22.5
 
 require (
+	github.com/alecthomas/chroma/v2 v2.14.0
 	github.com/fatih/color v1.17.0
 	github.com/go-dataspace/run-dsrpc v0.0.3-alpha1
 	github.com/go-playground/validator/v10 v10.22.0
@@ -19,7 +20,6 @@ require (
 )
 
 require (
-	github.com/alecthomas/chroma/v2 v2.14.0 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/dlclark/regexp2 v1.11.0 // indirect
 	github.com/fsnotify/fsnotify v1.7.0 // indirect
