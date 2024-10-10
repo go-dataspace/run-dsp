@@ -107,6 +107,8 @@ func (tr *TransferRequestNegotiationRequested) Recv(
 			}
 		}
 		return verifyAndTransformTransfer(ctx, tr, t.ProviderPID, t.ConsumerPID, TransferRequestStates.STARTED)
+	case shared.TransferTerminationMessage:
+		return verifyAndTransformTransfer(ctx, tr, t.ProviderPID, t.ConsumerPID, TransferRequestStates.TRANSFERTERMINATED)
 	default:
 		return nil, fmt.Errorf("invalid message type")
 	}
@@ -146,6 +148,9 @@ func (tr *TransferRequestNegotiationStarted) Recv(
 	switch t := message.(type) {
 	case shared.TransferCompletionMessage:
 		return verifyAndTransformTransfer(ctx, tr, t.ProviderPID, t.ConsumerPID, TransferRequestStates.COMPLETED)
+	case shared.TransferTerminationMessage:
+		return verifyAndTransformTransfer(ctx, tr, t.ProviderPID, t.ConsumerPID, TransferRequestStates.TRANSFERTERMINATED)
+
 	default:
 		return nil, fmt.Errorf("invalid message type")
 	}
@@ -194,6 +199,16 @@ func (tr *TransferRequestNegotiationCompleted) Send(ctx context.Context) (func()
 type TransferRequestNegotiationTerminated struct {
 	*TransferRequest
 	stateMachineDeps
+}
+
+func (tr *TransferRequestNegotiationTerminated) Recv(
+	ctx context.Context, message any,
+) (TransferRequestNegotiationState, error) {
+	return nil, fmt.Errorf("this is a final state")
+}
+
+func (tr *TransferRequestNegotiationTerminated) Send(ctx context.Context) (func(), error) {
+	return func() {}, nil
 }
 
 func NewTransferRequest(
@@ -255,6 +270,8 @@ func GetTransferRequestNegotiation(
 		return &TransferRequestNegotiationStarted{TransferRequest: tr, stateMachineDeps: deps}
 	case TransferRequestStates.COMPLETED:
 		return &TransferRequestNegotiationCompleted{TransferRequest: tr, stateMachineDeps: deps}
+	case TransferRequestStates.TRANSFERTERMINATED:
+		return &TransferRequestNegotiationTerminated{TransferRequest: tr, stateMachineDeps: deps}
 	default:
 		panic(fmt.Sprintf("No transition found for state %s", tr.GetState()))
 	}
