@@ -221,7 +221,6 @@ func (dh *dspHandlers) providerTransferCompletionHandler(w http.ResponseWriter, 
 	)
 }
 
-// TODO: Handle termination.
 func (dh *dspHandlers) providerTransferTerminationHandler(w http.ResponseWriter, req *http.Request) error {
 	return progressTransferState[shared.TransferTerminationMessage](
 		dh, w, req, statemachine.DataspaceProvider, req.PathValue("providerPID"), true,
@@ -264,7 +263,6 @@ func (dh *dspHandlers) consumerTransferCompletionHandler(w http.ResponseWriter, 
 	)
 }
 
-// TODO: Handle termination.
 func (dh *dspHandlers) consumerTransferTerminationHandler(w http.ResponseWriter, req *http.Request) error {
 	return progressTransferState[shared.TransferTerminationMessage](
 		dh, w, req, statemachine.DataspaceConsumer, req.PathValue("consumerPID"), true,
