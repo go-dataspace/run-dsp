@@ -98,3 +98,5 @@ func (tr *TransferRequest) GetTransferProcess() shared.TransferProcess {
 		State:       tr.state.String(),
 	}
 }
+
+func (tr *TransferRequest) SetProviderPID(id uuid.UUID) { tr.providerPID = id }

@@ -221,27 +221,10 @@ func (dh *dspHandlers) providerTransferCompletionHandler(w http.ResponseWriter, 
 	)
 }
 
-// TODO: Handle termination.
 func (dh *dspHandlers) providerTransferTerminationHandler(w http.ResponseWriter, req *http.Request) error {
-	logger := logging.Extract(req.Context())
-	providerPID := req.PathValue("providerPID")
-	if providerPID == "" {
-		return fmt.Errorf("Missing provider PID")
-	}
-	reqBody, err := io.ReadAll(req.Body)
-	if err != nil {
-		return fmt.Errorf("Could not read body")
-	}
-	termination, err := shared.UnmarshalAndValidate(req.Context(), reqBody, shared.TransferTerminationMessage{})
-	if err != nil {
-		return fmt.Errorf("Invalid request")
-	}
-
-	logger.Debug("Got transfer termination", "termination", termination)
-
-	// If all goes well, we just return a 200
-	w.WriteHeader(http.StatusOK)
-	return nil
+	return progressTransferState[shared.TransferTerminationMessage](
+		dh, w, req, statemachine.DataspaceProvider, req.PathValue("providerPID"), true,
+	)
 }
 
 // TODO: Handle suspension.
@@ -280,27 +263,10 @@ func (dh *dspHandlers) consumerTransferCompletionHandler(w http.ResponseWriter, 
 	)
 }
 
-// TODO: Handle termination.
 func (dh *dspHandlers) consumerTransferTerminationHandler(w http.ResponseWriter, req *http.Request) error {
-	logger := logging.Extract(req.Context())
-	consumerPID := req.PathValue("providerPID")
-	if consumerPID == "" {
-		return fmt.Errorf("Missing consumer PID")
-	}
-	reqBody, err := io.ReadAll(req.Body)
-	if err != nil {
-		return err
-	}
-	termination, err := shared.UnmarshalAndValidate(req.Context(), reqBody, shared.TransferTerminationMessage{})
-	if err != nil {
-		return err
-	}
-
-	logger.Debug("Got transfer termination", "termination", termination)
-
-	// If all goes well, we just return a 200
-	w.WriteHeader(http.StatusOK)
-	return nil
+	return progressTransferState[shared.TransferTerminationMessage](
+		dh, w, req, statemachine.DataspaceConsumer, req.PathValue("consumerPID"), true,
+	)
 }
 
 // TODO: Handle suspension.
