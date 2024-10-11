@@ -18,6 +18,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"slices"
 )
 
 // jsonHeaderMiddleware adds the json header to the response and checks if the content-type is json
@@ -25,9 +26,10 @@ import (
 func jsonHeaderMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Add("Content-Type", "application/json")
+		contentTypes := []string{"application/json", "application/json; charset=utf-8"}
 		if r.Header.Get("Content-Length") != "" &&
-			r.Header.Get("Content-Type") != "application/json" {
-			w.WriteHeader(http.StatusBadGateway)
+			!slices.Contains(contentTypes, r.Header.Get("Content-Type")) {
+			w.WriteHeader(http.StatusBadRequest)
 			resp, err := json.Marshal(struct {
 				Error string
 			}{
