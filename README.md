@@ -12,27 +12,27 @@
 # RUN-DSP
 
 > [!IMPORTANT]
-> RUN-DSP and the gRPC bindings are considered in "pre-alpha", this means that things can change
-> heavily in between versions. We will document these changes in the release notes.
+> RUN-DSP and the gRPC bindings are considered in "pre-alpha" state, this means that things can
+> change heavily in between versions. We will document these changes in the release notes.
 
 RUN-DSP is a lightweight, high-performant, and easy to manage connector for the
 [IDSA Dataspace protocol](https://docs.internationaldataspaces.org/ids-knowledgebase/dataspace-protocol)
 implemented in the [Go programming language](https://go.dev/). What distinguishes RUN-DSP from other
-dataspace connectors is that RUN-DSP tried to stay simple to maintain, manage, while  allow
-non-dataspace aware applications to interface with a dataspace by means of [gRPC](https://grpc.io/).
+dataspace connectors is that RUN-DSP tried to stay simple to maintain and manage, while allowing
+non-dataspace-aware applications to interface with a dataspace by means of [gRPC](https://grpc.io/).
 
 
 ## Overview
 
 ![](./docs/architecture/overview.png)
 
-RUN-DSP listens on a port for dataspace requests, and queries a provider backend for the relevant
+RUN-DSP listens on for dataspace requests, and queries a provider backend for the relevant
 information via gRPC calls. This information can be catalog listings, information about
 a single dataset, and information on how to download the dataset. In dataspace parlance, this would
 mean RUN-DSP fulfils the provider role.
 
 RUN-DSP can also listen on a port for gRPC control commands, that another application can use
-to request dataspace operations to be execute by gRPC. The consumer role in dataspace terms.
+to request dataspace operations to be executed by gRPC. The consumer role in dataspace terms.
 This functionality still requires that the dataspace port is reachable publicly.
 
 As per the dataspace specification, it is possible for RUN-DSP to fulfil the consumer, and provider
