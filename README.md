@@ -36,7 +36,7 @@ to request dataspace operations to be execute by gRPC. The consumer role in data
 This functionality still requires that the dataspace port is reachable publicly.
 
 As per the dataspace specification, it is possible for RUN-DSP to fulfil the consumer, and provider
-side from a single instalation if properly configured.
+side from a single installation if properly configured.
 
 ## Getting started
 
