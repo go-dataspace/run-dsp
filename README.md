@@ -63,7 +63,7 @@ You can now start hacking and testing RUN-DSP.
 #### Offering data to a dataspace
 
 To start integrating your own application, and/or data into a dataspace using RUN-DSP, you will have
-to offer a [RUN-DSP provider service](https://github.com/go-dataspace/run-dsrpc). This can either be
+to offer the [RUN-DSP provider service gRPC calls](https://github.com/go-dataspace/run-dsrpc). This can either be
 integrated into your already existing software, or you can build a translation service that
 translates the gRPC calls into calls that your application already accepts.
 
