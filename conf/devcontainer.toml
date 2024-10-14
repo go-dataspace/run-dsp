@@ -22,3 +22,8 @@ enabled = true        # Enable the control service. ($SERVER.CONTROL.ENABLED)
 address = "127.0.0.1" # IP address of the local machine to listen to for the control service. ($SERVER.CONTROL.ADDRESS)
 port = 8081           # TCP port to listen on for the control service. ($SERVER.CONTROL.PORT)
 insecure = true       # Disable TLS for the control service ($SERVER.CONTROL.INSECURE)
+
+[client]
+address = "127.0.0.1:8080" # Address to the RUN-DSP control service we want to connect to. ($CLIENT.ADDRESS)
+insecure = true            # Disable TLS for the control service connection. ($CLIENT.INSECURE)
+authMD = "Bearer abcde"    # What to put in the gRPC authorization metadata. ($CLIENT.AUTHMD)

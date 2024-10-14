@@ -1,0 +1,15 @@
+@startuml overview
+
+cloud {
+    node "Consumer participant" {
+        [Consumer application] --> [RUN-DSP (consumer side)] : gRPC
+    }
+
+    node "Provider participant" {
+        [RUN-DSP (provider side)] --> "Provider service" : gRPC
+        "Provider service" <--> [Provider datastore]
+    }
+    [RUN-DSP (consumer side)] <-right-> [RUN-DSP (provider side)] : Dataspace protocol
+}
+
+@enduml
