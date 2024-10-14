@@ -11,7 +11,7 @@
 
 # RUN-DSP
 
-[!Important]
+[!IMPORTANT]
 RUN-DSP and the gRPC bindings are considered in "pre-alpha", this means that things can change
 heavily in between versions. We will document these changes in the release notes.
 
