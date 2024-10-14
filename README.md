@@ -15,7 +15,7 @@
 > RUN-DSP and the gRPC bindings are considered in "pre-alpha", this means that things can change
 > heavily in between versions. We will document these changes in the release notes.
 
-RUN-DSP is a lightweight high-performant, and easy to manage connector for the
+RUN-DSP is a lightweight, high-performant, and easy to manage connector for the
 [IDSA Dataspace protocol](https://docs.internationaldataspaces.org/ids-knowledgebase/dataspace-protocol)
 implemented in the [Go programming language](https://go.dev/). What distinguishes RUN-DSP from other
 dataspace connectors is that RUN-DSP tried to stay simple to maintain, manage, while  allow
