@@ -26,7 +26,7 @@ non-dataspace-aware applications to interface with a dataspace by means of [gRPC
 
 ![](./docs/architecture/overview.png)
 
-RUN-DSP listens on for dataspace requests, and queries a provider backend for the relevant
+RUN-DSP listens for dataspace requests, and queries a provider backend for the relevant
 information via gRPC calls. This information can be catalog listings, information about
 a single dataset, and information on how to download the dataset. In dataspace parlance, this would
 mean RUN-DSP fulfils the provider role.
