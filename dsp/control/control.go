@@ -332,11 +332,11 @@ func processDataset(dsp shared.Dataset) *dspv1alpha1.Dataset {
 			Language: v.Language,
 		}
 	}
-	issued, err := time.Parse(dsp.Issued, time.RFC3339)
+	issued, err := time.Parse(time.RFC3339, dsp.Issued)
 	if err != nil {
 		issued = time.Unix(0, 0).UTC()
 	}
-	modified, err := time.Parse(dsp.Modified, time.RFC3339)
+	modified, err := time.Parse(time.RFC3339, dsp.Modified)
 	if err != nil {
 		modified = time.Unix(0, 0).UTC()
 	}
