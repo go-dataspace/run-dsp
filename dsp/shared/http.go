@@ -52,6 +52,9 @@ func (hr *HTTPRequester) SendHTTPRequest(
 	if reqBody != nil {
 		payload = bytes.NewReader(reqBody)
 	}
+
+	// FIXME: We need to add backoff-retry here. Maybe a "not yet" response
+	// should be given from the remote side?
 	req, err := http.NewRequestWithContext(ctx, method, url.String(), payload)
 	if err != nil {
 		logger.Error("Failed to create request", "err", err)
@@ -73,7 +76,8 @@ func (hr *HTTPRequester) SendHTTPRequest(
 	}
 
 	if resp.StatusCode < 200 || resp.StatusCode > 299 {
-		logger.Error("Received non-200 status code", "status_code", resp.StatusCode, "body", string(respBody))
+		logger.Error("Received non-200 status code",
+			"status_code", resp.StatusCode, "body", string(respBody), "request_body", reqBody)
 		return nil, fmt.Errorf("non-200 status code: %d", resp.StatusCode)
 	}
 
