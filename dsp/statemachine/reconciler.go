@@ -96,16 +96,17 @@ func (r *Reconciler) run() {
 				"url", entry.URL.String(),
 			)
 			logger.Info("Attempting to reconcile entry")
-			// As the dataspace standard doesn't care if we parse this, we won't.
-			// TODO: care more about this. Implement requeuing logic.
-			_, err := r.r.SendHTTPRequest(ctx, entry.Method, entry.URL, entry.Body)
-			if err != nil {
-				logger.Error("Could not send HTTP request", "err", err)
-				continue
-			}
-			err = r.updateState(ctx, entry.EntityID, entry.Role, entry.Type, entry.TargetState)
+			err := r.updateState(ctx, entry.EntityID, entry.Role, entry.Type, entry.TargetState)
 			if err != nil {
 				logger.Error("Could not update state", "err", err)
+				continue
+			}
+			// As the dataspace standard doesn't care if we parse this, we won't.
+			// TODO: care more about this. Implement requeuing logic.
+			_, err = r.r.SendHTTPRequest(ctx, entry.Method, entry.URL, entry.Body)
+			if err != nil {
+				err := r.updateState(ctx, entry.EntityID, entry.Role, entry.Type, "dspace:TERMINATED")
+				logger.Error("Could not send HTTP request", "err", err)
 				continue
 			}
 		case <-r.ctx.Done():
