@@ -147,33 +147,46 @@ func (tr *TransferRequestNegotiationStarted) Recv(
 ) (TransferRequestNegotiationState, error) {
 	switch t := message.(type) {
 	case shared.TransferCompletionMessage:
+		err := unpublishTransfer(ctx, tr)
+		if err != nil {
+			return nil, err
+		}
 		return verifyAndTransformTransfer(ctx, tr, t.ProviderPID, t.ConsumerPID, TransferRequestStates.COMPLETED)
 	case shared.TransferTerminationMessage:
 		return verifyAndTransformTransfer(ctx, tr, t.ProviderPID, t.ConsumerPID, TransferRequestStates.TRANSFERTERMINATED)
-
 	default:
 		return nil, fmt.Errorf("invalid message type")
 	}
 }
 
 func (tr *TransferRequestNegotiationStarted) Send(ctx context.Context) (func(), error) {
+	err := unpublishTransfer(ctx, tr)
+	if err != nil {
+		return func() {}, err
+	}
+	return sendTransferCompletion(ctx, tr)
+}
+
+func unpublishTransfer(ctx context.Context, tr TransferRequestNegotiationState) error {
 	switch tr.GetTransferDirection() {
 	case DirectionPull:
-		_, err := tr.GetProvider().UnpublishDataset(ctx, &providerv1.UnpublishDatasetRequest{
-			PublishId: tr.GetProviderPID().String(),
-		})
-		if err != nil {
-			return func() {}, err
+		if tr.GetRole() == DataspaceProvider {
+			_, err := tr.GetProvider().UnpublishDataset(ctx, &providerv1.UnpublishDatasetRequest{
+				PublishId: tr.GetProviderPID().String(),
+			})
+			if err != nil {
+				return err
+			}
 		}
 	case DirectionPush:
-		// TODO: Signal provider to start uploading dataset here.
-		return func() {}, fmt.Errorf("push flow: %w", ErrNotImplemented)
+
+		return fmt.Errorf("push flow: %w", ErrNotImplemented)
 	case DirectionUnknown:
-		return func() {}, fmt.Errorf("unknown transfer direction")
+		return fmt.Errorf("unknown transfer direction")
 	default:
 		panic("unexpected statemachine.TransferDirection")
 	}
-	return sendTransferCompletion(ctx, tr)
+	return nil
 }
 
 type TransferRequestNegotiationSuspended struct {

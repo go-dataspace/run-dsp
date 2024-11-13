@@ -338,12 +338,6 @@ func TestStateMachineConsumerInitConsumerPull(t *testing.T) {
 		},
 	}, nil)
 
-	mockProvider.On("UnpublishDataset", mock.Anything, &providerv1.UnpublishDatasetRequest{
-		PublishId: trProviderPID.String(),
-	}).Return(&providerv1.UnpublishDatasetResponse{
-		Success: true,
-	}, nil)
-
 	apply, err = pTransNext.Send(ctx)
 	assert.Nil(t, err)
 	apply()
@@ -395,6 +389,19 @@ func TestStateMachineConsumerInitConsumerPull(t *testing.T) {
 	assert.Nil(t, err)
 	assert.Equal(t, trCPID.URN(), trCompletionMSG.ConsumerPID)
 	assert.Equal(t, trProviderPID.URN(), trCompletionMSG.ProviderPID)
+
+	mockProvider.On("UnpublishDataset", mock.Anything, &providerv1.UnpublishDatasetRequest{
+		PublishId: trProviderPID.String(),
+	}).Return(&providerv1.UnpublishDatasetResponse{
+		Success: true,
+	}, nil)
+
+	pTransContractStarted, err := store.GetProviderTransfer(ctx, trProviderPID)
+	validateTransfer(t, err, pTransContractStarted, statemachine.TransferRequestStates.STARTED, agreementID)
+
+	pTransStarted := statemachine.GetTransferRequestNegotiation(store, pTransContractStarted, mockProvider, reconciler)
+	pTransNext, err = pTransStarted.Recv(ctx, trCompletionMSG)
+	validateTransfer(t, err, pTransNext.GetTransferRequest(), statemachine.TransferRequestStates.COMPLETED, agreementID)
 }
 
 // TestContractStateMachineConsumerInit tests a whole contract statemachine run, this will do the happy path,
