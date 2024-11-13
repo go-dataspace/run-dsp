@@ -159,11 +159,13 @@ func (tr *TransferRequestNegotiationStarted) Recv(
 func (tr *TransferRequestNegotiationStarted) Send(ctx context.Context) (func(), error) {
 	switch tr.GetTransferDirection() {
 	case DirectionPull:
-		_, err := tr.GetProvider().UnpublishDataset(ctx, &providerv1.UnpublishDatasetRequest{
-			PublishId: tr.GetProviderPID().String(),
-		})
-		if err != nil {
-			return func() {}, err
+		if tr.GetRole() == DataspaceProvider {
+			_, err := tr.GetProvider().UnpublishDataset(ctx, &providerv1.UnpublishDatasetRequest{
+				PublishId: tr.GetProviderPID().String(),
+			})
+			if err != nil {
+				return func() {}, err
+			}
 		}
 	case DirectionPush:
 		// TODO: Signal provider to start uploading dataset here.
