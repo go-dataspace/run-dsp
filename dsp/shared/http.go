@@ -21,6 +21,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"time"
 
 	"github.com/go-dataspace/run-dsp/internal/authforwarder"
 	"github.com/go-dataspace/run-dsp/logging"
@@ -60,6 +61,10 @@ func (hr *HTTPRequester) SendHTTPRequest(
 	req.Header.Add("Content-Type", "application/json")
 	req.Header.Add("Accept", "application/json")
 	resp, err := hr.Client.Do(req)
+
+	// FIXME: Ugly temporary hack to prevent race conditions. DO NOT ACTUALLY USE!!!
+	time.Sleep(100 * time.Millisecond)
+
 	if err != nil {
 		logger.Error("Failed to send request", "err", err)
 		return nil, err
