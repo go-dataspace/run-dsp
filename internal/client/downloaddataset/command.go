@@ -168,7 +168,7 @@ func setAuth(pi *dspv1alpha1.PublishInfo, req *http.Request) {
 	case dspv1alpha1.AuthenticationType_AUTHENTICATION_TYPE_BEARER:
 		req.Header.Set("Authorization", "Bearer "+pi.Password)
 	case dspv1alpha1.AuthenticationType_AUTHENTICATION_TYPE_UNSPECIFIED:
-		fallthrough
+		return
 	default:
 		panic(fmt.Sprintf("unexpected dspv1alpha1.AuthenticationType: %#v", pi.AuthenticationType))
 	}
