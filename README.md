@@ -53,7 +53,7 @@ $ docker-compose up
 Then start RUN-DSP connecting to the reference provider:
 
 ```sh
-$ go run ./cmd/ -c ./conf/localdev.toml sever
+$ go run ./cmd/ -c ./conf/localdev.toml server
 ```
 
 You can now start hacking and testing RUN-DSP.
