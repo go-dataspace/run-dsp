@@ -1,6 +1,6 @@
 module github.com/go-dataspace/run-dsp
 
-go 1.22.5
+go 1.22.9
 
 require (
 	github.com/alecthomas/chroma/v2 v2.14.0
