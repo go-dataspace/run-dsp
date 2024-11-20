@@ -41,6 +41,11 @@ services:
       context: ../../../
       dockerfile: Dockerfile.debug
     command: server
+    # When you want to emulate a slow provider, uncomment this.
+    # deploy:
+    #   resources:
+    #     limits:
+    #       cpus: '0.01'
     environment:
       - LOGLEVEL=debug
       - SERVER.PROVIDER.ADDRESS=reference-provider:9090
