@@ -16,11 +16,13 @@
 # insecure = true
 # authMD = "User1"
 #
-version: '3.9'
+name: run-dsp development dataspace
+
 services:
   run-dsp-client:
     build:
       context: ../../../
+      dockerfile: Dockerfile.debug
     command: server
     environment:
       - LOGLEVEL=debug
@@ -31,17 +33,22 @@ services:
       - SERVER.CONTROL.INSECURE=true
     ports:
       - '18081:8081'
+      - '14000:4000'
     depends_on:
       - reference-provider
   run-dsp-provider:
     build:
       context: ../../../
+      dockerfile: Dockerfile.debug
     command: server
     environment:
       - LOGLEVEL=debug
       - SERVER.PROVIDER.ADDRESS=reference-provider:9090
       - SERVER.PROVIDER.INSECURE=true
       - SERVER.DSP.EXTERNALURL=http://run-dsp-provider:8080/
+    ports:
+      - '28081:8081'
+      - '24000:4000'
     depends_on:
       - reference-provider
   reference-provider:
@@ -52,4 +59,5 @@ services:
       - PROVIDER_INSECURE=true
       - EXTERNAL_URL=http://127.0.0.1:19091/
     ports:
+      - '19090:9090'
       - '19091:9091'

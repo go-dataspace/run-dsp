@@ -12,27 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-BINARY_NAME := run-dsp
-
-build:
-	-mkdir _build
-	go mod download
-	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 GO111MODULE=on go build -ldflags="-extldflags=-static" -o _build/$(BINARY_NAME) ./cmd/
-
-debug:
-	-mkdir _build
-	go mod download
-	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 GO111MODULE=on go build -gcflags=all="-N -l" -ldflags="-extldflags=-static" -o _build/$(BINARY_NAME).debug ./cmd/
-
-
-test:
-	go test -v ./...
-
-lint:
-	golangci-lint run
-
-vulncheck:
-	govulncheck ./...
-
-generate:
-	go generate ./...
+# This creates an image that
+FROM docker.io/library/golang:1.22.9 AS builder
+WORKDIR /app
+COPY . ./
+RUN make debug
+RUN go install github.com/go-delve/delve/cmd/dlv@latest
+ENTRYPOINT [ "/go/bin/dlv", "exec", "--listen=:4000", "--headless", "--log", "--accept-multiclient", "--continue",  "./_build/run-dsp.debug" ]
