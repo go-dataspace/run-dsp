@@ -31,5 +31,35 @@
                 "server",
             ]
         }
+        {
+            "name": "Dev Dataspace: Attach to consumer",
+            "type": "go",
+            "debugAdapter": "dlv-dap",
+            "request": "attach",
+            "mode": "remote",
+            "port": 14000,
+            "host": "127.0.0.1",
+            "substitutePath": [
+                {
+                    "from": "${workspaceFolder}",
+                    "to": "/app"
+                },
+            ]
+        },
+        {
+            "name": "Dev Dataspace: Attach to provider",
+            "type": "go",
+            "debugAdapter": "dlv-dap",
+            "request": "attach",
+            "mode": "remote",
+            "port": 24000,
+            "host": "127.0.0.1",
+            "substitutePath": [
+                {
+                    "from": "${workspaceFolder}",
+                    "to": "/app"
+                },
+            ]
+        }
     ]
 }

@@ -19,6 +19,12 @@ build:
 	go mod download
 	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 GO111MODULE=on go build -ldflags="-extldflags=-static" -o _build/$(BINARY_NAME) ./cmd/
 
+debug:
+	-mkdir _build
+	go mod download
+	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 GO111MODULE=on go build -gcflags=all="-N -l" -ldflags="-extldflags=-static" -o _build/$(BINARY_NAME).debug ./cmd/
+
+
 test:
 	go test -v ./...
 
