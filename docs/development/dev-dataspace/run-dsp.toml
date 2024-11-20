@@ -1,0 +1,8 @@
+### GLOBAL OPTIONS ###
+debug = true       # Sets the output to a human readable format and sets the log level to debug. ($DEBUG)
+logLevel = "debug" # Sets the log level. Valid values: debug/info/warn/error ($LOGLEVEL)
+
+[client]
+address = "127.0.0.1:18081"
+insecure = true
+authMD = "User1"

@@ -42,7 +42,7 @@ Note, inside the docker-compose network, their names are also their hostnames.
 And to see if everything works correctly, try to request the provider's catalog:
 
 ```bash
-$ run-dsp -f ./dev-dataspace.conf client getcatalog http://run-dsp-provider:8080
+$ run-dsp -f ./run-dsp.toml client getcatalog http://run-dsp-provider:8080
 ```
 
 This should display a catalog of two separate files, for more information on how to use the client,
