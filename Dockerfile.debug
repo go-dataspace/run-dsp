@@ -12,7 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# This creates an image that
+# This creates an image that runs a run-dsp debug binary in dlv.
+###########################################
+# DO NOT USE ANYWHERE NEAR SENSITIVE DATA #
+###########################################
 FROM docker.io/library/golang:1.22.9 AS builder
 WORKDIR /app
 COPY . ./

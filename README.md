@@ -40,7 +40,14 @@ side from a single installation if properly configured.
 
 ## Getting started
 
+### Demo
+
+You can find how to setup a simple demo dataspace in the  [dev-dataspace](./docs/development/dev-dataspace/README.md)
+directory.
+
 ### Development
+
+#### Local
 
 To start developing on RUN-DSP itself, you can set up a basic setup like this:
 
@@ -57,6 +64,11 @@ $ go run ./cmd/ -c ./conf/localdev.toml sever
 ```
 
 You can now start hacking and testing RUN-DSP.
+
+#### In the demo dataspace
+
+The [dev-dataspace](./docs/development/dev-dataspace/README.md) demo setup can also be used to test
+and debug RUN-DSP.
 
 ### Integration
 
