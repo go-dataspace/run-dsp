@@ -25,6 +25,7 @@ services:
       dockerfile: Dockerfile.debug
     command: server
     environment:
+      - DEBUG=true
       - LOGLEVEL=debug
       - SERVER.PROVIDER.ADDRESS=reference-provider:9090
       - SERVER.PROVIDER.INSECURE=true
@@ -47,6 +48,7 @@ services:
     #     limits:
     #       cpus: '0.01'
     environment:
+      - DEBUG=true
       - LOGLEVEL=debug
       - SERVER.PROVIDER.ADDRESS=reference-provider:9090
       - SERVER.PROVIDER.INSECURE=true

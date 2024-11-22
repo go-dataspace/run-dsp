@@ -209,13 +209,18 @@ func (s *Server) GetProviderDatasetDownloadInformation(
 	}
 
 	logger.Info("Starting to monitor contract")
+	checks := 0
 	for contract.GetState() != statemachine.ContractStates.FINALIZED {
-		logger.Info("Contract not finalized", "state", contract.GetState().String())
+		// Only log the status every 10 checks.
+		if checks%10 == 0 {
+			logger.Info("Contract not finalized", "state", contract.GetState().String())
+		}
 		time.Sleep(1 * time.Second)
 		contract, err = s.store.GetConsumerContract(ctx, consumerPID)
 		if err != nil {
 			return nil, status.Errorf(codes.Internal, "could not get consumer contract with PID %s: %s", consumerPID, err)
 		}
+		checks++
 	}
 	logger.Info("Contract finalized, continuing")
 	transferConsumerPID := uuid.New()

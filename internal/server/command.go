@@ -25,6 +25,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"os/signal"
 	"path"
 	"sync"
 	"time"
@@ -212,6 +213,8 @@ type command struct {
 func (c *command) Run(ctx context.Context) error {
 	wg := &sync.WaitGroup{}
 	logger := logging.Extract(ctx)
+	ctx, cancel := signal.NotifyContext(ctx, os.Interrupt, os.Kill)
+	defer cancel()
 
 	logger.Info("Starting server",
 		"listenAddr", c.ListenAddr,
@@ -268,6 +271,7 @@ func (c *command) Run(ctx context.Context) error {
 		Handler:           mux,
 		ReadHeaderTimeout: 2 * time.Second,
 	}
+	// TODO: Shut down webserver gracefully and use the reconciler waitgroup.
 	return srv.ListenAndServe()
 }
 
@@ -300,10 +304,12 @@ func (c *command) startControl(
 		grpc.Creds(tlsCredentials),
 		grpc.ChainUnaryInterceptor(
 			grpclog.UnaryServerInterceptor(interceptorLogger(logger), logOpts...),
+			logging.UnaryServerInterceptor(logger),
 			authforwarder.UnaryInterceptor,
 		),
 		grpc.ChainStreamInterceptor(
 			grpclog.StreamServerInterceptor(interceptorLogger(logger), logOpts...),
+			logging.StreamServerInterceptor(logger),
 			authforwarder.StreamInterceptor,
 		),
 	)

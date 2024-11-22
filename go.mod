@@ -5,6 +5,7 @@ go 1.22.9
 require (
 	github.com/alecthomas/chroma/v2 v2.14.0
 	github.com/fatih/color v1.17.0
+	github.com/gammazero/deque v1.0.0
 	github.com/go-dataspace/run-dsrpc v0.0.3-alpha1
 	github.com/go-playground/validator/v10 v10.22.0
 	github.com/google/uuid v1.6.0
