@@ -257,7 +257,6 @@ func (c *command) Run(ctx context.Context) error {
 			authforwarder.HTTPMiddleware,
 		).Then(dsp.GetDSPRoutes(provider, store, reconciler, selfURL, pingResponse)),
 	))
-
 	if c.ControlEnabled {
 		ctlSVC := control.New(httpClient, store, reconciler, provider, selfURL)
 		err = c.startControl(ctx, wg, ctlSVC)
@@ -265,7 +264,6 @@ func (c *command) Run(ctx context.Context) error {
 			return err
 		}
 	}
-
 	srv := &http.Server{
 		Addr:              fmt.Sprintf("%s:%d", c.ListenAddr, c.Port),
 		Handler:           mux,

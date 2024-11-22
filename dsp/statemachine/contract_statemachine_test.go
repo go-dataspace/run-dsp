@@ -63,7 +63,7 @@ func decode[T any](d []byte) (T, error) {
 }
 
 const (
-	reconcileWait = 10 * time.Millisecond
+	reconcileWait = 1 * time.Second
 )
 
 var (
