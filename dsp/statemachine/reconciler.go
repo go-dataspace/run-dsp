@@ -74,7 +74,7 @@ type ReconciliationEntry struct {
 	Context     context.Context
 }
 
-// Reconciler is a tries to send out all the http requests, and retries them if something fails.
+// Reconciler tries to send out all the http requests, and retries them if something fails.
 // A request has an exponential backoff that is defined in calculateNextAttempt.
 // But simply said it takes the previous interval, adds 50% to that, and then randomises it a bit.
 //
