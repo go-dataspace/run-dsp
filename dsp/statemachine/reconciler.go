@@ -75,7 +75,7 @@ type ReconciliationEntry struct {
 }
 
 // Reconciler is a tries to send out all the http requests, and retries them if something fails.
-// A request has an exponential backoff that's defined in calculateNextAttempt.
+// A request has an exponential backoff that is defined in calculateNextAttempt.
 // But simply said it takes the previous interval, adds 50% to that, and then randomises it a bit.
 //
 // Right now, barely anything signals an immediate stop, but the option for that is already
