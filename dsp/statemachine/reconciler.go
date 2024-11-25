@@ -127,7 +127,7 @@ func (r *Reconciler) Add(entry ReconciliationEntry) {
 }
 
 func (r *Reconciler) manager() {
-	// We use a ticker to trigger iterations, this is to not hammer the queue in a tightloop.
+	// We use a ticker to trigger iterations, this is to not hammer the queue in a tight loop.
 	ticker := time.NewTicker(reconciliationMillis * time.Millisecond)
 	logger := logging.Extract(r.ctx)
 	for {
