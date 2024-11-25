@@ -231,7 +231,7 @@ func (r *Reconciler) terminate(ctx context.Context, entry ReconciliationEntry) {
 		}
 		logger.Debug("Could not update state", "err", err)
 	}
-	panic(fmt.Sprintf("Could not set state to terminate, %s", err))
+	panic(fmt.Sprintf("Could not set state to terminated, %s", err))
 }
 
 func calculateNextAttempt(currentInterval time.Duration, attempts int) (time.Time, time.Duration) {
