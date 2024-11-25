@@ -86,6 +86,7 @@ func initConfig() {
 		viper.SetConfigFile(cfgFile)
 	} else {
 		viper.AddConfigPath("/etc/run-dsp")
+		viper.AddConfigPath("$HOME/.config/run-dsp")
 		viper.SetConfigType("toml")
 		viper.SetConfigName("run-dsp.toml")
 	}
