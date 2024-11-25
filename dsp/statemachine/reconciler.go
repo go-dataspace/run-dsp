@@ -221,7 +221,7 @@ func (r *Reconciler) terminate(ctx context.Context, entry ReconciliationEntry) {
 	logger.Error("Terminating entry")
 
 	// For now, try 10 times to update the state to terminated, if it doesn't succeed, panic.
-	// We will handle this cleaner the future, but this is to make any bugs obvious.
+	// We will handle this cleaner in the future, but this is to make any bugs obvious.
 	var err error
 	for range 10 {
 		err = r.updateState(ctx, entry, "dspace:TERMINATED")
