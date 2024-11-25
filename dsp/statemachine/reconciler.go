@@ -78,7 +78,7 @@ type ReconciliationEntry struct {
 // A request has an exponential backoff that is defined in calculateNextAttempt.
 // But simply said it takes the previous interval, adds 50% to that, and then randomises it a bit.
 //
-// Right now, barely anything signals an immediate stop, but the option for that is already
+// Right now, almost nothing signals an immediate stop, but the option for that is already
 // available.
 type Reconciler struct {
 	ctx context.Context
