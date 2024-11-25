@@ -220,7 +220,7 @@ func (r *Reconciler) terminate(ctx context.Context, entry ReconciliationEntry) {
 	logger := logging.Extract(ctx)
 	logger.Error("Terminating entry")
 
-	// For now, try 10 times to update the state to terminated, if it doesn't succeed panic.
+	// For now, try 10 times to update the state to terminated, if it doesn't succeed, panic.
 	// We will handle this cleaner the future, but this is to make any bugs obvious.
 	var err error
 	for range 10 {
