@@ -330,13 +330,6 @@ func processCatalogue(cat []shared.Dataset) []*dspv1alpha1.Dataset {
 }
 
 func processDataset(dsp shared.Dataset) *dspv1alpha1.Dataset {
-	desc := make([]*dspv1alpha1.Multilingual, len(dsp.Description))
-	for i, v := range dsp.Description {
-		desc[i] = &dspv1alpha1.Multilingual{
-			Value:    v.Value,
-			Language: v.Language,
-		}
-	}
 	issued, err := time.Parse(time.RFC3339, dsp.Issued)
 	if err != nil {
 		issued = time.Unix(0, 0).UTC()
@@ -346,8 +339,28 @@ func processDataset(dsp shared.Dataset) *dspv1alpha1.Dataset {
 		modified = time.Unix(0, 0).UTC()
 	}
 	a := ""
+	mediaType := ""
+	var desc []*dspv1alpha1.Multilingual
+	var size int64
+	var checksum *dspv1alpha1.Checksum
 	if len(dsp.Distribution) > 0 {
-		a = dsp.Distribution[0].Format
+		d := dsp.Distribution[0]
+		desc = make([]*dspv1alpha1.Multilingual, len(d.Description))
+		for i, v := range d.Description {
+			desc[i] = &dspv1alpha1.Multilingual{
+				Value:    v.Value,
+				Language: v.Language,
+			}
+		}
+		a = d.Format
+		mediaType = d.MediaType
+		size = int64(d.ByteSize)
+		if d.Checksum != nil {
+			checksum = &dspv1alpha1.Checksum{
+				Algorithm: d.Checksum.Algorithm,
+				Value:     d.Checksum.Value,
+			}
+		}
 	}
 	return &dspv1alpha1.Dataset{
 		Id:            strings.TrimPrefix(dsp.ID, "urn:uuid:%s"),
@@ -359,6 +372,9 @@ func processDataset(dsp shared.Dataset) *dspv1alpha1.Dataset {
 		Issued:        timestamppb.New(issued),
 		Modified:      timestamppb.New(modified),
 		Metadata:      map[string]string{},
+		MediaType:     mediaType,
+		ByteSize:      size,
+		Checksum:      checksum,
 	}
 }
 

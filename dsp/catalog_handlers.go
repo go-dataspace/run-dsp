@@ -132,6 +132,14 @@ func (ch *dspHandlers) datasetRequestHandler(w http.ResponseWriter, req *http.Re
 }
 
 func processProviderDataset(pds *providerv1alpha1.Dataset, service shared.DataService) shared.Dataset {
+	var checksum *shared.Checksum
+	cs := pds.GetChecksum()
+	if cs != nil {
+		checksum = &shared.Checksum{
+			Algorithm: cs.GetAlgorithm(),
+			Value:     cs.GetValue(),
+		}
+	}
 	ds := shared.Dataset{
 		Resource: shared.Resource{
 			ID:       shared.IDToURN(pds.GetId()),
@@ -152,14 +160,14 @@ func processProviderDataset(pds *providerv1alpha1.Dataset, service shared.DataSe
 			ByteSize:       int(pds.GetByteSize()),
 			CompressFormat: pds.GetCompressFormat(),
 			PackageFormat:  pds.GetPackageFormat(),
-			Checksum:       nil,
+			Checksum:       checksum,
 		}},
 	}
 
 	for _, desc := range pds.GetDescription() {
 		ds.Distribution[0].Description = append(ds.Distribution[0].Description, shared.Multilanguage{
 			Value:    desc.GetValue(),
-			Language: desc.GetValue(),
+			Language: desc.GetLanguage(),
 		})
 	}
 
