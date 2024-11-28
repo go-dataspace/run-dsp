@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"net/url"
 	"slices"
+	"strconv"
 
 	"github.com/go-dataspace/run-dsp/dsp/shared"
 	"github.com/go-dataspace/run-dsp/odrl"
@@ -65,35 +66,47 @@ var validTransitions = map[ContractState][]ContractState{
 
 // Contract represents a contract negotiation.
 type Contract struct {
-	providerPID uuid.UUID
-	consumerPID uuid.UUID
-	state       ContractState
-	offer       odrl.Offer
-	agreement   odrl.Agreement
-	callback    *url.URL
-	self        *url.URL
-	role        DataspaceRole
+	ProviderPID uuid.UUID
+	ConsumerPID uuid.UUID
+	State       ContractState
+	Offer       odrl.Offer
+	Agreement   odrl.Agreement
+	Callback    *url.URL
+	Self        *url.URL
+	Role        DataspaceRole
 
 	initial bool
+	ro      bool
 }
 
-func (cn *Contract) GetProviderPID() uuid.UUID    { return cn.providerPID }
-func (cn *Contract) SetProviderPID(u uuid.UUID)   { cn.providerPID = u }
-func (cn *Contract) GetConsumerPID() uuid.UUID    { return cn.consumerPID }
-func (cn *Contract) SetConsumerPID(u uuid.UUID)   { cn.providerPID = u }
-func (cn *Contract) GetState() ContractState      { return cn.state }
-func (cn *Contract) GetOffer() odrl.Offer         { return cn.offer }
-func (cn *Contract) GetAgreement() odrl.Agreement { return cn.agreement }
-func (cn *Contract) GetRole() DataspaceRole       { return cn.role }
-func (cn *Contract) GetCallback() *url.URL        { return cn.callback }
-func (cn *Contract) GetSelf() *url.URL            { return cn.self }
+func (cn *Contract) GetProviderPID() uuid.UUID    { return cn.ProviderPID }
+func (cn *Contract) SetProviderPID(u uuid.UUID)   { cn.ProviderPID = u }
+func (cn *Contract) GetConsumerPID() uuid.UUID    { return cn.ConsumerPID }
+func (cn *Contract) SetConsumerPID(u uuid.UUID)   { cn.ProviderPID = u }
+func (cn *Contract) GetState() ContractState      { return cn.State }
+func (cn *Contract) GetOffer() odrl.Offer         { return cn.Offer }
+func (cn *Contract) GetAgreement() odrl.Agreement { return cn.Agreement }
+func (cn *Contract) GetRole() DataspaceRole       { return cn.Role }
+func (cn *Contract) GetCallback() *url.URL        { return cn.Callback }
+func (cn *Contract) GetSelf() *url.URL            { return cn.Self }
 func (cn *Contract) GetContract() *Contract       { return cn }
 
-func (cn *Contract) SetState(state ContractState) error {
-	if !slices.Contains(validTransitions[cn.state], state) {
-		return fmt.Errorf("can't transition from %s to %s", cn.state, state)
+func (cn *Contract) SetReadOnly()   { cn.ro = true }
+func (cn *Contract) ReadOnly() bool { return cn.ro }
+
+func (cn *Contract) StorageKey() []byte {
+	id := cn.ConsumerPID
+	if cn.Role == DataspaceProvider {
+		id = cn.ProviderPID
 	}
-	cn.state = state
+	return MkTransferKey(id, cn.Role)
+}
+
+func (cn *Contract) SetState(state ContractState) error {
+	if !slices.Contains(validTransitions[cn.State], state) {
+		return fmt.Errorf("can't transition from %s to %s", cn.State, state)
+	}
+	cn.State = state
 	return nil
 }
 
@@ -103,7 +116,7 @@ func (cn *Contract) SetCallback(u string) error {
 	if err != nil {
 		return fmt.Errorf("invalid URL: %w", err)
 	}
-	cn.callback = nu
+	cn.Callback = nu
 	return nil
 }
 
@@ -122,14 +135,14 @@ func (cn *Contract) GetContractNegotiation() shared.ContractNegotiation {
 // we implement a reconciliation loop.
 func (cn *Contract) Copy() *Contract {
 	return &Contract{
-		providerPID: cn.providerPID,
-		consumerPID: cn.consumerPID,
-		state:       cn.state,
-		offer:       cn.offer,
-		agreement:   cn.agreement,
-		callback:    mustURL(cn.callback),
-		self:        mustURL(cn.self),
-		role:        cn.role,
+		ProviderPID: cn.ProviderPID,
+		ConsumerPID: cn.ConsumerPID,
+		State:       cn.State,
+		Offer:       cn.Offer,
+		Agreement:   cn.Agreement,
+		Callback:    mustURL(cn.Callback),
+		Self:        mustURL(cn.Self),
+		Role:        cn.Role,
 		initial:     cn.initial,
 	}
 }
@@ -140,4 +153,8 @@ func mustURL(u *url.URL) *url.URL {
 		panic(err.Error())
 	}
 	return n
+}
+
+func MkContractKey(id uuid.UUID, role DataspaceRole) []byte {
+	return []byte("contract-" + id.String() + "-" + strconv.Itoa(int(role)))
 }

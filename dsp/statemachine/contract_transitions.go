@@ -108,7 +108,7 @@ func (cn *ContractNegotiationInitial) Recv(
 			logger.Error("could not transition state", "err", err)
 			return ctx, nil, fmt.Errorf("could not set state: %w", err)
 		}
-		cn.Contract.providerPID = uuid.New()
+		cn.Contract.ProviderPID = uuid.New()
 		cn.Contract.initial = true
 		if err := cn.a.PutProviderContract(ctx, cn.GetContract()); err != nil {
 			logger.Error("failed to save contract", "err", err)
@@ -126,7 +126,7 @@ func (cn *ContractNegotiationInitial) Recv(
 			logger.Error("could not transition state", "err", err)
 			return ctx, nil, fmt.Errorf("could not set state: %w", err)
 		}
-		cn.Contract.consumerPID = uuid.New()
+		cn.Contract.ConsumerPID = uuid.New()
 		cn.Contract.initial = true
 		if err := cn.a.PutConsumerContract(ctx, cn.GetContract()); err != nil {
 			logger.Error("failed to save contract", "err", err)
@@ -205,7 +205,7 @@ func (cn *ContractNegotiationRequested) Recv(
 		callbackAddress = t.CallbackAddress
 		targetState = ContractStates.OFFERED
 		if ppid, err := uuid.Parse(providerPID); err == nil && cn.GetProviderPID() == emptyUUID {
-			cn.Contract.providerPID = ppid
+			cn.Contract.ProviderPID = ppid
 		}
 		ctx, logger = logging.InjectLabels(ctx,
 			"recv_msg_type", fmt.Sprintf("%T", t),
@@ -215,7 +215,7 @@ func (cn *ContractNegotiationRequested) Recv(
 		consumerPID = t.ConsumerPID
 		providerPID = t.ProviderPID
 		callbackAddress = t.CallbackAddress
-		cn.Contract.agreement = t.Agreement
+		cn.Contract.Agreement = t.Agreement
 		targetState = ContractStates.AGREED
 		ctx, logger = logging.InjectLabels(ctx,
 			"recv_msg_type", fmt.Sprintf("%T", t),
@@ -263,7 +263,7 @@ func (cn *ContractNegotiationOffered) Recv(
 		callbackAddress = t.CallbackAddress
 		targetState = ContractStates.REQUESTED
 		if ppid, err := uuid.Parse(consumerPID); err == nil && cn.GetConsumerPID() == emptyUUID {
-			cn.Contract.consumerPID = ppid
+			cn.Contract.ConsumerPID = ppid
 		}
 		ctx, logger = logging.InjectLabels(ctx,
 			"recv_msg_type", fmt.Sprintf("%T", t),
@@ -325,7 +325,7 @@ func (cn *ContractNegotiationAccepted) Recv(
 			"recv_msg_type", fmt.Sprintf("%T", t),
 		)
 		logger.Debug("Received message")
-		cn.agreement = t.Agreement
+		cn.Agreement = t.Agreement
 		return verifyAndTransform(ctx, cn, t.ProviderPID, t.ConsumerPID, t.CallbackAddress, ContractStates.AGREED)
 	case shared.ContractNegotiationTerminationMessage:
 		return processTermination(ctx, t, cn)
@@ -451,13 +451,13 @@ func NewContract(
 	role DataspaceRole,
 ) (context.Context, ContractNegotiationState, error) {
 	contract := &Contract{
-		providerPID: providerPID,
-		consumerPID: consumerPID,
-		state:       state,
-		offer:       offer,
-		callback:    callback,
-		self:        self,
-		role:        role,
+		ProviderPID: providerPID,
+		ConsumerPID: consumerPID,
+		State:       state,
+		Offer:       offer,
+		Callback:    callback,
+		Self:        self,
+		Role:        role,
 	}
 	var err error
 	if role == DataspaceConsumer {
@@ -505,7 +505,7 @@ func GetContractNegotiation(
 		"contract_consumerPID", cns.GetConsumerPID().String(),
 		"contract_providerPID", cns.GetProviderPID().String(),
 		"contract_state", cns.GetState().String(),
-		"contract_role", cns.GetContract().role,
+		"contract_role", cns.GetContract().Role,
 	)
 	logger.Debug("Found contract")
 	return ctx, cns
@@ -552,7 +552,7 @@ func verifyAndTransform(
 		return ctx, nil, fmt.Errorf("could not set state: %w", err)
 	}
 
-	if cn.GetContract().role == DataspaceConsumer {
+	if cn.GetContract().Role == DataspaceConsumer {
 		err = cn.GetArchiver().PutConsumerContract(ctx, cn.GetContract())
 	} else {
 		err = cn.GetArchiver().PutProviderContract(ctx, cn.GetContract())
@@ -562,8 +562,8 @@ func verifyAndTransform(
 		return ctx, nil, fmt.Errorf("failed to save contract: %w", err)
 	}
 
-	if cn.GetContract().role == DataspaceConsumer && targetState == ContractStates.FINALIZED {
-		err = cn.GetArchiver().PutAgreement(ctx, &cn.GetContract().Copy().agreement)
+	if cn.GetContract().Role == DataspaceConsumer && targetState == ContractStates.FINALIZED {
+		err = cn.GetArchiver().PutAgreement(ctx, &cn.GetContract().Copy().Agreement)
 		if err != nil {
 			logger.Error("Could not set state", "err", err)
 			return ctx, nil, fmt.Errorf("failed to save agreement: %w", err)

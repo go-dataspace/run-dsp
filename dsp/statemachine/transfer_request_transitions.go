@@ -70,9 +70,9 @@ func (tr *TransferRequestNegotiationInitial) Recv(
 		if err != nil {
 			return nil, fmt.Errorf("could not find target: %w", err)
 		}
-		tr.providerPID = uuid.New()
+		tr.ProviderPID = uuid.New()
 		return verifyAndTransformTransfer(
-			ctx, tr, tr.providerPID.URN(), t.ConsumerPID, TransferRequestStates.TRANSFERREQUESTED)
+			ctx, tr, tr.ProviderPID.URN(), t.ConsumerPID, TransferRequestStates.TRANSFERREQUESTED)
 	default:
 		return nil, fmt.Errorf("invalid message type")
 	}
@@ -97,11 +97,11 @@ func (tr *TransferRequestNegotiationRequested) Recv(
 			if err != nil {
 				return nil, fmt.Errorf("invalid UUID for provider PID: %w", err)
 			}
-			tr.providerPID = u
+			tr.ProviderPID = u
 		}
-		if tr.publishInfo == nil {
+		if tr.PublishInfo == nil {
 			var err error
-			tr.publishInfo, err = dataAddressToPublishInfo(t.DataAddress)
+			tr.PublishInfo, err = dataAddressToPublishInfo(t.DataAddress)
 			if err != nil {
 				return nil, fmt.Errorf("invalid dataAddress supplied: %w", err)
 			}
@@ -124,7 +124,7 @@ func (tr *TransferRequestNegotiationRequested) Send(ctx context.Context) (func()
 		if err != nil {
 			return func() {}, err
 		}
-		tr.publishInfo = resp.PublishInfo
+		tr.PublishInfo = resp.PublishInfo
 	case DirectionPush:
 		// TODO: Signal provider to start uploading dataset here.
 		return func() {}, fmt.Errorf("push flow: %w", ErrNotImplemented)
@@ -245,19 +245,19 @@ func NewTransferRequest(
 		return nil, fmt.Errorf("couldn't parse target URN: %w", err)
 	}
 	traReq := &TransferRequest{
-		state:             state,
-		consumerPID:       consumerPID,
-		agreementID:       agreementID,
-		target:            targetID,
-		format:            format,
-		callback:          callback,
-		self:              self,
-		role:              role,
-		publishInfo:       publishInfo,
-		transferDirection: DirectionPush,
+		State:             state,
+		ConsumerPID:       consumerPID,
+		AgreementID:       agreementID,
+		Target:            targetID,
+		Format:            format,
+		Callback:          callback,
+		Self:              self,
+		Role:              role,
+		PublishInfo:       publishInfo,
+		TransferDirection: DirectionPush,
 	}
 	if publishInfo == nil {
-		traReq.transferDirection = DirectionPull
+		traReq.TransferDirection = DirectionPull
 	}
 	if role == DataspaceConsumer {
 		err = store.PutConsumerTransfer(ctx, traReq)

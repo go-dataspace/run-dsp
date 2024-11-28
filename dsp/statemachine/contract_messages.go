@@ -167,7 +167,7 @@ func sendContractOffer(ctx context.Context, r *Reconciler, c *Contract) (func(),
 
 func sendContractAgreement(ctx context.Context, r *Reconciler, c *Contract, a Archiver) (func(), error) {
 	ctx, logger := logging.InjectLabels(ctx, "operation", "sendContractAgreement")
-	c.agreement = odrl.Agreement{
+	c.Agreement = odrl.Agreement{
 		PolicyClass: odrl.PolicyClass{},
 		Type:        "odrl:Agreement",
 		ID:          uuid.New().URN(),
@@ -188,7 +188,7 @@ func sendContractAgreement(ctx context.Context, r *Reconciler, c *Contract, a Ar
 		logger.Error("Couldn't validate contract agreement", "err", err)
 		return func() {}, fmt.Errorf("couldn't validate contract agreement: %w", err)
 	}
-	if err := a.PutAgreement(ctx, &c.agreement); err != nil {
+	if err := a.PutAgreement(ctx, &c.Agreement); err != nil {
 		logger.Error("Couldn't validate contract agreement", "err", err)
 		return func() {}, fmt.Errorf("couldn't validate contract agreement: %w", err)
 	}
