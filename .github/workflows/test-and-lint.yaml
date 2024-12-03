@@ -49,7 +49,7 @@ jobs:
       - name: lint
         uses: golangci/golangci-lint-action@v6
         with:
-          version: v1.58
+          version: v1.62.2
 
   vulncheck:
     runs-on: ubuntu-latest
