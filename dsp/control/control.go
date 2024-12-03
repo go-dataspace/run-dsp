@@ -318,7 +318,6 @@ func (s *Server) SignalTransferComplete(
 		return nil, status.Errorf(codes.Internal, "Couldn't create transfer request: %s", err)
 	}
 	apply()
-	// TODO: potentially save here
 	for trReq.GetState() != transfer.States.COMPLETED {
 		time.Sleep(1 * time.Second)
 		trReq, err = s.store.GetTransferR(ctx, id, dspconstants.DataspaceConsumer)

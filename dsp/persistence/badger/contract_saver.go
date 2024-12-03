@@ -32,7 +32,7 @@ func (sp *StorageProvider) GetContractR(
 	pid uuid.UUID,
 	role constants.DataspaceRole,
 ) (*contract.Negotiation, error) {
-	key := contract.GenerateKey(pid, role)
+	key := contract.GenerateStorageKey(pid, role)
 	logger := logging.Extract(ctx).With("pid", pid, "role", role, "key", string(key))
 	b, err := get(sp.db, key)
 	if err != nil {
@@ -55,7 +55,7 @@ func (sp *StorageProvider) GetContractRW(
 	pid uuid.UUID,
 	role constants.DataspaceRole,
 ) (*contract.Negotiation, error) {
-	key := contract.GenerateKey(pid, role)
+	key := contract.GenerateStorageKey(pid, role)
 	ctx, _ = logging.InjectLabels(ctx, "type", "contract", "pid", pid, "role", role, "key", string(key))
 	b, err := getLocked(ctx, sp, key)
 	if err != nil {

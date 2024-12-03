@@ -12,5 +12,5 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package contract contains the Contract type and all related code.
+// Package contract contains the Negotiation type and all related code.
 package contract

@@ -16,7 +16,7 @@ package transfer
 
 type state int
 
-//go:generate goenums transfer_request_state.go
+//go:generate goenums state.go
 const (
 	initial    state = iota // INITIAL
 	requested               // dspace:REQUESTED

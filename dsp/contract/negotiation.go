@@ -125,8 +125,8 @@ func FromBytes(b []byte) (*Negotiation, error) {
 	}, nil
 }
 
-// GenerateKey generates a key for a contract negotiation.
-func GenerateKey(id uuid.UUID, role constants.DataspaceRole) []byte {
+// GenerateStorageKey generates a key for a contract negotiation.
+func GenerateStorageKey(id uuid.UUID, role constants.DataspaceRole) []byte {
 	return []byte("negotiation-" + id.String() + "-" + strconv.Itoa(int(role)))
 }
 
@@ -190,7 +190,7 @@ func (cn *Negotiation) StorageKey() []byte {
 	if cn.role == constants.DataspaceProvider {
 		id = cn.providerPID
 	}
-	return GenerateKey(id, cn.role)
+	return GenerateStorageKey(id, cn.role)
 }
 
 // Property setters.
@@ -219,7 +219,7 @@ func (cn *Negotiation) ToBytes() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-// GetContractNegotiation returns a ContractNegotion message.
+// GetContractNegotiation returns a ContractNegotiation message.
 func (cn *Negotiation) GetContractNegotiation() shared.ContractNegotiation {
 	return shared.ContractNegotiation{
 		Context:     shared.GetDSPContext(),
