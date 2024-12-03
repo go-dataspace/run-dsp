@@ -27,6 +27,7 @@ import (
 	"os"
 	"os/signal"
 	"path"
+	"strings"
 	"sync"
 	"time"
 
@@ -50,51 +51,105 @@ import (
 	sloghttp "github.com/samber/slog-http"
 )
 
+// Viper keys.
+const (
+	dspAddress     = "sever.dsp.address"
+	dspPort        = "server.dsp.port"
+	dspExternalURL = "server.dsp.externalURL"
+
+	providerAddress       = "server.provider.address"
+	providerInsecure      = "server.provider.insecure"
+	providerCACert        = "server.provider.caCert"
+	providerClientCert    = "server.provider.clientCert"
+	providerClientCertKey = "server.provider.clientCertKey"
+
+	controlEnabled                  = "server.control.enabled"
+	controlAddr                     = "server.control.address"
+	controlPort                     = "server.control.port"
+	controlInsecure                 = "server.control.insecure"
+	controlCert                     = "server.control.cert"
+	controlCertKey                  = "server.control.certKey"
+	controlVerifyClientCertificates = "server.control.verifyClientCerts"
+	controlClientCACert             = "server.control.clientCACert"
+
+	persistenceBackend = "server.persistence.backend"
+
+	persistenceBadgerMemory = "server.persistence.badger.memory"
+	persistenceBadgerDBPath = "server.persistence.badger.dbPath"
+)
+
+// validStorageBackends are all the persistence backends we support. Right now, it's only badger.
+var validStorageBackends = []string{"badger"}
+
 // init initialises all the flags for the command.
+//
+//nolint:funlen // As all the flags live here, this will get rather long, TODO: split up.
 func init() {
 	cfg.AddPersistentFlag(
-		Command, "server.dsp.address", "dsp-address", "address to listen on for dataspace operations", "0.0.0.0")
+		Command, dspAddress, "dsp-address", "address to listen on for dataspace operations", "0.0.0.0")
 	cfg.AddPersistentFlag(
-		Command, "server.dsp.port", "dsp-port", "port to listen on for dataspace operations", 8080)
+		Command, dspPort, "dsp-port", "port to listen on for dataspace operations", 8080)
 	cfg.AddPersistentFlag(
 		Command,
-		"server.dsp.externalURL",
+		dspExternalURL,
 		"external-url",
 		"URL that the dataspace service is reachable by from the dataspace",
 		"",
 	)
 
 	cfg.AddPersistentFlag(
-		Command, "server.provider.address", "provider-address", "Address of the provider gRPC endpoint", "")
+		Command, providerAddress, "provider-address", "Address of the provider gRPC endpoint", "")
 	cfg.AddPersistentFlag(
-		Command, "server.provider.insecure", "provider-insecure", "Disable TLS when connecting to provider", false)
+		Command, providerInsecure, "provider-insecure", "Disable TLS when connecting to provider", false)
 	cfg.AddPersistentFlag(
-		Command, "server.provider.caCert", "provider-ca-cert", "CA certificate of provider cert issuer", "")
+		Command, providerCACert, "provider-ca-cert", "CA certificate of provider cert issuer", "")
 	cfg.AddPersistentFlag(
-		Command, "server.provider.clientCert", "provider-client-cert", "Client certificate to use with provider", "")
+		Command, providerClientCert, "provider-client-cert", "Client certificate to use with provider", "")
 	cfg.AddPersistentFlag(
-		Command, "server.provider.clientCertKey", "provider-client-cert-key", "Key for client certificate", "")
+		Command, providerClientCertKey, "provider-client-cert-key", "Key for client certificate", "")
 
-	cfg.AddPersistentFlag(Command, "server.control.enabled", "control-enabled", "enable gRPC control service", false)
+	cfg.AddPersistentFlag(Command, controlEnabled, "control-enabled", "enable gRPC control service", false)
 	cfg.AddPersistentFlag(
-		Command, "server.control.address", "control-address", "address for the control service to listen on", "0.0.0.0")
+		Command, controlAddr, "control-address", "address for the control service to listen on", "0.0.0.0")
 	cfg.AddPersistentFlag(
-		Command, "server.control.port", "control-port", "port for the control service to listen on", 8081)
+		Command, controlPort, "control-port", "port for the control service to listen on", 8081)
 	cfg.AddPersistentFlag(
-		Command, "server.control.insecure", "control-insecure", "disable TLS for the control service", false)
+		Command, controlInsecure, "control-insecure", "disable TLS for the control service", false)
 	cfg.AddPersistentFlag(
-		Command, "server.control.cert", "control-cert", "TLS certificate for the control service", "")
+		Command, controlCert, "control-cert", "TLS certificate for the control service", "")
 	cfg.AddPersistentFlag(
-		Command, "server.control.certKey", "control-cert-key", "Key for control service certificate", "")
+		Command, controlCertKey, "control-cert-key", "Key for control service certificate", "")
 	cfg.AddPersistentFlag(
 		Command,
-		"server.control.verifyClientCerts",
+		controlVerifyClientCertificates,
 		"control-verify-client-certs",
 		"Require CA issued client certificates",
 		false,
 	)
 	cfg.AddPersistentFlag(
-		Command, "server.control.clientCACert", "control-client-ca-cert", "CA certificate of client cert issuer", "")
+		Command, controlClientCACert, "control-client-ca-cert", "CA certificate of client cert issuer", "")
+
+	cfg.AddPersistentFlag(
+		Command,
+		persistenceBackend,
+		"persistence-backend",
+		fmt.Sprintf(
+			"What backend to store state in. Options: %s",
+			strings.Join(validStorageBackends, ","),
+		),
+		"badger",
+	)
+
+	cfg.AddPersistentFlag(
+		Command,
+		persistenceBadgerMemory,
+		"badger-in-memory",
+		"Put badger database in memory, will not survive restarts",
+		false,
+	)
+	cfg.AddPersistentFlag(
+		Command, persistenceBadgerDBPath, "badger-dbpath", "Path to store the badger database", "",
+	)
 }
 
 // Command validates the configuration and then runs the server.
@@ -104,46 +159,46 @@ var Command = &cobra.Command{
 	Long: `Starts the RUN-DSP connector, which then connects to the provider and will start
 				serving dataspace requests`,
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
-		_, err := url.Parse(viper.GetString("server.dsp.externalURL"))
+		_, err := url.Parse(viper.GetString(dspExternalURL))
 		if err != nil {
 			return fmt.Errorf("Invalid external URL: %w", err)
 		}
-		err = cfg.CheckListenPort(viper.GetString("server.dsp.address"), viper.GetInt("server.dsp.port"))
+		err = cfg.CheckListenPort(viper.GetString(dspAddress), viper.GetInt(dspPort))
 		if err != nil {
 			return err
 		}
 
-		err = cfg.CheckConnectAddr(viper.GetString("server.provider.address"))
+		err = cfg.CheckConnectAddr(viper.GetString(providerAddress))
 		if err != nil {
 			return err
 		}
 
-		if !viper.GetBool("server.provider.insecure") {
+		if !viper.GetBool(providerInsecure) {
 			err = cfg.CheckFilesExist(
-				viper.GetString("server.provider.caCert"),
-				viper.GetString("server.provider.clientCert"),
-				viper.GetString("server.provider.clientCertKey"),
+				viper.GetString(providerCACert),
+				viper.GetString(providerClientCert),
+				viper.GetString(providerClientCertKey),
 			)
 			if err != nil {
 				return err
 			}
 		}
 
-		if viper.GetBool("server.control.enabled") {
-			err = cfg.CheckListenPort(viper.GetString("server.control.address"), viper.GetInt("server.control.port"))
+		if viper.GetBool(controlEnabled) {
+			err = cfg.CheckListenPort(viper.GetString(controlAddr), viper.GetInt(controlPort))
 			if err != nil {
 				return err
 			}
-			if !viper.GetBool("server.control.insecure") {
+			if !viper.GetBool(controlInsecure) {
 				err = cfg.CheckFilesExist(
-					viper.GetString("server.control.cert"),
-					viper.GetString("server.control.certKey"),
+					viper.GetString(controlCert),
+					viper.GetString(controlCertKey),
 				)
 				if err != nil {
 					return err
 				}
-				if viper.GetBool("server.control.verifyClientCerts") {
-					err = cfg.CheckFilesExist(viper.GetString("server.control.clientCACert"))
+				if viper.GetBool(controlVerifyClientCertificates) {
+					err = cfg.CheckFilesExist(viper.GetString(controlClientCACert))
 					if err != nil {
 						return err
 					}
@@ -152,30 +207,41 @@ var Command = &cobra.Command{
 
 		}
 
+		switch viper.GetString(persistenceBackend) {
+		case "badger":
+			mem := viper.GetBool(persistenceBadgerMemory)
+			path := viper.GetString(persistenceBadgerDBPath)
+			if mem && path != "" {
+				return fmt.Errorf("in-memory database is mutually exclusive with a database path")
+			}
+		default:
+			return fmt.Errorf("invalid persistence backend")
+		}
+
 		return nil
 	},
 	RunE: func(cmd *cobra.Command, args []string) error {
-		u, err := url.Parse(viper.GetString("server.dsp.externalURL"))
+		u, err := url.Parse(viper.GetString(dspExternalURL))
 		if err != nil {
 			panic(err.Error())
 		}
 		c := command{
-			ListenAddr:                      viper.GetString("server.dsp.address"),
-			Port:                            viper.GetInt("server.dsp.port"),
+			ListenAddr:                      viper.GetString(dspAddress),
+			Port:                            viper.GetInt(dspPort),
 			ExternalURL:                     u,
-			ProviderAddress:                 viper.GetString("server.provider.address"),
-			ProviderInsecure:                viper.GetBool("server.provider.insecure"),
-			ProviderCACert:                  viper.GetString("server.provider.caCert"),
-			ProviderClientCert:              viper.GetString("server.provider.clientCert"),
-			ProviderClientCertKey:           viper.GetString("server.provider.clientCert"),
-			ControlEnabled:                  viper.GetBool("server.control.enabled"),
-			ControlListenAddr:               viper.GetString("server.control.address"),
-			ControlPort:                     viper.GetInt("server.control.port"),
-			ControlInsecure:                 viper.GetBool("server.control.insecure"),
-			ControlCert:                     viper.GetString("server.control.cert"),
-			ControlCertKey:                  viper.GetString("server.control.certKey"),
-			ControlVerifyClientCertificates: viper.GetBool("server.control.verifyClientCerts"),
-			ControlClientCACert:             viper.GetString("server.control.clientCACert"),
+			ProviderAddress:                 viper.GetString(providerAddress),
+			ProviderInsecure:                viper.GetBool(providerInsecure),
+			ProviderCACert:                  viper.GetString(providerCACert),
+			ProviderClientCert:              viper.GetString(providerClientCert),
+			ProviderClientCertKey:           viper.GetString(providerClientCertKey),
+			ControlEnabled:                  viper.GetBool(controlEnabled),
+			ControlListenAddr:               viper.GetString(controlAddr),
+			ControlPort:                     viper.GetInt(controlPort),
+			ControlInsecure:                 viper.GetBool(controlInsecure),
+			ControlCert:                     viper.GetString(controlCert),
+			ControlCertKey:                  viper.GetString(controlCertKey),
+			ControlVerifyClientCertificates: viper.GetBool(controlVerifyClientCertificates),
+			ControlClientCACert:             viper.GetString(controlClientCACert),
 		}
 		ctx, ok := viper.Get("initCTX").(context.Context)
 		if !ok {
@@ -191,7 +257,7 @@ type command struct {
 
 	ExternalURL *url.URL
 
-	// GRPC settings for the provider
+	// GRPC settings for the provider.
 	ProviderAddress       string
 	ProviderInsecure      bool
 	ProviderCACert        string
@@ -207,6 +273,13 @@ type command struct {
 	ControlCertKey                  string
 	ControlVerifyClientCertificates bool
 	ControlClientCACert             string
+
+	// Persistence settings
+	PersistenceBackend string
+
+	// Badger backend settings.
+	BadgerMemoryDB bool
+	BadgerDBPath   string
 }
 
 // Run starts the server.
@@ -215,25 +288,25 @@ func (c *command) Run(ctx context.Context) error {
 	logger := logging.Extract(ctx)
 	ctx, cancel := signal.NotifyContext(ctx, os.Interrupt, os.Kill)
 	defer cancel()
-
 	logger.Info("Starting server",
 		"listenAddr", c.ListenAddr,
 		"port", c.Port,
 		"externalURL", c.ExternalURL,
 	)
-
 	provider, conn, err := c.getProvider(ctx)
 	if err != nil {
 		return err
 	}
 	defer conn.Close()
-
 	pingResponse, err := provider.Ping(ctx, &providerv1.PingRequest{})
 	if err != nil {
 		return fmt.Errorf("could not ping provider: %w", err)
 	}
+	store, err := c.getStorageProvider(ctx)
+	if err != nil {
+		return err
+	}
 
-	store := statemachine.NewMemoryArchiver()
 	httpClient := &shared.HTTPRequester{}
 	reconciler := statemachine.NewReconciler(ctx, httpClient, store)
 	reconciler.Run()

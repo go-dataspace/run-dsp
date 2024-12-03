@@ -64,6 +64,11 @@ func (sp *StorageProvider) ReleaseLock(ctx context.Context, k lockKey) error {
 		logger.Debug("Attempting to release lock")
 		err := txn.Delete(k.key())
 		if err != nil {
+			if errors.Is(err, badger.ErrKeyNotFound) {
+				// No lock found is essentially released, this will most likely only happen on
+				// first time saves.
+				return nil
+			}
 			logger.Error("Could not release lock", "err", err)
 		}
 		return err

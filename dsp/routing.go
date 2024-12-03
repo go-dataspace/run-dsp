@@ -19,6 +19,7 @@ import (
 	"net/http"
 	"net/url"
 
+	"github.com/go-dataspace/run-dsp/dsp/persistence"
 	"github.com/go-dataspace/run-dsp/dsp/statemachine"
 	providerv1 "github.com/go-dataspace/run-dsrpc/gen/go/dsp/v1alpha1"
 )
@@ -35,7 +36,7 @@ func GetWellKnownRoutes() http.Handler {
 
 func GetDSPRoutes(
 	provider providerv1.ProviderServiceClient,
-	store statemachine.Archiver,
+	store persistence.StorageProvider,
 	reconciler *statemachine.Reconciler,
 	selfURL *url.URL,
 	pingResponse *providerv1.PingResponse,

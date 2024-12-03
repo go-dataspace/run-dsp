@@ -12,17 +12,21 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package statemachine
+package server
 
-type transferRequestState int
+import (
+	"context"
+	"fmt"
 
-//go:generate goenums transfer_request_state.go
-const (
-	transferInitial    transferRequestState = iota // INITIAL
-	transferRequested                              // dspace:REQUESTED
-	started                                        // dspace:STARTED
-	suspended                                      // dspace:SUSPENDED
-	completed                                      // dspace:COMPLETED
-	transferTerminated                             // dspace:TERMINATED
-
+	"github.com/go-dataspace/run-dsp/dsp/persistence"
+	"github.com/go-dataspace/run-dsp/dsp/persistence/badger"
 )
+
+func (c *command) getStorageProvider(ctx context.Context) (persistence.StorageProvider, error) {
+	switch c.PersistenceBackend {
+	case "badger":
+		return badger.New(ctx, c.BadgerMemoryDB, c.BadgerDBPath)
+	default:
+		return nil, fmt.Errorf("Invalid backend")
+	}
+}

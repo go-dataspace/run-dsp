@@ -24,7 +24,11 @@ import (
 	"time"
 
 	"github.com/gammazero/deque"
+	"github.com/go-dataspace/run-dsp/dsp/constants"
+	"github.com/go-dataspace/run-dsp/dsp/contract"
+	"github.com/go-dataspace/run-dsp/dsp/persistence"
 	"github.com/go-dataspace/run-dsp/dsp/shared"
+	"github.com/go-dataspace/run-dsp/dsp/transfer"
 	"github.com/go-dataspace/run-dsp/logging"
 	"github.com/google/uuid"
 )
@@ -66,7 +70,7 @@ type reconciliationOperation struct {
 type ReconciliationEntry struct {
 	EntityID    uuid.UUID
 	Type        ReconciliationType
-	Role        DataspaceRole
+	Role        constants.DataspaceRole
 	TargetState string
 	Method      string
 	URL         *url.URL
@@ -84,7 +88,7 @@ type Reconciler struct {
 	ctx context.Context
 	c   chan reconciliationOperation
 	r   shared.Requester
-	a   Archiver
+	s   persistence.StorageProvider
 	q   *deque.Deque[reconciliationOperation]
 
 	// Waitgroup to keep track of management/worker processes, not called from the command yet,
@@ -93,7 +97,7 @@ type Reconciler struct {
 	sync.Mutex
 }
 
-func NewReconciler(ctx context.Context, r shared.Requester, a Archiver) *Reconciler {
+func NewReconciler(ctx context.Context, r shared.Requester, s persistence.StorageProvider) *Reconciler {
 	q := &deque.Deque[reconciliationOperation]{}
 	q.Grow(initialQueueSize)
 
@@ -101,7 +105,7 @@ func NewReconciler(ctx context.Context, r shared.Requester, a Archiver) *Reconci
 		ctx: ctx,
 		c:   make(chan reconciliationOperation),
 		r:   r,
-		a:   a,
+		s:   s,
 		q:   q,
 	}
 }
@@ -270,20 +274,14 @@ func (r *Reconciler) updateState(
 	}
 }
 
-//nolint:dupl
 func (c *Reconciler) setTransferState(
-	ctx context.Context, state string, role DataspaceRole, id uuid.UUID,
+	ctx context.Context, state string, role constants.DataspaceRole, id uuid.UUID,
 ) error {
-	ts, err := ParseTransferRequestState(state)
+	ts, err := transfer.ParseState(state)
 	if err != nil {
 		return fmt.Errorf("%w: Invalid state: %w", ErrFatal, err)
 	}
-	var tr *TransferRequest
-	if role == DataspaceConsumer {
-		tr, err = c.a.GetConsumerTransfer(ctx, id)
-	} else {
-		tr, err = c.a.GetProviderTransfer(ctx, id)
-	}
+	tr, err := c.s.GetTransferRW(ctx, id, role)
 	if err != nil {
 		return fmt.Errorf("Can't find transfer request: %w", err)
 	}
@@ -291,31 +289,22 @@ func (c *Reconciler) setTransferState(
 	if err != nil {
 		return fmt.Errorf("Can't change state: %w", err)
 	}
-	if role == DataspaceConsumer {
-		err = c.a.PutConsumerTransfer(ctx, tr)
-	} else {
-		err = c.a.PutProviderTransfer(ctx, tr)
-	}
+	err = c.s.PutTransfer(ctx, tr)
 	if err != nil {
 		return fmt.Errorf("Can't save transfer request: %w", err)
 	}
 	return nil
 }
 
-//nolint:dupl
 func (c *Reconciler) setContractState(
-	ctx context.Context, state string, role DataspaceRole, id uuid.UUID,
+	ctx context.Context, state string, role constants.DataspaceRole, id uuid.UUID,
 ) error {
-	cs, err := ParseContractState(state)
+	cs, err := contract.ParseState(state)
 	if err != nil {
 		return fmt.Errorf("%w: Invalid state: %w", ErrFatal, err)
 	}
-	var con *Contract
-	if role == DataspaceConsumer {
-		con, err = c.a.GetConsumerContract(ctx, id)
-	} else {
-		con, err = c.a.GetProviderContract(ctx, id)
-	}
+	var con *contract.Negotiation
+	con, err = c.s.GetContractRW(ctx, id, role)
 	if err != nil {
 		return fmt.Errorf("Can't find contract: %w", err)
 	}
@@ -323,11 +312,7 @@ func (c *Reconciler) setContractState(
 	if err != nil {
 		return fmt.Errorf("Can't change state: %w", err)
 	}
-	if role == DataspaceConsumer {
-		err = c.a.PutConsumerContract(ctx, con)
-	} else {
-		err = c.a.PutProviderContract(ctx, con)
-	}
+	err = c.s.PutContract(ctx, con)
 	if err != nil {
 		return fmt.Errorf("Can't save contract: %w", err)
 	}

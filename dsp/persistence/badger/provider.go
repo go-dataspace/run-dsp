@@ -15,9 +15,7 @@
 package badger
 
 import (
-	"bytes"
 	"context"
-	"encoding/gob"
 	"fmt"
 	"time"
 
@@ -41,6 +39,8 @@ type storageKeyGenerator interface {
 type writeController interface {
 	SetReadOnly()
 	ReadOnly() bool
+	Modified() bool
+	ToBytes() ([]byte, error)
 	storageKeyGenerator
 }
 
@@ -56,6 +56,9 @@ func New(ctx context.Context, inMemory bool, dbPath string) (*StorageProvider, e
 		opt = badger.DefaultOptions(dbPath)
 		dbType = "disk"
 	}
+	logger := logging.Extract(ctx)
+	opt.WithLogger(logAdaptor{logger})
+
 	ctx, _ = logging.InjectLabels(ctx,
 		"module", "badger",
 		"db_type", dbType,
@@ -95,27 +98,30 @@ func (sp StorageProvider) maintenance() {
 }
 
 // get is a generic function that gets the bytes from the database, decodes and returns it.
-func get[T any](db *badger.DB, key []byte) (T, error) {
-	var thing T
+func get(db *badger.DB, key []byte) ([]byte, error) {
+	var b []byte
 	err := db.View(func(txn *badger.Txn) error {
 		item, err := txn.Get(key)
 		if err != nil {
 			return err
 		}
 		return item.Value(func(val []byte) error {
-			dec := gob.NewDecoder(bytes.NewReader(val))
-			return dec.Decode(thing)
+			b = append([]byte{}, val...)
+			return nil
 		})
 	})
-	return thing, err
+	if err != nil {
+		return nil, err
+	}
+	return b, err
 }
 
 // getLocked is a generic function that wraps get in a lock/unlock.
-func getLocked[T writeController](
+func getLocked(
 	ctx context.Context,
 	sp *StorageProvider,
 	key []byte,
-) (T, error) {
+) ([]byte, error) {
 	logger := logging.Extract(ctx)
 	logger.Info("Acquiring lock")
 	if err := sp.AcquireLock(ctx, newLockKey(key)); err != nil {
@@ -123,27 +129,20 @@ func getLocked[T writeController](
 		panic("Failed to acquire lock")
 	}
 	logger.Info("Lock acquired, fetching")
-	thing, err := get[T](sp.db, key)
+	b, err := get(sp.db, key)
 	if err != nil {
 		logger.Error("Couldn't fetch from db, unlocking", "err", err)
 		if lockErr := sp.ReleaseLock(ctx, newLockKey(key)); lockErr != nil {
 			logger.Error("Failed to unlock, will have to depend on TTL", "err", lockErr)
 		}
-		var n T
-		return n, fmt.Errorf("failed to fetch from db")
+		return nil, fmt.Errorf("failed to fetch from db")
 	}
-	return thing, nil
+	return b, nil
 }
 
-func put[T any](db *badger.DB, key []byte, thing T) error {
-	var buf bytes.Buffer
-	enc := gob.NewEncoder(&buf)
-	err := enc.Encode(thing)
-	if err != nil {
-		return fmt.Errorf("could not encode in gob: %w", err)
-	}
+func put(db *badger.DB, key []byte, value []byte) error {
 	return db.Update(func(txn *badger.Txn) error {
-		return txn.Set(key, buf.Bytes())
+		return txn.Set(key, value)
 	})
 }
 
@@ -155,10 +154,15 @@ func putUnlock[T writeController](ctx context.Context, sp *StorageProvider, thin
 		panic("Trying to write a read only entry")
 	}
 	key := thing.StorageKey()
-	if err := put(sp.db, key, thing); err != nil {
-		logger.Error("Could not save entry, not releasing lock", "err", err)
-		return err
+	if thing.Modified() {
+		b, err := thing.ToBytes()
+		if err != nil {
+			return err
+		}
+		if err := put(sp.db, key, b); err != nil {
+			logger.Error("Could not save entry, not releasing lock", "err", err)
+			return err
+		}
 	}
-
 	return sp.ReleaseLock(ctx, newLockKey(key))
 }

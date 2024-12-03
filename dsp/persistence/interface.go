@@ -14,12 +14,14 @@
 
 // Package persistence contains the storage interfaces for the dataspace code. It also contains
 // constants and other shared code for the implementation packages.
-package persistance
+package persistence
 
 import (
 	"context"
 
-	"github.com/go-dataspace/run-dsp/dsp/statemachine"
+	"github.com/go-dataspace/run-dsp/dsp/constants"
+	"github.com/go-dataspace/run-dsp/dsp/contract"
+	"github.com/go-dataspace/run-dsp/dsp/transfer"
 	"github.com/go-dataspace/run-dsp/odrl"
 	"github.com/google/uuid"
 )
@@ -42,18 +44,18 @@ type ContractSaver interface {
 	GetContractR(
 		ctx context.Context,
 		pid uuid.UUID,
-		role statemachine.DataspaceRole,
-	) (*statemachine.Contract, error)
+		role constants.DataspaceRole,
+	) (*contract.Negotiation, error)
 	// GetContractRW gets a read/write version of a contract. This should set a contract specific
 	// lock for the requested contract.
 	GetContractRW(
 		ctx context.Context,
 		pid uuid.UUID,
-		role statemachine.DataspaceRole,
-	) (*statemachine.Contract, error)
+		role constants.DataspaceRole,
+	) (*contract.Negotiation, error)
 	// PutContract saves a contract, and releases the contract specific lock. If the contract
 	// is read-only, it will return an error.
-	PutContract(ctx context.Context, contract *statemachine.Contract) error
+	PutContract(ctx context.Context, contract *contract.Negotiation) error
 }
 
 // AgreementSaver is an interface for storing/retrieving dataspace agreements.
@@ -73,14 +75,14 @@ type TransferSaver interface {
 	GetTransferR(
 		ctx context.Context,
 		pid uuid.UUID,
-		role statemachine.DataspaceRole,
-	) (*statemachine.TransferRequest, error)
+		role constants.DataspaceRole,
+	) (*transfer.Request, error)
 	// GetTransferRW gets a read/write version of a transfer request.
 	GetTransferRW(
 		ctx context.Context,
 		pid uuid.UUID,
-		role statemachine.DataspaceRole,
-	) (*statemachine.TransferRequest, error)
+		role constants.DataspaceRole,
+	) (*transfer.Request, error)
 	// PutTransfer saves a transfer.
-	PutTransfer(ctx context.Context, transfer *statemachine.TransferRequest) error
+	PutTransfer(ctx context.Context, transfer *transfer.Request) error
 }

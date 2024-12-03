@@ -20,6 +20,7 @@ import (
 	"net/http"
 	"net/url"
 
+	"github.com/go-dataspace/run-dsp/dsp/persistence"
 	"github.com/go-dataspace/run-dsp/dsp/shared"
 	"github.com/go-dataspace/run-dsp/dsp/statemachine"
 	"github.com/go-dataspace/run-dsp/internal/constants"
@@ -29,7 +30,7 @@ import (
 )
 
 type dspHandlers struct {
-	store               statemachine.Archiver
+	store               persistence.StorageProvider
 	provider            providerv1.ProviderServiceClient
 	reconciler          *statemachine.Reconciler
 	selfURL             *url.URL

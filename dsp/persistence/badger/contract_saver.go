@@ -19,7 +19,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/go-dataspace/run-dsp/dsp/statemachine"
+	"github.com/go-dataspace/run-dsp/dsp/constants"
+	"github.com/go-dataspace/run-dsp/dsp/contract"
 	"github.com/go-dataspace/run-dsp/logging"
 	"github.com/google/uuid"
 )
@@ -29,17 +30,21 @@ import (
 func (sp *StorageProvider) GetContractR(
 	ctx context.Context,
 	pid uuid.UUID,
-	role statemachine.DataspaceRole,
-) (*statemachine.Contract, error) {
-	key := statemachine.MkContractKey(pid, role)
+	role constants.DataspaceRole,
+) (*contract.Negotiation, error) {
+	key := contract.GenerateKey(pid, role)
 	logger := logging.Extract(ctx).With("pid", pid, "role", role, "key", string(key))
-	contract, err := get[*statemachine.Contract](sp.db, key)
+	b, err := get(sp.db, key)
 	if err != nil {
 		logger.Error("Failed to get contract", "err", err)
 		return nil, fmt.Errorf("could not get contract: %w", err)
 	}
-	contract.SetReadOnly()
-	return contract, nil
+	negotiation, err := contract.FromBytes(b)
+	if err != nil {
+		return nil, err
+	}
+	negotiation.SetReadOnly()
+	return negotiation, nil
 }
 
 // GetContractRW gets a contract but does NOT set the read-only property, allowing changes to be saved.
@@ -48,22 +53,26 @@ func (sp *StorageProvider) GetContractR(
 func (sp *StorageProvider) GetContractRW(
 	ctx context.Context,
 	pid uuid.UUID,
-	role statemachine.DataspaceRole,
-) (*statemachine.Contract, error) {
-	key := statemachine.MkContractKey(pid, role)
+	role constants.DataspaceRole,
+) (*contract.Negotiation, error) {
+	key := contract.GenerateKey(pid, role)
 	ctx, _ = logging.InjectLabels(ctx, "type", "contract", "pid", pid, "role", role, "key", string(key))
-	return getLocked[*statemachine.Contract](ctx, sp, key)
+	b, err := getLocked(ctx, sp, key)
+	if err != nil {
+		return nil, err
+	}
+	return contract.FromBytes(b)
 }
 
 // PutContract saves a contract to the database.
 // If the contract is set to read-only, it will panic as this is a bug in the code.
 // It will release the lock after it has saved.
-func (sp *StorageProvider) PutContract(ctx context.Context, contract *statemachine.Contract) error {
+func (sp *StorageProvider) PutContract(ctx context.Context, negotiation *contract.Negotiation) error {
 	ctx, _ = logging.InjectLabels(
 		ctx,
-		"consumer_pid", contract.ConsumerPID,
-		"provider_pid", contract.ProviderPID,
-		"role", contract.Role,
+		"consumer_pid", negotiation.GetConsumerPID(),
+		"provider_pid", negotiation.GetProviderPID(),
+		"role", negotiation.GetRole(),
 	)
-	return putUnlock(ctx, sp, contract)
+	return putUnlock(ctx, sp, negotiation)
 }
