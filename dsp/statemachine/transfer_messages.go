@@ -21,7 +21,9 @@ import (
 	"path"
 	"strings"
 
+	"github.com/go-dataspace/run-dsp/dsp/constants"
 	"github.com/go-dataspace/run-dsp/dsp/shared"
+	"github.com/go-dataspace/run-dsp/dsp/transfer"
 	"github.com/go-dataspace/run-dsp/logging"
 	providerv1 "github.com/go-dataspace/run-dsrpc/gen/go/dsp/v1alpha1"
 	"github.com/google/uuid"
@@ -29,14 +31,14 @@ import (
 
 func makeTransferRequestFunction(
 	ctx context.Context,
-	t *TransferRequest,
+	t *transfer.Request,
 	cu *url.URL,
 	reqBody []byte,
-	destinationState TransferRequestState,
+	destinationState transfer.State,
 	reconciler *Reconciler,
 ) func() {
 	var id uuid.UUID
-	if t.GetRole() == DataspaceConsumer {
+	if t.GetRole() == constants.DataspaceConsumer {
 		id = t.GetConsumerPID()
 	} else {
 		id = t.GetProviderPID()
@@ -56,7 +58,7 @@ func makeTransferRequestFunction(
 func sendTransferRequest(ctx context.Context, tr *TransferRequestNegotiationInitial) (func(), error) {
 	ctx, logger := logging.InjectLabels(ctx, "operation", "sendTransferRequest")
 	transferRequest := shared.TransferRequestMessage{
-		Context:         dspaceContext,
+		Context:         shared.GetDSPContext(),
 		Type:            "dspace:TransferRequestMessage",
 		AgreementID:     tr.GetAgreementID().URN(),
 		Format:          tr.GetFormat(),
@@ -78,7 +80,7 @@ func sendTransferRequest(ctx context.Context, tr *TransferRequestNegotiationInit
 		tr.GetTransferRequest(),
 		cu,
 		reqBody,
-		TransferRequestStates.TRANSFERREQUESTED,
+		transfer.States.REQUESTED,
 		tr.GetReconciler(),
 	), nil
 }
@@ -86,7 +88,7 @@ func sendTransferRequest(ctx context.Context, tr *TransferRequestNegotiationInit
 func sendTransferStart(ctx context.Context, tr *TransferRequestNegotiationRequested) (func(), error) {
 	ctx, logger := logging.InjectLabels(ctx, "operation", "sendTransferStarted")
 	startRequest := shared.TransferStartMessage{
-		Context:     dspaceContext,
+		Context:     shared.GetDSPContext(),
 		Type:        "dspace:TransferStartMessage",
 		ProviderPID: tr.GetProviderPID().URN(),
 		ConsumerPID: tr.GetConsumerPID().URN(),
@@ -100,7 +102,7 @@ func sendTransferStart(ctx context.Context, tr *TransferRequestNegotiationReques
 	}
 
 	pid := tr.GetConsumerPID().String()
-	if tr.GetRole() == DataspaceConsumer {
+	if tr.GetRole() == constants.DataspaceConsumer {
 		pid = tr.GetProviderPID().String()
 	}
 	cu := cloneURL(tr.GetCallback())
@@ -111,7 +113,7 @@ func sendTransferStart(ctx context.Context, tr *TransferRequestNegotiationReques
 		tr.GetTransferRequest(),
 		cu,
 		reqBody,
-		TransferRequestStates.STARTED,
+		transfer.States.STARTED,
 		tr.GetReconciler(),
 	), nil
 }
@@ -119,7 +121,7 @@ func sendTransferStart(ctx context.Context, tr *TransferRequestNegotiationReques
 func sendTransferCompletion(ctx context.Context, tr *TransferRequestNegotiationStarted) (func(), error) {
 	ctx, logger := logging.InjectLabels(ctx, "operation", "sendTransferCompletion")
 	startRequest := shared.TransferCompletionMessage{
-		Context:     dspaceContext,
+		Context:     shared.GetDSPContext(),
 		Type:        "dspace:TransferCompletionMessage",
 		ProviderPID: tr.GetProviderPID().URN(),
 		ConsumerPID: tr.GetConsumerPID().URN(),
@@ -132,7 +134,7 @@ func sendTransferCompletion(ctx context.Context, tr *TransferRequestNegotiationS
 	}
 
 	pid := tr.GetConsumerPID().String()
-	if tr.GetRole() == DataspaceConsumer {
+	if tr.GetRole() == constants.DataspaceConsumer {
 		pid = tr.GetProviderPID().String()
 	}
 
@@ -144,7 +146,7 @@ func sendTransferCompletion(ctx context.Context, tr *TransferRequestNegotiationS
 		tr.GetTransferRequest(),
 		cu,
 		reqBody,
-		TransferRequestStates.COMPLETED,
+		transfer.States.COMPLETED,
 		tr.GetReconciler(),
 	), nil
 }

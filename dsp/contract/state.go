@@ -12,18 +12,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package statemachine
+package contract
 
-type contractState int
+type state int
 
 //go:generate goenums contract_state.go
 const (
-	initial    contractState = iota // INITIAL
-	requested                       // dspace:REQUESTED
-	offered                         // dspace:OFFERED
-	agreed                          // dspace:AGREED
-	accepted                        // dspace:ACCEPTED
-	verified                        // dspace:VERIFIED
-	finalized                       // dspace:FINALIZED
-	terminated                      // dspace:TERMINATED
+	initial    state = iota // INITIAL
+	requested               // dspace:REQUESTED
+	offered                 // dspace:OFFERED
+	agreed                  // dspace:AGREED
+	accepted                // dspace:ACCEPTED
+	verified                // dspace:VERIFIED
+	finalized               // dspace:FINALIZED
+	terminated              // dspace:TERMINATED
 )

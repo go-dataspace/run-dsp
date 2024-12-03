@@ -21,6 +21,8 @@ import (
 	"path"
 	"time"
 
+	"github.com/go-dataspace/run-dsp/dsp/constants"
+	"github.com/go-dataspace/run-dsp/dsp/contract"
 	"github.com/go-dataspace/run-dsp/dsp/shared"
 	"github.com/go-dataspace/run-dsp/logging"
 	"github.com/go-dataspace/run-dsp/odrl"
@@ -37,14 +39,14 @@ func cloneURL(u *url.URL) *url.URL {
 
 func makeContractRequestFunction(
 	ctx context.Context,
-	c *Contract,
+	c *contract.Negotiation,
 	cu *url.URL,
 	reqBody []byte,
-	destinationState ContractState,
+	destinationState contract.State,
 	reconciler *Reconciler,
 ) func() {
 	var id uuid.UUID
-	if c.GetRole() == DataspaceConsumer {
+	if c.GetRole() == constants.DataspaceConsumer {
 		id = c.GetConsumerPID()
 	} else {
 		id = c.GetProviderPID()
@@ -66,7 +68,7 @@ func makeRequestFunction(
 	cu *url.URL,
 	reqBody []byte,
 	id uuid.UUID,
-	role DataspaceRole,
+	role constants.DataspaceRole,
 	destinationState string,
 	recType ReconciliationType,
 	reconciler *Reconciler,
@@ -86,10 +88,10 @@ func makeRequestFunction(
 }
 
 //nolint:dupl
-func sendContractRequest(ctx context.Context, r *Reconciler, c *Contract) (func(), error) {
+func sendContractRequest(ctx context.Context, r *Reconciler, c *contract.Negotiation) (func(), error) {
 	ctx, logger := logging.InjectLabels(ctx, "operation", "sendContractRequest")
 	contractRequest := shared.ContractRequestMessage{
-		Context:         dspaceContext,
+		Context:         shared.GetDSPContext(),
 		Type:            "dspace:ContractRequestMessage",
 		ConsumerPID:     c.GetConsumerPID().URN(),
 		Offer:           c.GetOffer().MessageOffer,
@@ -119,16 +121,16 @@ func sendContractRequest(ctx context.Context, r *Reconciler, c *Contract) (func(
 		c,
 		cu,
 		reqBody,
-		ContractStates.REQUESTED,
+		contract.States.REQUESTED,
 		r,
 	), nil
 }
 
 //nolint:dupl
-func sendContractOffer(ctx context.Context, r *Reconciler, c *Contract) (func(), error) {
+func sendContractOffer(ctx context.Context, r *Reconciler, c *contract.Negotiation) (func(), error) {
 	ctx, logger := logging.InjectLabels(ctx, "operation", "sendContractOffer")
 	contractOffer := shared.ContractOfferMessage{
-		Context:         dspaceContext,
+		Context:         shared.GetDSPContext(),
 		Type:            "dspace:ContractOfferMessage",
 		ProviderPID:     c.GetProviderPID().URN(),
 		Offer:           c.GetOffer().MessageOffer,
@@ -160,35 +162,31 @@ func sendContractOffer(ctx context.Context, r *Reconciler, c *Contract) (func(),
 		c,
 		cu,
 		reqBody,
-		ContractStates.OFFERED,
+		contract.States.OFFERED,
 		r,
 	), nil
 }
 
-func sendContractAgreement(ctx context.Context, r *Reconciler, c *Contract, a Archiver) (func(), error) {
+func sendContractAgreement(ctx context.Context, r *Reconciler, c *contract.Negotiation) (func(), error) {
 	ctx, logger := logging.InjectLabels(ctx, "operation", "sendContractAgreement")
-	c.agreement = odrl.Agreement{
+	c.SetAgreement(&odrl.Agreement{
 		PolicyClass: odrl.PolicyClass{},
 		Type:        "odrl:Agreement",
 		ID:          uuid.New().URN(),
 		Target:      c.GetOffer().Target,
 		Timestamp:   time.Now(),
-	}
+	})
 	contractAgreement := shared.ContractAgreementMessage{
-		Context:         dspaceContext,
+		Context:         shared.GetDSPContext(),
 		Type:            "dspace:ContractAgreementMessage",
 		ProviderPID:     c.GetProviderPID().URN(),
 		ConsumerPID:     c.GetConsumerPID().URN(),
-		Agreement:       c.GetAgreement(),
+		Agreement:       *c.GetAgreement(),
 		CallbackAddress: c.GetSelf().String(),
 	}
 
 	reqBody, err := shared.ValidateAndMarshal(ctx, contractAgreement)
 	if err != nil {
-		logger.Error("Couldn't validate contract agreement", "err", err)
-		return func() {}, fmt.Errorf("couldn't validate contract agreement: %w", err)
-	}
-	if err := a.PutAgreement(ctx, &c.agreement); err != nil {
 		logger.Error("Couldn't validate contract agreement", "err", err)
 		return func() {}, fmt.Errorf("couldn't validate contract agreement: %w", err)
 	}
@@ -200,17 +198,17 @@ func sendContractAgreement(ctx context.Context, r *Reconciler, c *Contract, a Ar
 		c,
 		cu,
 		reqBody,
-		ContractStates.AGREED,
+		contract.States.AGREED,
 		r,
 	), nil
 }
 
 func sendContractEvent(
-	ctx context.Context, r *Reconciler, c *Contract, pid uuid.UUID, state ContractState,
+	ctx context.Context, r *Reconciler, c *contract.Negotiation, pid uuid.UUID, state contract.State,
 ) (func(), error) {
 	ctx, logger := logging.InjectLabels(ctx, "operation", "sendContractEvent")
 	contractEvent := shared.ContractNegotiationEventMessage{
-		Context:     dspaceContext,
+		Context:     shared.GetDSPContext(),
 		Type:        "dspace:ContractNegotiationEventMessage",
 		ProviderPID: c.GetProviderPID().URN(),
 		ConsumerPID: c.GetConsumerPID().URN(),
@@ -234,10 +232,10 @@ func sendContractEvent(
 	), nil
 }
 
-func sendContractVerification(ctx context.Context, r *Reconciler, c *Contract) (func(), error) {
+func sendContractVerification(ctx context.Context, r *Reconciler, c *contract.Negotiation) (func(), error) {
 	ctx, logger := logging.InjectLabels(ctx, "operation", "sendContractVerification")
 	contractVerification := shared.ContractAgreementVerificationMessage{
-		Context:     dspaceContext,
+		Context:     shared.GetDSPContext(),
 		Type:        "dspace:ContractAgreementVerificationMessage",
 		ProviderPID: c.GetProviderPID().URN(),
 		ConsumerPID: c.GetConsumerPID().URN(),
@@ -257,7 +255,7 @@ func sendContractVerification(ctx context.Context, r *Reconciler, c *Contract) (
 		c,
 		cu,
 		reqBody,
-		ContractStates.VERIFIED,
+		contract.States.VERIFIED,
 		r,
 	), nil
 }

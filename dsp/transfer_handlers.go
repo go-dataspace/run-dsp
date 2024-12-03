@@ -15,20 +15,24 @@
 package dsp
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
 
+	"github.com/go-dataspace/run-dsp/dsp/constants"
+	"github.com/go-dataspace/run-dsp/dsp/persistence"
 	"github.com/go-dataspace/run-dsp/dsp/shared"
 	"github.com/go-dataspace/run-dsp/dsp/statemachine"
+	"github.com/go-dataspace/run-dsp/dsp/transfer"
 	"github.com/go-dataspace/run-dsp/logging"
 	"github.com/google/uuid"
 )
 
 type TransferError struct {
 	status   int
-	transfer *statemachine.TransferRequest
+	transfer *transfer.Request
 	dspCode  string
 	reason   string
 	err      string
@@ -60,7 +64,7 @@ func (te TransferError) ConsumerPID() string {
 }
 
 func transferError(
-	err string, statusCode int, dspCode string, reason string, transfer *statemachine.TransferRequest,
+	err string, statusCode int, dspCode string, reason string, transfer *transfer.Request,
 ) TransferError {
 	return TransferError{
 		status:   statusCode,
@@ -78,7 +82,7 @@ func (dh *dspHandlers) providerTransferProcessHandler(w http.ResponseWriter, req
 		return transferError("invalid provider ID", http.StatusBadRequest, "400", "Invalid provider PID", nil)
 	}
 
-	contract, err := dh.store.GetProviderTransfer(req.Context(), providerPID)
+	contract, err := dh.store.GetTransferRW(req.Context(), providerPID, constants.DataspaceProvider)
 	if err != nil {
 		return contractError(err.Error(), http.StatusNotFound, "404", "TransferRequest not found", nil)
 	}
@@ -89,7 +93,6 @@ func (dh *dspHandlers) providerTransferProcessHandler(w http.ResponseWriter, req
 }
 
 func (dh *dspHandlers) providerTransferRequestHandler(w http.ResponseWriter, req *http.Request) error {
-	logger := logging.Extract(req.Context())
 	transferReq, err := shared.DecodeValid[shared.TransferRequestMessage](req)
 	if err != nil {
 		return transferError(fmt.Sprintf("invalid request message: %s", err.Error()),
@@ -108,50 +111,38 @@ func (dh *dspHandlers) providerTransferRequestHandler(w http.ResponseWriter, req
 			http.StatusBadRequest, "400", "Invalid request: agreement ID is not a UUID", nil)
 	}
 
+	agreement, err := dh.store.GetAgreement(req.Context(), agreementID)
+	if err != nil {
+		return transferError(fmt.Sprintf("Could not get agreement with ID %s: %s", agreementID, err),
+			http.StatusNotFound, "404", "Invalid request: Agreement not found", nil)
+	}
+
 	cbURL, err := url.Parse(transferReq.CallbackAddress)
 	if err != nil {
 		return transferError(fmt.Sprintf("Invalid callback URL %s: %s", transferReq.CallbackAddress, err.Error()),
 			http.StatusBadRequest, "400", "Invalid request: Non-valid callback URL.", nil)
 	}
 
-	pState, err := statemachine.NewTransferRequest(
-		req.Context(),
-		dh.store, dh.provider, dh.reconciler,
-		consumerPID, agreementID,
+	request := transfer.New(
+		consumerPID,
+		agreement,
 		transferReq.Format,
-		cbURL, dh.selfURL,
-		statemachine.DataspaceProvider,
-		statemachine.TransferRequestStates.TRANSFERINITIAL,
+		cbURL,
+		dh.selfURL,
+		constants.DataspaceProvider,
+		transfer.States.INITIAL,
 		nil,
 	)
-	if err != nil {
-		return transferError(fmt.Sprintf("couldn't create transfer request: %s", err.Error()),
-			http.StatusInternalServerError, "500", "Failed to create transfer request", nil)
+
+	if err := storeRequest(req.Context(), dh.store, request); err != nil {
+		return err
 	}
 
-	nextState, err := pState.Recv(req.Context(), transferReq)
-	if err != nil {
-		return transferError(
-			fmt.Sprintf("couldn't receive message: %s", err.Error()),
-			http.StatusBadRequest, "400", "Invalid request", pState.GetTransferRequest())
-	}
-
-	apply, err := nextState.Send(req.Context())
-	if err != nil {
-		return transferError(fmt.Sprintf("couldn't progress to next state: %s", err.Error()),
-			http.StatusInternalServerError, "500", "Not able to progress state", nextState.GetTransferRequest())
-	}
-
-	if err := shared.EncodeValid(w, req, http.StatusOK, nextState.GetTransferProcess()); err != nil {
-		logger.Error("Couldn't serve response", "err", err)
-	}
-	go apply()
-	return nil
+	return processTransferMessage(dh, w, req, request.GetRole(), request.GetProviderPID(), true, transferReq)
 }
 
-//nolint:cyclop
 func progressTransferState[T any](
-	dh *dspHandlers, w http.ResponseWriter, req *http.Request, role statemachine.DataspaceRole,
+	dh *dspHandlers, w http.ResponseWriter, req *http.Request, role constants.DataspaceRole,
 	rawPID string, autoProgress bool,
 ) error {
 	logger := logging.Extract(req.Context())
@@ -161,29 +152,32 @@ func progressTransferState[T any](
 			http.StatusBadRequest, "400", "Invalid request: PID is not a UUID", nil)
 	}
 
-	var transfer *statemachine.TransferRequest
-	switch role {
-	case statemachine.DataspaceConsumer:
-		transfer, err = dh.store.GetConsumerTransfer(req.Context(), pid)
-	case statemachine.DataspaceProvider:
-		transfer, err = dh.store.GetProviderTransfer(req.Context(), pid)
-	default:
-		panic(fmt.Sprintf("unexpected statemachine.TransferRole: %#v", role))
+	msg, err := shared.DecodeValid[T](req)
+	if err != nil {
+		return transferError(fmt.Sprintf("could not decode message: %s", err),
+			http.StatusBadRequest, "400", "Invalid request", nil)
 	}
+	logger.Debug("Got contract message", "req", msg)
+	return processTransferMessage(dh, w, req, role, pid, autoProgress, msg)
+}
+
+func processTransferMessage[T any](
+	dh *dspHandlers,
+	w http.ResponseWriter,
+	req *http.Request,
+	role constants.DataspaceRole,
+	pid uuid.UUID,
+	autoProgress bool,
+	msg T,
+) error {
+	logger := logging.Extract(req.Context())
+	transfer, err := dh.store.GetTransferRW(req.Context(), pid, role)
 	if err != nil {
 		return transferError(fmt.Sprintf("%d transfer request %s not found: %s", role, pid, err),
 			http.StatusNotFound, "404", "Transfer request not found", nil)
 	}
 
-	msg, err := shared.DecodeValid[T](req)
-	if err != nil {
-		return transferError(fmt.Sprintf("could not decode message: %s", err),
-			http.StatusBadRequest, "400", "Invalid request", transfer)
-	}
-
-	logger.Debug("Got contract message", "req", msg)
-
-	pState := statemachine.GetTransferRequestNegotiation(dh.store, transfer, dh.provider, dh.reconciler)
+	pState := statemachine.GetTransferRequestNegotiation(transfer, dh.provider, dh.reconciler)
 
 	nextState, err := pState.Recv(req.Context(), msg)
 	if err != nil {
@@ -200,6 +194,10 @@ func progressTransferState[T any](
 		}
 	}
 
+	if err := storeRequest(req.Context(), dh.store, nextState.GetTransferRequest()); err != nil {
+		return err
+	}
+
 	if err := shared.EncodeValid(w, req, http.StatusOK, nextState.GetTransferProcess()); err != nil {
 		logger.Error("Couldn't serve response", "err", err)
 	}
@@ -209,21 +207,33 @@ func progressTransferState[T any](
 	return nil
 }
 
+func storeRequest(
+	ctx context.Context,
+	store persistence.StorageProvider,
+	request *transfer.Request,
+) error {
+	if err := store.PutTransfer(ctx, request); err != nil {
+		return transferError(fmt.Sprintf("couldn't store transfer request: %s", err),
+			http.StatusInternalServerError, "500", "Not able to store transfer request", request)
+	}
+	return nil
+}
+
 func (dh *dspHandlers) providerTransferStartHandler(w http.ResponseWriter, req *http.Request) error {
 	return progressTransferState[shared.TransferStartMessage](
-		dh, w, req, statemachine.DataspaceProvider, req.PathValue("providerPID"), false,
+		dh, w, req, constants.DataspaceProvider, req.PathValue("providerPID"), false,
 	)
 }
 
 func (dh *dspHandlers) providerTransferCompletionHandler(w http.ResponseWriter, req *http.Request) error {
 	return progressTransferState[shared.TransferCompletionMessage](
-		dh, w, req, statemachine.DataspaceProvider, req.PathValue("providerPID"), true,
+		dh, w, req, constants.DataspaceProvider, req.PathValue("providerPID"), true,
 	)
 }
 
 func (dh *dspHandlers) providerTransferTerminationHandler(w http.ResponseWriter, req *http.Request) error {
 	return progressTransferState[shared.TransferTerminationMessage](
-		dh, w, req, statemachine.DataspaceProvider, req.PathValue("providerPID"), true,
+		dh, w, req, constants.DataspaceProvider, req.PathValue("providerPID"), true,
 	)
 }
 
@@ -253,19 +263,19 @@ func (dh *dspHandlers) providerTransferSuspensionHandler(w http.ResponseWriter, 
 
 func (dh *dspHandlers) consumerTransferStartHandler(w http.ResponseWriter, req *http.Request) error {
 	return progressTransferState[shared.TransferStartMessage](
-		dh, w, req, statemachine.DataspaceConsumer, req.PathValue("consumerPID"), false,
+		dh, w, req, constants.DataspaceConsumer, req.PathValue("consumerPID"), false,
 	)
 }
 
 func (dh *dspHandlers) consumerTransferCompletionHandler(w http.ResponseWriter, req *http.Request) error {
 	return progressTransferState[shared.TransferCompletionMessage](
-		dh, w, req, statemachine.DataspaceConsumer, req.PathValue("consumerPID"), true,
+		dh, w, req, constants.DataspaceConsumer, req.PathValue("consumerPID"), true,
 	)
 }
 
 func (dh *dspHandlers) consumerTransferTerminationHandler(w http.ResponseWriter, req *http.Request) error {
 	return progressTransferState[shared.TransferTerminationMessage](
-		dh, w, req, statemachine.DataspaceConsumer, req.PathValue("consumerPID"), true,
+		dh, w, req, constants.DataspaceConsumer, req.PathValue("consumerPID"), true,
 	)
 }
 

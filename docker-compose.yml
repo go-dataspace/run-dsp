@@ -9,6 +9,7 @@ services:
       - SERVER.PROVIDER.ADDRESS=reference-provider:9090
       - SERVER.PROVIDER.INSECURE=true
       - SERVER.DSP.EXTERNALURL=http://127.0.0.1:8080/
+      - SERVER.PERSISTENCE.BADGER.MEMORY=true
     ports:
       - '18080:8080'
     depends_on:

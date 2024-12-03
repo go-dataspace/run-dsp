@@ -19,8 +19,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-dataspace/run-dsp/dsp/constants"
+	"github.com/go-dataspace/run-dsp/dsp/persistence/badger"
 	"github.com/go-dataspace/run-dsp/dsp/shared"
 	"github.com/go-dataspace/run-dsp/dsp/statemachine"
+	"github.com/go-dataspace/run-dsp/dsp/transfer"
 	"github.com/go-dataspace/run-dsp/logging"
 	mockprovider "github.com/go-dataspace/run-dsp/mocks/github.com/go-dataspace/run-dsrpc/gen/go/dsp/v1alpha1"
 	"github.com/go-dataspace/run-dsp/odrl"
@@ -30,7 +33,6 @@ import (
 
 var agreementID = uuid.MustParse("e1c68180-de68-428d-9853-7d4dd3c66904")
 
-//nolint:funlen
 func TestTransferTermination(t *testing.T) {
 	t.Parallel()
 
@@ -44,36 +46,34 @@ func TestTransferTermination(t *testing.T) {
 	ctx, done := context.WithCancel(ctx)
 	defer done()
 
-	store := statemachine.NewMemoryArchiver()
+	store, err := badger.New(ctx, true, "")
+	assert.Nil(t, err)
 	requester := &MockRequester{}
 
 	mockProvider := mockprovider.NewMockProviderServiceClient(t)
+	err = store.PutAgreement(ctx, &agreement)
+	assert.Nil(t, err)
 
 	reconciler := statemachine.NewReconciler(ctx, requester, store)
 	reconciler.Run()
 
-	for _, role := range []statemachine.DataspaceRole{
-		statemachine.DataspaceConsumer,
-		statemachine.DataspaceProvider,
+	for _, role := range []constants.DataspaceRole{
+		constants.DataspaceConsumer,
+		constants.DataspaceProvider,
 	} {
-		for _, state := range []statemachine.TransferRequestState{
-			statemachine.TransferRequestStates.TRANSFERREQUESTED,
-			statemachine.TransferRequestStates.STARTED,
+		for _, state := range []transfer.State{
+			transfer.States.REQUESTED,
+			transfer.States.STARTED,
 		} {
-			err := store.PutAgreement(ctx, &agreement)
-			assert.Nil(t, err)
-
-			pState, err := statemachine.NewTransferRequest(
-				ctx,
-				store, mockProvider, reconciler,
-				consumerPID, agreementID,
+			transReq := transfer.New(
+				consumerPID, &agreement,
 				"HTTP_PULL",
 				providerCallback, consumerCallback,
 				role,
 				state,
 				nil,
 			)
-			assert.Nil(t, err)
+			pState := statemachine.GetTransferRequestNegotiation(transReq, mockProvider, reconciler)
 			pState.GetTransferRequest().SetProviderPID(providerPID)
 
 			transferMsg := shared.TransferTerminationMessage{
@@ -90,15 +90,7 @@ func TestTransferTermination(t *testing.T) {
 			assert.Nil(t, err)
 			_, err = next.Send(ctx)
 			assert.Nil(t, err)
-			var transfer *statemachine.TransferRequest
-			switch role {
-			case statemachine.DataspaceProvider:
-				transfer, err = store.GetProviderTransfer(ctx, providerPID)
-			case statemachine.DataspaceConsumer:
-				transfer, err = store.GetConsumerTransfer(ctx, consumerPID)
-			}
-			assert.Nil(t, err)
-			assert.Equal(t, statemachine.TransferRequestStates.TRANSFERTERMINATED, transfer.GetState())
+			assert.Equal(t, transfer.States.TERMINATED, next.GetTransferRequest().GetState())
 		}
 	}
 }

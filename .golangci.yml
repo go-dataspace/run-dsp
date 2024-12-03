@@ -21,6 +21,7 @@ linters:
     - asciicheck
     - cyclop
     - canonicalheader
+    - copyloopvar
     - decorder
     - dupl
     - dupword
@@ -29,7 +30,6 @@ linters:
     - errname
     - errorlint
     - exhaustive
-    - exportloopref
     - fatcontext
     - forbidigo
     - forcetypeassert

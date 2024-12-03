@@ -21,8 +21,12 @@ import (
 	"strings"
 	"time"
 
+	dspconstants "github.com/go-dataspace/run-dsp/dsp/constants"
+	"github.com/go-dataspace/run-dsp/dsp/contract"
+	"github.com/go-dataspace/run-dsp/dsp/persistence"
 	"github.com/go-dataspace/run-dsp/dsp/shared"
 	"github.com/go-dataspace/run-dsp/dsp/statemachine"
+	"github.com/go-dataspace/run-dsp/dsp/transfer"
 	"github.com/go-dataspace/run-dsp/internal/constants"
 	"github.com/go-dataspace/run-dsp/jsonld"
 	"github.com/go-dataspace/run-dsp/logging"
@@ -40,7 +44,7 @@ type Server struct {
 	dspv1alpha1.ClientServiceServer
 
 	requester  shared.Requester
-	store      statemachine.Archiver
+	store      persistence.StorageProvider
 	reconciler *statemachine.Reconciler
 	provider   dspv1alpha1.ProviderServiceClient
 	selfURL    *url.URL
@@ -48,7 +52,7 @@ type Server struct {
 
 func New(
 	requester shared.Requester,
-	store statemachine.Archiver,
+	store persistence.StorageProvider,
 	reconciler *statemachine.Reconciler,
 	provider dspv1alpha1.ProviderServiceClient,
 	selfURL *url.URL,
@@ -173,11 +177,9 @@ func (s *Server) GetProviderDatasetDownloadInformation(
 	consumerPID := uuid.New()
 	selfURL := shared.MustParseURL(s.selfURL.String())
 	selfURL.Path = path.Join(selfURL.Path, "callback")
-	ctx, contractInit, err := statemachine.NewContract(
-		ctx,
-		s.store, s.provider, s.reconciler,
+	negotiation := contract.New(
 		uuid.UUID{}, consumerPID,
-		statemachine.ContractStates.INITIAL,
+		contract.States.INITIAL,
 		odrl.Offer{
 			MessageOffer: odrl.MessageOffer{
 				PolicyClass: odrl.PolicyClass{
@@ -190,33 +192,44 @@ func (s *Server) GetProviderDatasetDownloadInformation(
 		},
 		providerURL,
 		selfURL,
-		statemachine.DataspaceConsumer,
+		dspconstants.DataspaceConsumer,
 	)
-	ctx, logger := logging.InjectLabels(ctx, "method", "GetProviderDownloadInformationRequest")
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "Couldn't create contract")
+	// Store and retrieve contract negotiation so that it's saved and the locking works.
+	if err := s.store.PutContract(ctx, negotiation); err != nil {
+		return nil, status.Errorf(codes.Internal, "couldn't store contract negotiation: %s", err)
 	}
+	negotiation, err = s.store.GetContractRW(ctx, negotiation.GetConsumerPID(), negotiation.GetRole())
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "couldn't retrieve contract negotiation: %s", err)
+	}
+
+	ctx, contractInit := statemachine.GetContractNegotiation(ctx, negotiation, s.provider, s.reconciler)
+	ctx, logger := logging.InjectLabels(ctx, "method", "GetProviderDownloadInformationRequest")
+
 	apply, err := contractInit.Send(ctx)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "Couldn't generate inital contract request.")
 	}
+	if err := s.store.PutContract(ctx, negotiation); err != nil {
+		return nil, status.Errorf(codes.Internal, "Couldn't store contract negotiation: %s", err)
+	}
 	logger.Debug("Beginning contract negotiation")
 	apply()
 
-	contract, err := s.store.GetConsumerContract(ctx, consumerPID)
+	negotiation, err = s.store.GetContractR(ctx, consumerPID, dspconstants.DataspaceConsumer)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "could not get consumer contract with PID %s: %s", consumerPID, err)
 	}
 
 	logger.Info("Starting to monitor contract")
 	checks := 0
-	for contract.GetState() != statemachine.ContractStates.FINALIZED {
+	for negotiation.GetState() != contract.States.FINALIZED {
 		// Only log the status every 10 checks.
 		if checks%10 == 0 {
-			logger.Info("Contract not finalized", "state", contract.GetState().String())
+			logger.Info("Contract not finalized", "state", negotiation.GetState().String())
 		}
 		time.Sleep(1 * time.Second)
-		contract, err = s.store.GetConsumerContract(ctx, consumerPID)
+		negotiation, err = s.store.GetContractR(ctx, consumerPID, dspconstants.DataspaceConsumer)
 		if err != nil {
 			return nil, status.Errorf(codes.Internal, "could not get consumer contract with PID %s: %s", consumerPID, err)
 		}
@@ -224,40 +237,53 @@ func (s *Server) GetProviderDatasetDownloadInformation(
 	}
 	logger.Info("Contract finalized, continuing")
 	transferConsumerPID := uuid.New()
-	agreementID := uuid.MustParse(contract.GetAgreement().ID)
+	agreementID := uuid.MustParse(negotiation.GetAgreement().ID)
+	agreement, err := s.store.GetAgreement(ctx, agreementID)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "could not get agreement with ID %s: %s", agreementID, err)
+	}
 
-	transferInit, err := statemachine.NewTransferRequest(
-		ctx,
-		s.store, s.provider, s.reconciler,
+	transferReq := transfer.New(
 		transferConsumerPID,
-		agreementID,
+		agreement,
 		"HTTP_PULL",
 		providerURL,
 		selfURL,
-		statemachine.DataspaceConsumer,
-		statemachine.TransferRequestStates.TRANSFERINITIAL,
+		dspconstants.DataspaceConsumer,
+		transfer.States.INITIAL,
 		nil,
 	)
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "Couldn't create transfer request")
+	// Save and retrieve the transfer request to get the locks working properly.
+	if err := s.store.PutTransfer(ctx, transferReq); err != nil {
+		return nil, status.Errorf(codes.Internal, "Couldn't create transfer request: %s", err)
 	}
+	transferReq, err = s.store.GetTransferRW(ctx, transferReq.GetConsumerPID(), dspconstants.DataspaceConsumer)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "could not retrieve transfer request: %s", err)
+	}
+	transferInit := statemachine.GetTransferRequestNegotiation(transferReq, s.provider, s.reconciler)
+
 	apply, err = transferInit.Send(ctx)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "Couldn't generate inital initial request.")
 	}
+	if err := s.store.PutTransfer(ctx, transferReq); err != nil {
+		return nil, status.Errorf(codes.Internal, "Couldn't create transfer request: %s", err)
+	}
+
 	logger.Debug("Beginning transfer request")
 	apply()
 
-	tReq, err := s.store.GetConsumerTransfer(ctx, transferConsumerPID)
+	tReq, err := s.store.GetTransferR(ctx, transferConsumerPID, dspconstants.DataspaceConsumer)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "could not get consumer transfer with PID %s: %s", transferConsumerPID, err)
 	}
 
 	logger.Info("Starting to monitor transfer request")
-	for tReq.GetState() != statemachine.TransferRequestStates.STARTED {
+	for tReq.GetState() != transfer.States.STARTED {
 		logger.Info("Transfer not started", "state", tReq.GetState().String())
 		time.Sleep(1 * time.Second)
-		tReq, err = s.store.GetConsumerTransfer(ctx, transferConsumerPID)
+		tReq, err = s.store.GetTransferR(ctx, transferConsumerPID, dspconstants.DataspaceConsumer)
 		if err != nil {
 			return nil, status.Errorf(
 				codes.Internal, "could not get consumer contract with PID %s: %s", transferConsumerPID, err,
@@ -279,19 +305,22 @@ func (s *Server) SignalTransferComplete(
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "Transfer ID is not a valid UUID.")
 	}
-	trReq, err := s.store.GetConsumerTransfer(ctx, id)
+	trReq, err := s.store.GetTransferRW(ctx, id, dspconstants.DataspaceConsumer)
 	if err != nil {
 		return nil, status.Errorf(codes.NotFound, "no transfer found")
 	}
-	transferState := statemachine.GetTransferRequestNegotiation(s.store, trReq, s.provider, s.reconciler)
+	transferState := statemachine.GetTransferRequestNegotiation(trReq, s.provider, s.reconciler)
 	apply, err := transferState.Send(ctx)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "couldn't finish transfer: %s", err)
 	}
+	if err := s.store.PutTransfer(ctx, trReq); err != nil {
+		return nil, status.Errorf(codes.Internal, "Couldn't create transfer request: %s", err)
+	}
 	apply()
-	for trReq.GetState() != statemachine.TransferRequestStates.COMPLETED {
+	for trReq.GetState() != transfer.States.COMPLETED {
 		time.Sleep(1 * time.Second)
-		trReq, err = s.store.GetConsumerTransfer(ctx, id)
+		trReq, err = s.store.GetTransferR(ctx, id, dspconstants.DataspaceConsumer)
 		if err != nil {
 			return nil, status.Errorf(codes.Internal, "could not get consumer contract with PID %s: %s", id, err)
 		}

@@ -21,7 +21,9 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/go-dataspace/run-dsp/dsp/constants"
 	"github.com/go-dataspace/run-dsp/dsp/shared"
+	"github.com/go-dataspace/run-dsp/dsp/transfer"
 	providerv1 "github.com/go-dataspace/run-dsrpc/gen/go/dsp/v1alpha1"
 	"github.com/google/uuid"
 )
@@ -36,12 +38,12 @@ type TransferRequester interface {
 	GetFormat() string
 	GetCallback() *url.URL
 	GetSelf() *url.URL
-	GetState() TransferRequestState
-	GetRole() DataspaceRole
-	SetState(state TransferRequestState) error
-	GetTransferRequest() *TransferRequest
+	GetState() transfer.State
+	GetRole() constants.DataspaceRole
+	SetState(state transfer.State) error
+	GetTransferRequest() *transfer.Request
 	GetPublishInfo() *providerv1.PublishInfo
-	GetTransferDirection() TransferDirection
+	GetTransferDirection() transfer.Direction
 	GetTransferProcess() shared.TransferProcess
 }
 
@@ -49,13 +51,12 @@ type TransferRequestNegotiationState interface {
 	TransferRequester
 	Recv(ctx context.Context, message any) (TransferRequestNegotiationState, error)
 	Send(ctx context.Context) (func(), error)
-	GetArchiver() Archiver
 	GetProvider() providerv1.ProviderServiceClient
 	GetReconciler() *Reconciler
 }
 
 type TransferRequestNegotiationInitial struct {
-	*TransferRequest
+	*transfer.Request
 	stateMachineDeps
 }
 
@@ -70,9 +71,9 @@ func (tr *TransferRequestNegotiationInitial) Recv(
 		if err != nil {
 			return nil, fmt.Errorf("could not find target: %w", err)
 		}
-		tr.providerPID = uuid.New()
+		tr.SetProviderPID(uuid.New())
 		return verifyAndTransformTransfer(
-			ctx, tr, tr.providerPID.URN(), t.ConsumerPID, TransferRequestStates.TRANSFERREQUESTED)
+			tr, tr.GetProviderPID().URN(), t.ConsumerPID, transfer.States.REQUESTED)
 	default:
 		return nil, fmt.Errorf("invalid message type")
 	}
@@ -83,7 +84,7 @@ func (tr *TransferRequestNegotiationInitial) Send(ctx context.Context) (func(), 
 }
 
 type TransferRequestNegotiationRequested struct {
-	*TransferRequest
+	*transfer.Request
 	stateMachineDeps
 }
 
@@ -97,18 +98,19 @@ func (tr *TransferRequestNegotiationRequested) Recv(
 			if err != nil {
 				return nil, fmt.Errorf("invalid UUID for provider PID: %w", err)
 			}
-			tr.providerPID = u
+			tr.SetProviderPID(u)
 		}
-		if tr.publishInfo == nil {
+		if tr.GetPublishInfo() == nil {
 			var err error
-			tr.publishInfo, err = dataAddressToPublishInfo(t.DataAddress)
+			pi, err := dataAddressToPublishInfo(t.DataAddress)
 			if err != nil {
 				return nil, fmt.Errorf("invalid dataAddress supplied: %w", err)
 			}
+			tr.SetPublishInfo(pi)
 		}
-		return verifyAndTransformTransfer(ctx, tr, t.ProviderPID, t.ConsumerPID, TransferRequestStates.STARTED)
+		return verifyAndTransformTransfer(tr, t.ProviderPID, t.ConsumerPID, transfer.States.STARTED)
 	case shared.TransferTerminationMessage:
-		return verifyAndTransformTransfer(ctx, tr, t.ProviderPID, t.ConsumerPID, TransferRequestStates.TRANSFERTERMINATED)
+		return verifyAndTransformTransfer(tr, t.ProviderPID, t.ConsumerPID, transfer.States.TERMINATED)
 	default:
 		return nil, fmt.Errorf("invalid message type")
 	}
@@ -116,7 +118,7 @@ func (tr *TransferRequestNegotiationRequested) Recv(
 
 func (tr *TransferRequestNegotiationRequested) Send(ctx context.Context) (func(), error) {
 	switch tr.GetTransferDirection() {
-	case DirectionPull:
+	case transfer.DirectionPull:
 		resp, err := tr.GetProvider().PublishDataset(ctx, &providerv1.PublishDatasetRequest{
 			DatasetId: tr.GetTarget(),
 			PublishId: tr.GetProviderPID().String(),
@@ -124,11 +126,11 @@ func (tr *TransferRequestNegotiationRequested) Send(ctx context.Context) (func()
 		if err != nil {
 			return func() {}, err
 		}
-		tr.publishInfo = resp.PublishInfo
-	case DirectionPush:
+		tr.SetPublishInfo(resp.PublishInfo)
+	case transfer.DirectionPush:
 		// TODO: Signal provider to start uploading dataset here.
 		return func() {}, fmt.Errorf("push flow: %w", ErrNotImplemented)
-	case DirectionUnknown:
+	case transfer.DirectionUnknown:
 		return func() {}, fmt.Errorf("unknown transfer direction")
 	default:
 		panic("unexpected statemachine.TransferDirection")
@@ -138,7 +140,7 @@ func (tr *TransferRequestNegotiationRequested) Send(ctx context.Context) (func()
 }
 
 type TransferRequestNegotiationStarted struct {
-	*TransferRequest
+	*transfer.Request
 	stateMachineDeps
 }
 
@@ -151,9 +153,9 @@ func (tr *TransferRequestNegotiationStarted) Recv(
 		if err != nil {
 			return nil, err
 		}
-		return verifyAndTransformTransfer(ctx, tr, t.ProviderPID, t.ConsumerPID, TransferRequestStates.COMPLETED)
+		return verifyAndTransformTransfer(tr, t.ProviderPID, t.ConsumerPID, transfer.States.COMPLETED)
 	case shared.TransferTerminationMessage:
-		return verifyAndTransformTransfer(ctx, tr, t.ProviderPID, t.ConsumerPID, TransferRequestStates.TRANSFERTERMINATED)
+		return verifyAndTransformTransfer(tr, t.ProviderPID, t.ConsumerPID, transfer.States.TERMINATED)
 	default:
 		return nil, fmt.Errorf("invalid message type")
 	}
@@ -169,8 +171,8 @@ func (tr *TransferRequestNegotiationStarted) Send(ctx context.Context) (func(), 
 
 func unpublishTransfer(ctx context.Context, tr TransferRequestNegotiationState) error {
 	switch tr.GetTransferDirection() {
-	case DirectionPull:
-		if tr.GetRole() == DataspaceProvider {
+	case transfer.DirectionPull:
+		if tr.GetRole() == constants.DataspaceProvider {
 			_, err := tr.GetProvider().UnpublishDataset(ctx, &providerv1.UnpublishDatasetRequest{
 				PublishId: tr.GetProviderPID().String(),
 			})
@@ -178,10 +180,9 @@ func unpublishTransfer(ctx context.Context, tr TransferRequestNegotiationState) 
 				return err
 			}
 		}
-	case DirectionPush:
-
+	case transfer.DirectionPush:
 		return fmt.Errorf("push flow: %w", ErrNotImplemented)
-	case DirectionUnknown:
+	case transfer.DirectionUnknown:
 		return fmt.Errorf("unknown transfer direction")
 	default:
 		panic("unexpected statemachine.TransferDirection")
@@ -190,12 +191,12 @@ func unpublishTransfer(ctx context.Context, tr TransferRequestNegotiationState) 
 }
 
 type TransferRequestNegotiationSuspended struct {
-	*TransferRequest
+	*transfer.Request
 	stateMachineDeps
 }
 
 type TransferRequestNegotiationCompleted struct {
-	*TransferRequest
+	*transfer.Request
 	stateMachineDeps
 }
 
@@ -210,7 +211,7 @@ func (tr *TransferRequestNegotiationCompleted) Send(ctx context.Context) (func()
 }
 
 type TransferRequestNegotiationTerminated struct {
-	*TransferRequest
+	*transfer.Request
 	stateMachineDeps
 }
 
@@ -224,67 +225,21 @@ func (tr *TransferRequestNegotiationTerminated) Send(ctx context.Context) (func(
 	return func() {}, nil
 }
 
-func NewTransferRequest(
-	ctx context.Context,
-	store Archiver,
-	provider providerv1.ProviderServiceClient,
-	reconciler *Reconciler,
-	consumerPID, agreementID uuid.UUID,
-	format string,
-	callback, self *url.URL,
-	role DataspaceRole,
-	state TransferRequestState,
-	publishInfo *providerv1.PublishInfo,
-) (TransferRequestNegotiationState, error) {
-	agreement, err := store.GetAgreement(ctx, agreementID)
-	if err != nil {
-		return nil, fmt.Errorf("no agreement found")
-	}
-	targetID, err := shared.URNtoRawID(agreement.Target)
-	if err != nil {
-		return nil, fmt.Errorf("couldn't parse target URN: %w", err)
-	}
-	traReq := &TransferRequest{
-		state:             state,
-		consumerPID:       consumerPID,
-		agreementID:       agreementID,
-		target:            targetID,
-		format:            format,
-		callback:          callback,
-		self:              self,
-		role:              role,
-		publishInfo:       publishInfo,
-		transferDirection: DirectionPush,
-	}
-	if publishInfo == nil {
-		traReq.transferDirection = DirectionPull
-	}
-	if role == DataspaceConsumer {
-		err = store.PutConsumerTransfer(ctx, traReq)
-	} else {
-		err = store.PutProviderTransfer(ctx, traReq)
-	}
-	if err != nil {
-		return nil, err
-	}
-	return GetTransferRequestNegotiation(store, traReq, provider, reconciler), nil
-}
-
 func GetTransferRequestNegotiation(
-	a Archiver, tr *TransferRequest, p providerv1.ProviderServiceClient, r *Reconciler,
+	tr *transfer.Request, p providerv1.ProviderServiceClient, r *Reconciler,
 ) TransferRequestNegotiationState {
-	deps := stateMachineDeps{a: a, p: p, r: r}
+	deps := stateMachineDeps{p: p, r: r}
 	switch tr.GetState() {
-	case TransferRequestStates.TRANSFERINITIAL:
-		return &TransferRequestNegotiationInitial{TransferRequest: tr, stateMachineDeps: deps}
-	case TransferRequestStates.TRANSFERREQUESTED:
-		return &TransferRequestNegotiationRequested{TransferRequest: tr, stateMachineDeps: deps}
-	case TransferRequestStates.STARTED:
-		return &TransferRequestNegotiationStarted{TransferRequest: tr, stateMachineDeps: deps}
-	case TransferRequestStates.COMPLETED:
-		return &TransferRequestNegotiationCompleted{TransferRequest: tr, stateMachineDeps: deps}
-	case TransferRequestStates.TRANSFERTERMINATED:
-		return &TransferRequestNegotiationTerminated{TransferRequest: tr, stateMachineDeps: deps}
+	case transfer.States.INITIAL:
+		return &TransferRequestNegotiationInitial{Request: tr, stateMachineDeps: deps}
+	case transfer.States.REQUESTED:
+		return &TransferRequestNegotiationRequested{Request: tr, stateMachineDeps: deps}
+	case transfer.States.STARTED:
+		return &TransferRequestNegotiationStarted{Request: tr, stateMachineDeps: deps}
+	case transfer.States.COMPLETED:
+		return &TransferRequestNegotiationCompleted{Request: tr, stateMachineDeps: deps}
+	case transfer.States.TERMINATED:
+		return &TransferRequestNegotiationTerminated{Request: tr, stateMachineDeps: deps}
 	default:
 		panic(fmt.Sprintf("No transition found for state %s", tr.GetState()))
 	}
@@ -330,10 +285,9 @@ func makeEndpointPropertyMap(p []shared.EndpointProperty) (map[string]string, er
 }
 
 func verifyAndTransformTransfer(
-	ctx context.Context,
 	tr TransferRequestNegotiationState,
 	providerPID, consumerPID string,
-	targetState TransferRequestState,
+	targetState transfer.State,
 ) (TransferRequestNegotiationState, error) {
 	if tr.GetProviderPID().URN() != strings.ToLower(providerPID) {
 		return nil, fmt.Errorf(
@@ -352,15 +306,6 @@ func verifyAndTransformTransfer(
 	if err := tr.SetState(targetState); err != nil {
 		return nil, fmt.Errorf("could not set state: %w", err)
 	}
-	var err error
-	if tr.GetRole() == DataspaceConsumer {
-		err = tr.GetArchiver().PutConsumerTransfer(ctx, tr.GetTransferRequest())
-	} else {
-		err = tr.GetArchiver().PutProviderTransfer(ctx, tr.GetTransferRequest())
-	}
-	if err != nil {
-		return nil, fmt.Errorf("failed to save contract: %w", err)
-	}
 	return GetTransferRequestNegotiation(
-		tr.GetArchiver(), tr.GetTransferRequest(), tr.GetProvider(), tr.GetReconciler()), nil
+		tr.GetTransferRequest(), tr.GetProvider(), tr.GetReconciler()), nil
 }

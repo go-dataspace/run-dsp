@@ -12,17 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package statemachine
-
-type transferRequestState int
-
-//go:generate goenums transfer_request_state.go
-const (
-	transferInitial    transferRequestState = iota // INITIAL
-	transferRequested                              // dspace:REQUESTED
-	started                                        // dspace:STARTED
-	suspended                                      // dspace:SUSPENDED
-	completed                                      // dspace:COMPLETED
-	transferTerminated                             // dspace:TERMINATED
-
-)
+// Package badger contains an implementation of the persistance.StorageProvider interface.
+// Badger is a pure-go key-value database, not unlike redis. It is made to be embeddable in
+// go applications, and offers both on-disk and in-memory backends.
+//
+// This is intended to be the default storage backend for RUN-DSP.
+package badger
