@@ -78,19 +78,16 @@ func (sp *StorageProvider) ReleaseLock(ctx context.Context, k lockKey) error {
 func (sp *StorageProvider) isLocked(ctx context.Context, k lockKey) bool {
 	logger := logging.Extract(ctx).With(logKey, k.String())
 	err := sp.db.View(func(txn *badger.Txn) error {
-		logger.Debug("Checking if lock set")
 		_, err := txn.Get(k.key())
 		return err
 	})
 	if err != nil {
 		if errors.Is(err, badger.ErrKeyNotFound) {
-			logger.Debug("No key found, reporting unlocked")
 			return false
 		}
 		logger.Error("Got an error, reporting locked", "err", err)
 		return true
 	}
-	logger.Debug("No error, reporting locked")
 	return true
 }
 

@@ -314,6 +314,9 @@ func (s *Server) SignalTransferComplete(
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "couldn't finish transfer: %s", err)
 	}
+	if err := s.store.PutTransfer(ctx, trReq); err != nil {
+		return nil, status.Errorf(codes.Internal, "Couldn't create transfer request: %s", err)
+	}
 	apply()
 	// TODO: potentially save here
 	for trReq.GetState() != transfer.States.COMPLETED {

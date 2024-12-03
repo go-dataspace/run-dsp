@@ -114,6 +114,7 @@ func New(
 		role:              role,
 		publishInfo:       publishInfo,
 		transferDirection: DirectionPush,
+		modified:          true,
 	}
 	if publishInfo == nil {
 		t.transferDirection = DirectionPull

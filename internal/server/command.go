@@ -242,6 +242,9 @@ var Command = &cobra.Command{
 			ControlCertKey:                  viper.GetString(controlCertKey),
 			ControlVerifyClientCertificates: viper.GetBool(controlVerifyClientCertificates),
 			ControlClientCACert:             viper.GetString(controlClientCACert),
+			PersistenceBackend:              viper.GetString(persistenceBackend),
+			BadgerMemoryDB:                  viper.GetBool(persistenceBadgerMemory),
+			BadgerDBPath:                    viper.GetString(persistenceBadgerDBPath),
 		}
 		ctx, ok := viper.Get("initCTX").(context.Context)
 		if !ok {
