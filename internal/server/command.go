@@ -118,13 +118,16 @@ var Command = &cobra.Command{
 		}
 
 		if !viper.GetBool("server.provider.insecure") {
-			err = cfg.CheckFilesExist(
-				viper.GetString("server.provider.caCert"),
-				viper.GetString("server.provider.clientCert"),
-				viper.GetString("server.provider.clientCertKey"),
-			)
-			if err != nil {
-				return err
+			vars := []string{
+				"server.provider.caCert",
+				"server.provider.clientCert",
+				"server.provider.clientCertKey",
+			}
+			for _, envVar := range vars {
+				err = cfg.CheckFilesExist(viper.GetString(envVar))
+				if err != nil {
+					return fmt.Errorf("failed reading file from environment variable %s: %w", envVar, err)
+				}
 			}
 		}
 
@@ -166,7 +169,7 @@ var Command = &cobra.Command{
 			ProviderInsecure:                viper.GetBool("server.provider.insecure"),
 			ProviderCACert:                  viper.GetString("server.provider.caCert"),
 			ProviderClientCert:              viper.GetString("server.provider.clientCert"),
-			ProviderClientCertKey:           viper.GetString("server.provider.clientCert"),
+			ProviderClientCertKey:           viper.GetString("server.provider.clientCertKey"),
 			ControlEnabled:                  viper.GetBool("server.control.enabled"),
 			ControlListenAddr:               viper.GetString("server.control.address"),
 			ControlPort:                     viper.GetInt("server.control.port"),
