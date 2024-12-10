@@ -37,7 +37,7 @@ func GetWellKnownRoutes() http.Handler {
 func GetDSPRoutes(
 	provider providerv1.ProviderServiceClient,
 	store persistence.StorageProvider,
-	reconciler *statemachine.Reconciler,
+	reconciler statemachine.Reconciler,
 	selfURL *url.URL,
 	pingResponse *providerv1.PingResponse,
 ) http.Handler {
@@ -62,7 +62,6 @@ func GetDSPRoutes(
 	mux.Handle("POST /negotiations/{providerPID}/events", WrapHandlerWithError(ch.providerContractEventHandler))
 	mux.Handle("POST /negotiations/{providerPID}/agreement/verification",
 		WrapHandlerWithError(ch.providerContractVerificationHandler))
-	mux.Handle("POST /negotiations/{providerPID}/termination", WrapHandlerWithError(ch.providerContractTerminationHandler))
 
 	// Contract negotiation consumer callbacks)
 	mux.Handle("POST /negotiations/offers", WrapHandlerWithError(ch.consumerContractOfferHandler))
@@ -71,8 +70,8 @@ func GetDSPRoutes(
 	mux.Handle("POST /callback/negotiations/{consumerPID}/agreement",
 		WrapHandlerWithError(ch.consumerContractAgreementHandler))
 	mux.Handle("POST /callback/negotiations/{consumerPID}/events", WrapHandlerWithError(ch.consumerContractEventHandler))
-	mux.Handle("POST /callback/negotiations/{consumerPID}/termination",
-		WrapHandlerWithError(ch.consumerContractTerminationHandler))
+
+	mux.Handle("POST /negotiations/{PID}/termination", WrapHandlerWithError(ch.contractTerminationHandler))
 
 	// Transfer process endpoints
 	mux.Handle("GET /transfers/{providerPID}", WrapHandlerWithError(ch.providerTransferProcessHandler))

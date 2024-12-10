@@ -32,7 +32,7 @@ import (
 type dspHandlers struct {
 	store               persistence.StorageProvider
 	provider            providerv1.ProviderServiceClient
-	reconciler          *statemachine.Reconciler
+	reconciler          statemachine.Reconciler
 	selfURL             *url.URL
 	dataserviceID       string
 	dataserviceEndpoint string

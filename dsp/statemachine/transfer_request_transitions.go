@@ -52,7 +52,7 @@ type TransferRequestNegotiationState interface {
 	Recv(ctx context.Context, message any) (TransferRequestNegotiationState, error)
 	Send(ctx context.Context) (func(), error)
 	GetProvider() providerv1.ProviderServiceClient
-	GetReconciler() *Reconciler
+	GetReconciler() Reconciler
 }
 
 type TransferRequestNegotiationInitial struct {
@@ -226,7 +226,7 @@ func (tr *TransferRequestNegotiationTerminated) Send(ctx context.Context) (func(
 }
 
 func GetTransferRequestNegotiation(
-	tr *transfer.Request, p providerv1.ProviderServiceClient, r *Reconciler,
+	tr *transfer.Request, p providerv1.ProviderServiceClient, r Reconciler,
 ) TransferRequestNegotiationState {
 	deps := stateMachineDeps{p: p, r: r}
 	switch tr.GetState() {

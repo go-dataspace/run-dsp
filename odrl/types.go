@@ -58,8 +58,8 @@ type Reference struct {
 // Permission is a permisson entry.
 type Permission struct {
 	AbstractPolicyRule
-	Action     string       `json:"action" validate:"required,odrl_action"`
-	Constraint []Constraint `json:"constraint,omitempty" validate:"gte=1,dive"`
+	Action     string       `json:"action" validate:"odrl_action"`
+	Constraint []Constraint `json:"constraint,omitempty" validate:"dive"`
 	Duty       Duty         `json:"duty,omitempty"`
 }
 
@@ -67,8 +67,8 @@ type Permission struct {
 type Duty struct {
 	AbstractPolicyRule
 	ID         string       `json:"@id,omitempty"`
-	Action     string       `json:"action,omitempty" validate:"required,odrl_action"`
-	Constraint []Constraint `json:"constraint,omitempty" validate:"gte=1,dive"`
+	Action     string       `json:"action,omitempty" validate:"odrl_action"`
+	Constraint []Constraint `json:"constraint,omitempty" validate:"dive"`
 }
 
 // Constraint is an ODRL constraint.

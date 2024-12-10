@@ -45,7 +45,7 @@ type Server struct {
 
 	requester  shared.Requester
 	store      persistence.StorageProvider
-	reconciler *statemachine.Reconciler
+	reconciler statemachine.Reconciler
 	provider   dspv1alpha1.ProviderServiceClient
 	selfURL    *url.URL
 }
@@ -53,7 +53,7 @@ type Server struct {
 func New(
 	requester shared.Requester,
 	store persistence.StorageProvider,
-	reconciler *statemachine.Reconciler,
+	reconciler statemachine.Reconciler,
 	provider dspv1alpha1.ProviderServiceClient,
 	selfURL *url.URL,
 ) *Server {
