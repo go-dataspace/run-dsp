@@ -22,6 +22,7 @@ import (
 
 func action(fl validator.FieldLevel) bool {
 	states := []string{
+		"",
 		"odrl:delete",
 		"odrl:execute",
 		"cc:SourceCode",

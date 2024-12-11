@@ -70,8 +70,8 @@ func Inject(ctx context.Context, logger *slog.Logger) context.Context {
 func Extract(ctx context.Context) *slog.Logger {
 	ctxVal := ctx.Value(contextKey)
 	if ctxVal == nil {
-		logger := NewJSON("info", false)
-		logger.Warn("logger not found in context, returning default logger with level info")
+		logger := slog.Default()
+		logger.Debug("logger not found in context, using default logger")
 		return logger
 	}
 	logger, ok := ctxVal.(*slog.Logger)

@@ -78,13 +78,20 @@ type ReconciliationEntry struct {
 	Context     context.Context
 }
 
-// Reconciler tries to send out all the http requests, and retries them if something fails.
+// Reconciler is the interface for the reconciler used in the statemachine. It's where
+// the statemachine leaves outgoing state machine requests. As all these are done via HTTP
+// for now, the only reason for this interface is to allow mocks in testing.
+type Reconciler interface {
+	Add(e ReconciliationEntry)
+}
+
+// HTTPReconciler tries to send out all the http requests, and retries them if something fails.
 // A request has an exponential backoff that is defined in calculateNextAttempt.
 // But simply said it takes the previous interval, adds 50% to that, and then randomises it a bit.
 //
 // Right now, almost nothing signals an immediate stop, but the option for that is already
 // available.
-type Reconciler struct {
+type HTTPReconciler struct {
 	ctx context.Context
 	c   chan reconciliationOperation
 	r   shared.Requester
@@ -97,11 +104,11 @@ type Reconciler struct {
 	sync.Mutex
 }
 
-func NewReconciler(ctx context.Context, r shared.Requester, s persistence.StorageProvider) *Reconciler {
+func NewReconciler(ctx context.Context, r shared.Requester, s persistence.StorageProvider) *HTTPReconciler {
 	q := &deque.Deque[reconciliationOperation]{}
 	q.Grow(initialQueueSize)
 
-	return &Reconciler{
+	return &HTTPReconciler{
 		ctx: ctx,
 		c:   make(chan reconciliationOperation),
 		r:   r,
@@ -110,7 +117,7 @@ func NewReconciler(ctx context.Context, r shared.Requester, s persistence.Storag
 	}
 }
 
-func (r *Reconciler) Run() {
+func (r *HTTPReconciler) Run() {
 	r.WaitGroup.Add(1 + workers)
 	go r.manager()
 	for range workers {
@@ -118,7 +125,7 @@ func (r *Reconciler) Run() {
 	}
 }
 
-func (r *Reconciler) Add(entry ReconciliationEntry) {
+func (r *HTTPReconciler) Add(entry ReconciliationEntry) {
 	r.Lock()
 	defer r.Unlock()
 	r.q.PushBack(reconciliationOperation{
@@ -130,7 +137,7 @@ func (r *Reconciler) Add(entry ReconciliationEntry) {
 	})
 }
 
-func (r *Reconciler) manager() {
+func (r *HTTPReconciler) manager() {
 	// We use a ticker to trigger iterations, this is to not hammer the queue in a tight loop.
 	ticker := time.NewTicker(reconciliationMillis * time.Millisecond)
 	logger := logging.Extract(r.ctx)
@@ -162,7 +169,7 @@ func (r *Reconciler) manager() {
 	}
 }
 
-func (r *Reconciler) worker() {
+func (r *HTTPReconciler) worker() {
 	// rLogger is the non-entry specific logger for the reconciler
 	rLogger := logging.Extract(r.ctx)
 	rLogger.Info("Starting reconciliation loop")
@@ -200,7 +207,7 @@ func (r *Reconciler) worker() {
 	}
 }
 
-func (r *Reconciler) handleError(ctx context.Context, op reconciliationOperation, err error) {
+func (r *HTTPReconciler) handleError(ctx context.Context, op reconciliationOperation, err error) {
 	logger := logging.Extract(ctx).With(
 		"err", err, "submitted", op.Submitted, "attempts", op.Attempts, "orig_next_attempt", op.NextAttempt)
 	// If the error is fatal, just immediately terminate the operation.
@@ -220,7 +227,7 @@ func (r *Reconciler) handleError(ctx context.Context, op reconciliationOperation
 	r.Unlock()
 }
 
-func (r *Reconciler) terminate(ctx context.Context, entry ReconciliationEntry) {
+func (r *HTTPReconciler) terminate(ctx context.Context, entry ReconciliationEntry) {
 	logger := logging.Extract(ctx)
 	logger.Error("Terminating entry")
 
@@ -256,7 +263,7 @@ func calculateNextAttempt(currentInterval time.Duration, attempts int) (time.Tim
 	return nextRun, time.Duration(ci)
 }
 
-func (r *Reconciler) updateState(
+func (r *HTTPReconciler) updateState(
 	ctx context.Context, entry ReconciliationEntry, state string,
 ) error {
 	logger := logging.Extract(ctx)
@@ -274,7 +281,7 @@ func (r *Reconciler) updateState(
 	}
 }
 
-func (c *Reconciler) setTransferState(
+func (c *HTTPReconciler) setTransferState(
 	ctx context.Context, state string, role constants.DataspaceRole, id uuid.UUID,
 ) error {
 	ts, err := transfer.ParseState(state)
@@ -296,7 +303,7 @@ func (c *Reconciler) setTransferState(
 	return nil
 }
 
-func (c *Reconciler) setContractState(
+func (c *HTTPReconciler) setContractState(
 	ctx context.Context, state string, role constants.DataspaceRole, id uuid.UUID,
 ) error {
 	cs, err := contract.ParseState(state)

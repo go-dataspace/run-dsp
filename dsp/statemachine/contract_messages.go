@@ -43,7 +43,7 @@ func makeContractRequestFunction(
 	cu *url.URL,
 	reqBody []byte,
 	destinationState contract.State,
-	reconciler *Reconciler,
+	reconciler Reconciler,
 ) func() {
 	var id uuid.UUID
 	if c.GetRole() == constants.DataspaceConsumer {
@@ -71,7 +71,7 @@ func makeRequestFunction(
 	role constants.DataspaceRole,
 	destinationState string,
 	recType ReconciliationType,
-	reconciler *Reconciler,
+	reconciler Reconciler,
 ) func() {
 	return func() {
 		reconciler.Add(ReconciliationEntry{
@@ -88,7 +88,7 @@ func makeRequestFunction(
 }
 
 //nolint:dupl
-func sendContractRequest(ctx context.Context, r *Reconciler, c *contract.Negotiation) (func(), error) {
+func sendContractRequest(ctx context.Context, r Reconciler, c *contract.Negotiation) (func(), error) {
 	ctx, logger := logging.InjectLabels(ctx, "operation", "sendContractRequest")
 	contractRequest := shared.ContractRequestMessage{
 		Context:         shared.GetDSPContext(),
@@ -127,7 +127,7 @@ func sendContractRequest(ctx context.Context, r *Reconciler, c *contract.Negotia
 }
 
 //nolint:dupl
-func sendContractOffer(ctx context.Context, r *Reconciler, c *contract.Negotiation) (func(), error) {
+func sendContractOffer(ctx context.Context, r Reconciler, c *contract.Negotiation) (func(), error) {
 	ctx, logger := logging.InjectLabels(ctx, "operation", "sendContractOffer")
 	contractOffer := shared.ContractOfferMessage{
 		Context:         shared.GetDSPContext(),
@@ -167,7 +167,7 @@ func sendContractOffer(ctx context.Context, r *Reconciler, c *contract.Negotiati
 	), nil
 }
 
-func sendContractAgreement(ctx context.Context, r *Reconciler, c *contract.Negotiation) (func(), error) {
+func sendContractAgreement(ctx context.Context, r Reconciler, c *contract.Negotiation) (func(), error) {
 	ctx, logger := logging.InjectLabels(ctx, "operation", "sendContractAgreement")
 	c.SetAgreement(&odrl.Agreement{
 		PolicyClass: odrl.PolicyClass{},
@@ -204,7 +204,7 @@ func sendContractAgreement(ctx context.Context, r *Reconciler, c *contract.Negot
 }
 
 func sendContractEvent(
-	ctx context.Context, r *Reconciler, c *contract.Negotiation, pid uuid.UUID, state contract.State,
+	ctx context.Context, r Reconciler, c *contract.Negotiation, pid uuid.UUID, state contract.State,
 ) (func(), error) {
 	ctx, logger := logging.InjectLabels(ctx, "operation", "sendContractEvent")
 	contractEvent := shared.ContractNegotiationEventMessage{
@@ -232,7 +232,7 @@ func sendContractEvent(
 	), nil
 }
 
-func sendContractVerification(ctx context.Context, r *Reconciler, c *contract.Negotiation) (func(), error) {
+func sendContractVerification(ctx context.Context, r Reconciler, c *contract.Negotiation) (func(), error) {
 	ctx, logger := logging.InjectLabels(ctx, "operation", "sendContractVerification")
 	contractVerification := shared.ContractAgreementVerificationMessage{
 		Context:     shared.GetDSPContext(),

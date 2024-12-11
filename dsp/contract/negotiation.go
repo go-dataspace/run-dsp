@@ -150,7 +150,7 @@ func (cn *Negotiation) SetProviderPID(u uuid.UUID) {
 
 func (cn *Negotiation) SetConsumerPID(u uuid.UUID) {
 	cn.panicRO()
-	cn.providerPID = u
+	cn.consumerPID = u
 	cn.modify()
 }
 

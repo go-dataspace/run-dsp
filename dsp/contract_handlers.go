@@ -245,11 +245,22 @@ func (dh *dspHandlers) providerContractVerificationHandler(w http.ResponseWriter
 	)
 }
 
-func (dh *dspHandlers) providerContractTerminationHandler(w http.ResponseWriter, req *http.Request) error {
+func (dh *dspHandlers) contractTerminationHandler(w http.ResponseWriter, req *http.Request) error {
 	ctx, _ := logging.InjectLabels(req.Context(), "handler", "providerContractVerificationHandler")
 	req = req.WithContext(ctx)
+	pid := req.PathValue("PID")
+	id, err := uuid.Parse(pid)
+	if err != nil {
+		return contractError(fmt.Sprintf("Incalid PID: %s", pid),
+			http.StatusBadRequest, "400", "Invalid request: PID is not a UUID", nil)
+	}
+	if _, err := dh.store.GetContractR(ctx, id, constants.DataspaceProvider); err == nil {
+		return progressContractState[shared.ContractNegotiationTerminationMessage](
+			dh, w, req, constants.DataspaceProvider, pid,
+		)
+	}
 	return progressContractState[shared.ContractNegotiationTerminationMessage](
-		dh, w, req, constants.DataspaceProvider, req.PathValue("providerPID"),
+		dh, w, req, constants.DataspaceConsumer, pid,
 	)
 }
 
@@ -317,14 +328,6 @@ func (dh *dspHandlers) consumerContractEventHandler(w http.ResponseWriter, req *
 	ctx, _ := logging.InjectLabels(req.Context(), "handler", "consumerContractEventHandler")
 	req = req.WithContext(ctx)
 	return progressContractState[shared.ContractNegotiationEventMessage](
-		dh, w, req, constants.DataspaceConsumer, req.PathValue("consumerPID"),
-	)
-}
-
-func (dh *dspHandlers) consumerContractTerminationHandler(w http.ResponseWriter, req *http.Request) error {
-	ctx, _ := logging.InjectLabels(req.Context(), "handler", "consumerContractEventHandler")
-	req = req.WithContext(ctx)
-	return progressContractState[shared.ContractNegotiationTerminationMessage](
 		dh, w, req, constants.DataspaceConsumer, req.PathValue("consumerPID"),
 	)
 }

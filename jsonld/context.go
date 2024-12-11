@@ -75,24 +75,23 @@ type Context struct {
 // if that fails, it will try to unmarshal it as a list of strings, and if that fails, as
 // a single string.
 func (c *Context) UnmarshalJSON(data []byte) error {
+	c.namedContexts = make(map[string]ContextEntry)
 	var nc map[string]ContextEntry
 	if err := json.Unmarshal(data, &nc); err == nil {
 		c.namedContexts = nc
 		return nil
 	}
-	rootContexts := make([]ContextEntry, 0)
+	c.rootContexts = make([]ContextEntry, 0)
 	var lc []string
 	if err := json.Unmarshal(data, &lc); err == nil {
 		for _, id := range lc {
-			rootContexts = append(rootContexts, ContextEntry{ID: id})
+			c.rootContexts = append(c.rootContexts, ContextEntry{ID: id})
 		}
-		c.rootContexts = rootContexts
 		return nil
 	}
 	var sc string
 	if err := json.Unmarshal(data, &sc); err == nil {
-		rootContexts = append(rootContexts, ContextEntry{ID: sc})
-		c.rootContexts = rootContexts
+		c.rootContexts = append(c.rootContexts, ContextEntry{ID: sc})
 		return nil
 	}
 	return fmt.Errorf("Couldn't unmarshal Context: %s", data)

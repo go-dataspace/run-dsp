@@ -35,7 +35,7 @@ func makeTransferRequestFunction(
 	cu *url.URL,
 	reqBody []byte,
 	destinationState transfer.State,
-	reconciler *Reconciler,
+	reconciler Reconciler,
 ) func() {
 	var id uuid.UUID
 	if t.GetRole() == constants.DataspaceConsumer {

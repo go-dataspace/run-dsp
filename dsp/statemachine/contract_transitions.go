@@ -54,16 +54,16 @@ type ContractNegotiationState interface {
 	Recv(ctx context.Context, message any) (context.Context, ContractNegotiationState, error)
 	Send(ctx context.Context) (func(), error)
 	GetProvider() providerv1.ProviderServiceClient
-	GetReconciler() *Reconciler
+	GetReconciler() Reconciler
 }
 
 type stateMachineDeps struct {
 	p providerv1.ProviderServiceClient
-	r *Reconciler
+	r Reconciler
 }
 
 func (cd *stateMachineDeps) GetProvider() providerv1.ProviderServiceClient { return cd.p }
-func (cd *stateMachineDeps) GetReconciler() *Reconciler                    { return cd.r }
+func (cd *stateMachineDeps) GetReconciler() Reconciler                     { return cd.r }
 
 // ContractNegotiationInitial is an initial state for a contract that hasn't been actually
 // been submitted yet.
@@ -425,7 +425,7 @@ func GetContractNegotiation(
 	ctx context.Context,
 	c *contract.Negotiation,
 	p providerv1.ProviderServiceClient,
-	r *Reconciler,
+	r Reconciler,
 ) (context.Context, ContractNegotiationState) {
 	var cns ContractNegotiationState
 	deps := stateMachineDeps{p: p, r: r}
