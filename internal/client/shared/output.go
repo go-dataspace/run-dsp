@@ -26,12 +26,12 @@ import (
 	"github.com/alecthomas/chroma/v2/quick"
 	"github.com/fatih/color"
 	"github.com/go-dataspace/run-dsp/internal/ui"
-	dspv1alpha1 "github.com/go-dataspace/run-dsrpc/gen/go/dsp/v1alpha1"
+	dspcontrol "github.com/go-dataspace/run-dsrpc/gen/go/dsp/v1alpha2"
 	"github.com/spf13/viper"
 )
 
 // PrintCatalogue prints out a catalogue, either as a table or as JSON.
-func PrintCatalogue(catalogue []*dspv1alpha1.Dataset, printJSON bool) error {
+func PrintCatalogue(catalogue []*dspcontrol.Dataset, printJSON bool) error {
 	if printJSON {
 		return pprintJSON(catalogue)
 	}
@@ -64,7 +64,7 @@ func pprintJSON[T any](o T) error {
 }
 
 // PrintDataset prints out a dataset, either as a table or as JSON.
-func PrintDataset(ds *dspv1alpha1.Dataset, printJSON bool) error {
+func PrintDataset(ds *dspcontrol.Dataset, printJSON bool) error {
 	if printJSON {
 		return pprintJSON(ds)
 	}

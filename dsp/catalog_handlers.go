@@ -20,7 +20,7 @@ import (
 
 	"github.com/go-dataspace/run-dsp/dsp/shared"
 	"github.com/go-dataspace/run-dsp/logging"
-	providerv1alpha1 "github.com/go-dataspace/run-dsrpc/gen/go/dsp/v1alpha1"
+	provider "github.com/go-dataspace/run-dsrpc/gen/go/dsp/v1alpha2"
 )
 
 // CatalogError implements HTTPError for catalog requests.
@@ -80,7 +80,7 @@ func (ch *dspHandlers) catalogRequestHandler(w http.ResponseWriter, req *http.Re
 	}
 	logger.Debug("Got catalog request", "req", catalogReq)
 	// As the filter option is undefined, we will not fill anything
-	resp, err := ch.provider.GetCatalogue(req.Context(), &providerv1alpha1.GetCatalogueRequest{})
+	resp, err := ch.provider.GetCatalogue(req.Context(), &provider.GetCatalogueRequest{})
 	if err != nil {
 		return grpcErrorHandler(err)
 	}
@@ -117,7 +117,7 @@ func (ch *dspHandlers) datasetRequestHandler(w http.ResponseWriter, req *http.Re
 		return catalogError(err.Error(), http.StatusBadRequest, "400", "Invalid dataset request")
 	}
 	logger.Debug("Got dataset request", "req", datasetReq)
-	resp, err := ch.provider.GetDataset(ctx, &providerv1alpha1.GetDatasetRequest{
+	resp, err := ch.provider.GetDataset(ctx, &provider.GetDatasetRequest{
 		DatasetId: paramID,
 	})
 	if err != nil {
@@ -131,7 +131,7 @@ func (ch *dspHandlers) datasetRequestHandler(w http.ResponseWriter, req *http.Re
 	return nil
 }
 
-func processProviderDataset(pds *providerv1alpha1.Dataset, service shared.DataService) shared.Dataset {
+func processProviderDataset(pds *provider.Dataset, service shared.DataService) shared.Dataset {
 	var checksum *shared.Checksum
 	cs := pds.GetChecksum()
 	if cs != nil {
@@ -180,7 +180,7 @@ func processProviderDataset(pds *providerv1alpha1.Dataset, service shared.DataSe
 	return ds
 }
 
-func processProviderCatalogue(gdc []*providerv1alpha1.Dataset, service shared.DataService) []shared.Dataset {
+func processProviderCatalogue(gdc []*provider.Dataset, service shared.DataService) []shared.Dataset {
 	datasets := make([]shared.Dataset, len(gdc))
 	for i, f := range gdc {
 		datasets[i] = processProviderDataset(f, service)

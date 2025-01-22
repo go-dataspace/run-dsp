@@ -17,8 +17,10 @@ package server
 
 import (
 	"context"
+	"crypto/rand"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/hex"
 	"fmt"
 	"log/slog"
 	"net"
@@ -33,13 +35,14 @@ import (
 
 	"github.com/go-dataspace/run-dsp/dsp"
 	"github.com/go-dataspace/run-dsp/dsp/control"
+	"github.com/go-dataspace/run-dsp/dsp/persistence"
 	"github.com/go-dataspace/run-dsp/dsp/shared"
 	"github.com/go-dataspace/run-dsp/dsp/statemachine"
 	"github.com/go-dataspace/run-dsp/internal/authforwarder"
 	"github.com/go-dataspace/run-dsp/internal/cfg"
 	"github.com/go-dataspace/run-dsp/internal/constants"
 	"github.com/go-dataspace/run-dsp/logging"
-	providerv1 "github.com/go-dataspace/run-dsrpc/gen/go/dsp/v1alpha1"
+	providerv1 "github.com/go-dataspace/run-dsrpc/gen/go/dsp/v1alpha2"
 	grpclog "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/logging"
 	"github.com/justinas/alice"
 	"github.com/spf13/cobra"
@@ -63,7 +66,12 @@ const (
 	providerClientCert    = "server.provider.clientCert"
 	providerClientCertKey = "server.provider.clientCertKey"
 
-	controlEnabled                  = "server.control.enabled"
+	contractServiceAddress       = "server.contractService.address"
+	contractServiceInsecure      = "server.contractService.insecure"
+	contractServiceCACert        = "server.contractService.caCert"
+	contractServiceClientCert    = "server.contractService.clientCert"
+	contractServiceClientCertKey = "server.contractService.clientCertKey"
+
 	controlAddr                     = "server.control.address"
 	controlPort                     = "server.control.port"
 	controlInsecure                 = "server.control.insecure"
@@ -108,7 +116,17 @@ func init() {
 	cfg.AddPersistentFlag(
 		Command, providerClientCertKey, "provider-client-cert-key", "Key for client certificate", "")
 
-	cfg.AddPersistentFlag(Command, controlEnabled, "control-enabled", "enable gRPC control service", false)
+	cfg.AddPersistentFlag(
+		Command, contractServiceAddress, "contract-service-address", "Address of the contract service gRPC endpoint", "")
+	cfg.AddPersistentFlag(
+		Command, contractServiceInsecure, "contract-service-insecure", "Disable TLS when connecting to provider", false)
+	cfg.AddPersistentFlag(
+		Command, contractServiceCACert, "contract-service-ca-cert", "CA certificate of provider cert issuer", "")
+	cfg.AddPersistentFlag(
+		Command, contractServiceClientCert, "contract-service-client-cert", "Client certificate to use with provider", "")
+	cfg.AddPersistentFlag(
+		Command, contractServiceClientCertKey, "contract-service-client-cert-key", "Key for client certificate", "")
+
 	cfg.AddPersistentFlag(
 		Command, controlAddr, "control-address", "address for the control service to listen on", "0.0.0.0")
 	cfg.AddPersistentFlag(
@@ -184,27 +202,40 @@ var Command = &cobra.Command{
 			}
 		}
 
-		if viper.GetBool(controlEnabled) {
-			err = cfg.CheckListenPort(viper.GetString(controlAddr), viper.GetInt(controlPort))
+		err = cfg.CheckConnectAddr(viper.GetString(contractServiceAddress))
+		if err != nil {
+			return err
+		}
+
+		if !viper.GetBool(contractServiceInsecure) {
+			err = cfg.CheckFilesExist(
+				viper.GetString(contractServiceCACert),
+				viper.GetString(contractServiceClientCert),
+				viper.GetString(contractServiceClientCertKey),
+			)
 			if err != nil {
 				return err
 			}
-			if !viper.GetBool(controlInsecure) {
-				err = cfg.CheckFilesExist(
-					viper.GetString(controlCert),
-					viper.GetString(controlCertKey),
-				)
+		}
+
+		err = cfg.CheckListenPort(viper.GetString(controlAddr), viper.GetInt(controlPort))
+		if err != nil {
+			return err
+		}
+		if !viper.GetBool(controlInsecure) {
+			err = cfg.CheckFilesExist(
+				viper.GetString(controlCert),
+				viper.GetString(controlCertKey),
+			)
+			if err != nil {
+				return err
+			}
+			if viper.GetBool(controlVerifyClientCertificates) {
+				err = cfg.CheckFilesExist(viper.GetString(controlClientCACert))
 				if err != nil {
 					return err
 				}
-				if viper.GetBool(controlVerifyClientCertificates) {
-					err = cfg.CheckFilesExist(viper.GetString(controlClientCACert))
-					if err != nil {
-						return err
-					}
-				}
 			}
-
 		}
 
 		switch viper.GetString(persistenceBackend) {
@@ -226,15 +257,23 @@ var Command = &cobra.Command{
 			panic(err.Error())
 		}
 		c := command{
-			ListenAddr:                      viper.GetString(dspAddress),
-			Port:                            viper.GetInt(dspPort),
-			ExternalURL:                     u,
-			ProviderAddress:                 viper.GetString(providerAddress),
-			ProviderInsecure:                viper.GetBool(providerInsecure),
-			ProviderCACert:                  viper.GetString(providerCACert),
-			ProviderClientCert:              viper.GetString(providerClientCert),
-			ProviderClientCertKey:           viper.GetString(providerClientCertKey),
-			ControlEnabled:                  viper.GetBool(controlEnabled),
+			ListenAddr:      viper.GetString(dspAddress),
+			Port:            viper.GetInt(dspPort),
+			ExternalURL:     u,
+			ProviderAddress: viper.GetString(providerAddress),
+			ProviderTLSConfig: tlsConfig{
+				Insecure:      viper.GetBool(providerInsecure),
+				CACert:        viper.GetString(providerCACert),
+				ClientCert:    viper.GetString(providerClientCert),
+				ClientCertKey: viper.GetString(providerClientCertKey),
+			},
+			ContractServiceAddress: viper.GetString(contractServiceAddress),
+			ContractServiceTLSConfig: tlsConfig{
+				Insecure:      viper.GetBool(contractServiceInsecure),
+				CACert:        viper.GetString(contractServiceCACert),
+				ClientCert:    viper.GetString(contractServiceClientCert),
+				ClientCertKey: viper.GetString(contractServiceClientCertKey),
+			},
 			ControlListenAddr:               viper.GetString(controlAddr),
 			ControlPort:                     viper.GetInt(controlPort),
 			ControlInsecure:                 viper.GetBool(controlInsecure),
@@ -254,6 +293,12 @@ var Command = &cobra.Command{
 	},
 }
 
+type tlsConfig struct {
+	Insecure      bool
+	CACert        string
+	ClientCert    string
+	ClientCertKey string
+}
 type command struct {
 	ListenAddr string
 	Port       int
@@ -261,14 +306,14 @@ type command struct {
 	ExternalURL *url.URL
 
 	// GRPC settings for the provider.
-	ProviderAddress       string
-	ProviderInsecure      bool
-	ProviderCACert        string
-	ProviderClientCert    string
-	ProviderClientCertKey string
+	ProviderAddress   string
+	ProviderTLSConfig tlsConfig
+
+	// GRPC settings for the contract service.
+	ContractServiceAddress   string
+	ContractServiceTLSConfig tlsConfig
 
 	// GRPC control interface settings.
-	ControlEnabled                  bool
 	ControlListenAddr               string
 	ControlPort                     int
 	ControlInsecure                 bool
@@ -296,15 +341,11 @@ func (c *command) Run(ctx context.Context) error {
 		"port", c.Port,
 		"externalURL", c.ExternalURL,
 	)
-	provider, conn, err := c.getProvider(ctx)
+	provider, conn, pingResponse, err := c.getProvider(ctx)
 	if err != nil {
 		return err
 	}
 	defer conn.Close()
-	pingResponse, err := provider.Ping(ctx, &providerv1.PingRequest{})
-	if err != nil {
-		return fmt.Errorf("could not ping provider: %w", err)
-	}
 	store, err := c.getStorageProvider(ctx)
 	if err != nil {
 		return err
@@ -314,32 +355,36 @@ func (c *command) Run(ctx context.Context) error {
 	reconciler := statemachine.NewReconciler(ctx, httpClient, store)
 	reconciler.Run()
 
+	selfURL := cloneURL(c.ExternalURL)
+	selfURL.Path = path.Join(selfURL.Path, constants.APIPath)
+
+	contractService, csConn, err := c.getContractService(ctx)
+	if err != nil {
+		return err
+	}
+	defer csConn.Close()
+
+	ctlSVC := control.New(httpClient, store, reconciler, provider, contractService, selfURL)
+	err = c.startControl(ctx, wg, ctlSVC)
+	if err != nil {
+		return err
+	}
+	err = c.configureContractService(ctx, store, contractService)
+	if err != nil {
+		return err
+	}
+
 	mux := http.NewServeMux()
-	baseMW := alice.New(
-		sloghttp.Recovery,
-		sloghttp.New(logger),
-		logging.NewMiddleware(logger),
-	)
+	baseMW := alice.New(sloghttp.Recovery, sloghttp.New(logger), logging.NewMiddleware(logger))
 	mux.Handle("/.well-known/", http.StripPrefix(
 		"/.well-known",
 		baseMW.Append(jsonHeaderMiddleware).Then(dsp.GetWellKnownRoutes()),
 	))
-	selfURL := cloneURL(c.ExternalURL)
-	selfURL.Path = path.Join(selfURL.Path, constants.APIPath)
 	mux.Handle(constants.APIPath+"/", http.StripPrefix(
 		constants.APIPath,
-		baseMW.Append(
-			jsonHeaderMiddleware,
-			authforwarder.HTTPMiddleware,
-		).Then(dsp.GetDSPRoutes(provider, store, reconciler, selfURL, pingResponse)),
+		baseMW.Append(jsonHeaderMiddleware, authforwarder.HTTPMiddleware).Then(
+			dsp.GetDSPRoutes(provider, contractService, store, reconciler, selfURL, pingResponse)),
 	))
-	if c.ControlEnabled {
-		ctlSVC := control.New(httpClient, store, reconciler, provider, selfURL)
-		err = c.startControl(ctx, wg, ctlSVC)
-		if err != nil {
-			return err
-		}
-	}
 	srv := &http.Server{
 		Addr:              fmt.Sprintf("%s:%d", c.ListenAddr, c.Port),
 		Handler:           mux,
@@ -347,6 +392,34 @@ func (c *command) Run(ctx context.Context) error {
 	}
 	// TODO: Shut down webserver gracefully and use the reconciler waitgroup.
 	return srv.ListenAndServe()
+}
+
+func (c *command) configureContractService(
+	ctx context.Context,
+	store persistence.StorageProvider,
+	contractService providerv1.ContractServiceClient,
+) error {
+	token, err := createToken(ctx, store)
+	if err != nil {
+		return err
+	}
+	_, err = contractService.Configure(ctx, &providerv1.ContractServiceConfigureRequest{
+		ConnectorAddress:  fmt.Sprintf("%s:%d", c.ControlListenAddr, c.ControlPort),
+		VerificationToken: token,
+	})
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func createToken(ctx context.Context, store persistence.StorageProvider) (string, error) {
+	token := generateToken()
+	err := store.PutToken(ctx, "contract-token", token)
+	if err != nil {
+		return "", err
+	}
+	return token, nil
 }
 
 func (c *command) startControl(
@@ -387,7 +460,7 @@ func (c *command) startControl(
 			authforwarder.StreamInterceptor,
 		),
 	)
-	providerv1.RegisterClientServiceServer(grpcServer, controlSVC)
+	providerv1.RegisterControlServiceServer(grpcServer, controlSVC)
 
 	go func() {
 		logger.Info("Starting GRPC service")
@@ -439,18 +512,45 @@ func (c *command) loadControlTLSCredentials() (credentials.TransportCredentials,
 	return credentials.NewTLS(config), nil
 }
 
-func (c *command) getProvider(ctx context.Context) (providerv1.ProviderServiceClient, *grpc.ClientConn, error) {
-	logger := logging.Extract(ctx)
-	tlsCredentials, err := c.loadTLSCredentials()
+func (c *command) getProvider(ctx context.Context) (
+	providerv1.ProviderServiceClient,
+	*grpc.ClientConn,
+	*providerv1.PingResponse,
+	error,
+) {
+	client, conn, err := getGRPCClient(ctx, c.ProviderAddress, c.ProviderTLSConfig, providerv1.NewProviderServiceClient)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
+	}
+	ping, err := client.Ping(ctx, &providerv1.PingRequest{})
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("could not ping provider: %w", err)
+	}
+	return client, conn, ping, nil
+}
+
+func (c *command) getContractService(ctx context.Context) (providerv1.ContractServiceClient, *grpc.ClientConn, error) {
+	return getGRPCClient(ctx, c.ContractServiceAddress, c.ContractServiceTLSConfig, providerv1.NewContractServiceClient)
+}
+
+func getGRPCClient[T any](
+	ctx context.Context,
+	address string,
+	tlsc tlsConfig,
+	clientFunc func(cc grpc.ClientConnInterface) T,
+) (T, *grpc.ClientConn, error) {
+	var client T
+	logger := logging.Extract(ctx)
+	tlsCredentials, err := loadTLSCredentials(tlsc)
+	if err != nil {
+		return client, nil, err
 	}
 
 	logOpts := []grpclog.Option{
 		grpclog.WithLogOnEvents(grpclog.StartCall, grpclog.FinishCall),
 	}
 	conn, err := grpc.NewClient(
-		c.ProviderAddress,
+		address,
 		grpc.WithTransportCredentials(tlsCredentials),
 		grpc.WithChainUnaryInterceptor(
 			grpclog.UnaryClientInterceptor(interceptorLogger(logger), logOpts...),
@@ -462,15 +562,15 @@ func (c *command) getProvider(ctx context.Context) (providerv1.ProviderServiceCl
 		),
 	)
 	if err != nil {
-		return nil, nil, fmt.Errorf("could not connect to the provider: %w", err)
+		return client, nil, fmt.Errorf("could not connect to the provider: %w", err)
 	}
 
-	provider := providerv1.NewProviderServiceClient(conn)
-	return provider, conn, nil
+	client = clientFunc(conn)
+	return client, conn, nil
 }
 
-func (c *command) loadTLSCredentials() (credentials.TransportCredentials, error) {
-	if c.ProviderInsecure {
+func loadTLSCredentials(t tlsConfig) (credentials.TransportCredentials, error) {
+	if t.Insecure {
 		return insecure.NewCredentials(), nil
 	}
 
@@ -478,8 +578,8 @@ func (c *command) loadTLSCredentials() (credentials.TransportCredentials, error)
 		MinVersion: tls.VersionTLS12,
 	}
 
-	if c.ProviderCACert != "" {
-		pemServerCA, err := os.ReadFile(c.ProviderCACert)
+	if t.CACert != "" {
+		pemServerCA, err := os.ReadFile(t.CACert)
 		if err != nil {
 			return nil, fmt.Errorf("couldn't read CA file: %w", err)
 		}
@@ -491,8 +591,8 @@ func (c *command) loadTLSCredentials() (credentials.TransportCredentials, error)
 		config.RootCAs = certPool
 	}
 
-	if c.ProviderClientCert != "" {
-		clientCert, err := tls.LoadX509KeyPair(c.ProviderClientCert, c.ProviderClientCertKey)
+	if t.ClientCert != "" {
+		clientCert, err := tls.LoadX509KeyPair(t.ClientCert, t.ClientCertKey)
 		if err != nil {
 			return nil, err
 		}
@@ -514,4 +614,13 @@ func cloneURL(u *url.URL) *url.URL {
 		panic(fmt.Sprintf("failed to clone URL %s: %s", u.String(), err))
 	}
 	return cu
+}
+
+func generateToken() string {
+	b := make([]byte, 256)
+	_, err := rand.Read(b)
+	if err != nil {
+		panic(err)
+	}
+	return hex.EncodeToString(b)
 }

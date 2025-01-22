@@ -31,6 +31,7 @@ type StorageProvider interface {
 	ContractSaver
 	AgreementSaver
 	TransferSaver
+	TokenSaver
 }
 
 // ContractSaver is an interface for storing/retrieving dataspace contracts.
@@ -85,4 +86,14 @@ type TransferSaver interface {
 	) (*transfer.Request, error)
 	// PutTransfer saves a transfer.
 	PutTransfer(ctx context.Context, transfer *transfer.Request) error
+}
+
+// TokenSaver saves a token to a key, no locking necessary as a token is immutable.
+type TokenSaver interface {
+	// GetToken retrieves a token by key.
+	GetToken(ctx context.Context, key string) (string, error)
+	// DelToken deletes a token by key.
+	DelToken(ctx context.Context, key string) error
+	// PutToken stores a key/token combination.
+	PutToken(ctx context.Context, key, token string) error
 }

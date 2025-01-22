@@ -23,7 +23,6 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
-	"path"
 	"testing"
 	"time"
 
@@ -34,9 +33,9 @@ import (
 	"github.com/go-dataspace/run-dsp/dsp/persistence/badger"
 	"github.com/go-dataspace/run-dsp/dsp/shared"
 	"github.com/go-dataspace/run-dsp/dsp/statemachine"
-	mockprovider "github.com/go-dataspace/run-dsp/mocks/github.com/go-dataspace/run-dsrpc/gen/go/dsp/v1alpha1"
+	mockprovider "github.com/go-dataspace/run-dsp/mocks/github.com/go-dataspace/run-dsrpc/gen/go/dsp/v1alpha2"
 	"github.com/go-dataspace/run-dsp/odrl"
-	provider "github.com/go-dataspace/run-dsrpc/gen/go/dsp/v1alpha1"
+	provider "github.com/go-dataspace/run-dsrpc/gen/go/dsp/v1alpha2"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -93,10 +92,11 @@ func (mr *mockReconciler) Add(e statemachine.ReconciliationEntry) {
 }
 
 type environment struct {
-	server     *httptest.Server
-	provider   *mockprovider.MockProviderServiceClient
-	store      *badger.StorageProvider
-	reconciler *mockReconciler
+	server          *httptest.Server
+	provider        *mockprovider.MockProviderServiceClient
+	contractService *mockprovider.MockContractServiceClient
+	store           *badger.StorageProvider
+	reconciler      *mockReconciler
 }
 
 func setupEnvironment(t *testing.T) (
@@ -108,6 +108,7 @@ func setupEnvironment(t *testing.T) (
 	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
 	slog.SetDefault(logger)
 	prov := mockprovider.NewMockProviderServiceClient(t)
+	cService := mockprovider.NewMockContractServiceClient(t)
 	store, err := badger.New(ctx, true, "")
 	reconciler := &mockReconciler{}
 	assert.Nil(t, err)
@@ -118,12 +119,13 @@ func setupEnvironment(t *testing.T) (
 		DataserviceId:       dataserviceID,
 		DataserviceUrl:      dataserviceURL,
 	}
-	ts := httptest.NewServer(dsp.GetDSPRoutes(prov, store, reconciler, selfURL, pingResponse))
+	ts := httptest.NewServer(dsp.GetDSPRoutes(prov, cService, store, reconciler, selfURL, pingResponse))
 	e := environment{
-		server:     ts,
-		provider:   prov,
-		store:      store,
-		reconciler: reconciler,
+		server:          ts,
+		provider:        prov,
+		contractService: cService,
+		store:           store,
+		reconciler:      reconciler,
 	}
 	return ctx, cancel, &e
 }
@@ -199,6 +201,10 @@ func TestNegotiationProviderInitialRequest(t *testing.T) {
 	}).Return(&provider.GetDatasetResponse{
 		Dataset: &provider.Dataset{},
 	}, nil)
+
+	env.contractService.On(
+		"RequestReceived", mock.Anything, mock.Anything,
+	).Return(&provider.ContractServiceRequestReceivedResponse{}, nil)
 	u := env.server.URL + "/negotiations/request"
 
 	body := encode(t, shared.ContractRequestMessage{
@@ -222,30 +228,9 @@ func TestNegotiationProviderInitialRequest(t *testing.T) {
 	assert.Equal(t, contract.States.REQUESTED, negotiation.GetState())
 	assert.Equal(t, odrlOffer, negotiation.GetOffer())
 	assert.Equal(t, callBack.String(), negotiation.GetCallback().String())
-
-	reconEntry := env.reconciler.e
-	assert.Equal(t, providerPID, reconEntry.EntityID)
-	assert.Equal(t, statemachine.ReconciliationContract, reconEntry.Type)
-	assert.Equal(t, constants.DataspaceProvider, reconEntry.Role)
-	assert.Equal(t, contract.States.OFFERED.String(), reconEntry.TargetState)
-	assert.Equal(t, http.MethodPost, reconEntry.Method)
-
-	cburl := shared.MustParseURL(callBack.String())
-	cburl.Path = path.Join(cburl.Path, "negotiations", staticConsumerPID.String(), "offers")
-	assert.Equal(t, cburl, reconEntry.URL)
-
-	expectedOffer := shared.ContractOfferMessage{
-		Context:         shared.GetDSPContext(),
-		Type:            "dspace:ContractOfferMessage",
-		ProviderPID:     providerPID.URN(),
-		ConsumerPID:     staticConsumerPID.URN(),
-		Offer:           odrlOffer.MessageOffer,
-		CallbackAddress: selfURL.String(),
-	}
-	receivedOffer := decode[shared.ContractOfferMessage](t, bytes.NewReader(reconEntry.Body))
-	assert.EqualValues(t, expectedOffer, receivedOffer)
 }
 
+//nolint:dupl
 func TestNegotiationProviderRequest(t *testing.T) {
 	t.Parallel()
 	ctx, cancel, env := setupEnvironment(t)
@@ -255,6 +240,9 @@ func TestNegotiationProviderRequest(t *testing.T) {
 
 	u := env.server.URL + "/negotiations/" + staticProviderPID.String() + "/request"
 
+	env.contractService.On(
+		"RequestReceived", mock.Anything, mock.Anything,
+	).Return(&provider.ContractServiceRequestReceivedResponse{}, nil)
 	body := encode(t, shared.ContractRequestMessage{
 		Context:         shared.GetDSPContext(),
 		Type:            "dspace:ContractRequestMessage",
@@ -276,28 +264,6 @@ func TestNegotiationProviderRequest(t *testing.T) {
 	assert.Equal(t, contract.States.REQUESTED, negotiation.GetState())
 	assert.Equal(t, odrlOffer, negotiation.GetOffer())
 	assert.Equal(t, callBack.String(), negotiation.GetCallback().String())
-
-	reconEntry := env.reconciler.e
-	assert.Equal(t, staticProviderPID, reconEntry.EntityID)
-	assert.Equal(t, statemachine.ReconciliationContract, reconEntry.Type)
-	assert.Equal(t, constants.DataspaceProvider, reconEntry.Role)
-	assert.Equal(t, contract.States.AGREED.String(), reconEntry.TargetState)
-	assert.Equal(t, http.MethodPost, reconEntry.Method)
-
-	cburl := shared.MustParseURL(callBack.String())
-	cburl.Path = path.Join(cburl.Path, "negotiations", staticConsumerPID.String(), "agreement")
-	assert.Equal(t, cburl, reconEntry.URL)
-
-	msg := decode[shared.ContractAgreementMessage](t, bytes.NewReader(reconEntry.Body))
-	assert.EqualValues(t, "dspace:ContractAgreementMessage", msg.Type)
-	assert.Equal(t, staticProviderPID.URN(), msg.ProviderPID)
-	assert.Equal(t, staticConsumerPID.URN(), msg.ConsumerPID)
-	assert.Equal(t, selfURL.String(), msg.CallbackAddress)
-	assert.Equal(t, targetID.URN(), msg.Agreement.Target)
-
-	agreement, err := env.store.GetAgreement(ctx, uuid.MustParse(msg.Agreement.ID))
-	assert.Nil(t, err)
-	assert.Equal(t, targetID.URN(), agreement.Target)
 }
 
 func TestNegotiationProviderEventAccepted(t *testing.T) {
@@ -309,6 +275,11 @@ func TestNegotiationProviderEventAccepted(t *testing.T) {
 
 	u := env.server.URL + "/negotiations/" + staticProviderPID.String() + "/events"
 
+	env.contractService.EXPECT().AcceptedReceived(
+		mock.Anything, &provider.ContractServiceAcceptedReceivedRequest{
+			Pid: staticProviderPID.String(),
+		},
+	).Return(&provider.ContractServiceAcceptedReceivedResponse{}, nil)
 	body := encode(t, shared.ContractNegotiationEventMessage{
 		Context:     shared.GetDSPContext(),
 		Type:        "dspace:ContractNegotiationEventMessage",
@@ -329,28 +300,6 @@ func TestNegotiationProviderEventAccepted(t *testing.T) {
 	assert.Equal(t, contract.States.ACCEPTED, negotiation.GetState())
 	assert.Equal(t, odrlOffer, negotiation.GetOffer())
 	assert.Equal(t, callBack.String(), negotiation.GetCallback().String())
-
-	reconEntry := env.reconciler.e
-	assert.Equal(t, staticProviderPID, reconEntry.EntityID)
-	assert.Equal(t, statemachine.ReconciliationContract, reconEntry.Type)
-	assert.Equal(t, constants.DataspaceProvider, reconEntry.Role)
-	assert.Equal(t, contract.States.AGREED.String(), reconEntry.TargetState)
-	assert.Equal(t, http.MethodPost, reconEntry.Method)
-
-	cburl := shared.MustParseURL(callBack.String())
-	cburl.Path = path.Join(cburl.Path, "negotiations", staticConsumerPID.String(), "agreement")
-	assert.Equal(t, cburl, reconEntry.URL)
-
-	msg := decode[shared.ContractAgreementMessage](t, bytes.NewReader(reconEntry.Body))
-	assert.EqualValues(t, "dspace:ContractAgreementMessage", msg.Type)
-	assert.Equal(t, staticProviderPID.URN(), msg.ProviderPID)
-	assert.Equal(t, staticConsumerPID.URN(), msg.ConsumerPID)
-	assert.Equal(t, selfURL.String(), msg.CallbackAddress)
-	assert.Equal(t, targetID.URN(), msg.Agreement.Target)
-
-	agreement, err := env.store.GetAgreement(ctx, uuid.MustParse(msg.Agreement.ID))
-	assert.Nil(t, err)
-	assert.Equal(t, targetID.URN(), agreement.Target)
 }
 
 func TestNegotiationProviderAgreementVerification(t *testing.T) {
@@ -361,6 +310,12 @@ func TestNegotiationProviderAgreementVerification(t *testing.T) {
 	createNegotiation(ctx, t, env.store, contract.States.AGREED, constants.DataspaceProvider)
 
 	u := env.server.URL + "/negotiations/" + staticProviderPID.String() + "/agreement/verification"
+
+	env.contractService.EXPECT().VerificationReceived(
+		mock.Anything, &provider.ContractServiceVerificationReceivedRequest{
+			Pid: staticProviderPID.String(),
+		},
+	).Return(&provider.ContractServiceVerificationReceivedResponse{}, nil)
 
 	body := encode(t, shared.ContractAgreementVerificationMessage{
 		Context:     shared.GetDSPContext(),
@@ -381,23 +336,6 @@ func TestNegotiationProviderAgreementVerification(t *testing.T) {
 	assert.Equal(t, contract.States.VERIFIED, negotiation.GetState())
 	assert.Equal(t, odrlOffer, negotiation.GetOffer())
 	assert.Equal(t, callBack.String(), negotiation.GetCallback().String())
-
-	reconEntry := env.reconciler.e
-	assert.Equal(t, staticProviderPID, reconEntry.EntityID)
-	assert.Equal(t, statemachine.ReconciliationContract, reconEntry.Type)
-	assert.Equal(t, constants.DataspaceProvider, reconEntry.Role)
-	assert.Equal(t, contract.States.FINALIZED.String(), reconEntry.TargetState)
-	assert.Equal(t, http.MethodPost, reconEntry.Method)
-
-	cburl := shared.MustParseURL(callBack.String())
-	cburl.Path = path.Join(cburl.Path, "negotiations", staticConsumerPID.String(), "events")
-	assert.Equal(t, cburl, reconEntry.URL)
-
-	msg := decode[shared.ContractNegotiationEventMessage](t, bytes.NewReader(reconEntry.Body))
-	assert.EqualValues(t, "dspace:ContractNegotiationEventMessage", msg.Type)
-	assert.Equal(t, staticProviderPID.URN(), msg.ProviderPID)
-	assert.Equal(t, staticConsumerPID.URN(), msg.ConsumerPID)
-	assert.Equal(t, contract.States.FINALIZED.String(), msg.EventType)
 }
 
 func TestNegotiationConsumerInitialOffer(t *testing.T) {
@@ -405,6 +343,10 @@ func TestNegotiationConsumerInitialOffer(t *testing.T) {
 	defer cancel()
 
 	u := env.server.URL + "/negotiations/offers"
+
+	env.contractService.On(
+		"OfferReceived", mock.Anything, mock.Anything,
+	).Return(&provider.ContractServiceOfferReceivedResponse{}, nil)
 
 	body := encode(t, shared.ContractOfferMessage{
 		Context:         shared.GetDSPContext(),
@@ -427,30 +369,9 @@ func TestNegotiationConsumerInitialOffer(t *testing.T) {
 	assert.Equal(t, contract.States.OFFERED, negotiation.GetState())
 	assert.Equal(t, odrlOffer, negotiation.GetOffer())
 	assert.Equal(t, callBack.String(), negotiation.GetCallback().String())
-
-	reconEntry := env.reconciler.e
-	assert.Equal(t, consumerPID, reconEntry.EntityID)
-	assert.Equal(t, statemachine.ReconciliationContract, reconEntry.Type)
-	assert.Equal(t, constants.DataspaceConsumer, reconEntry.Role)
-	assert.Equal(t, contract.States.REQUESTED.String(), reconEntry.TargetState)
-	assert.Equal(t, http.MethodPost, reconEntry.Method)
-
-	cburl := shared.MustParseURL(callBack.String())
-	cburl.Path = path.Join(cburl.Path, "negotiations", staticProviderPID.String(), "request")
-	assert.Equal(t, cburl, reconEntry.URL)
-
-	expectedOffer := shared.ContractRequestMessage{
-		Context:         shared.GetDSPContext(),
-		Type:            "dspace:ContractRequestMessage",
-		ProviderPID:     staticProviderPID.URN(),
-		ConsumerPID:     consumerPID.URN(),
-		Offer:           odrlOffer.MessageOffer,
-		CallbackAddress: selfURL.String() + "/callback",
-	}
-	receivedOffer := decode[shared.ContractRequestMessage](t, bytes.NewReader(reconEntry.Body))
-	assert.EqualValues(t, expectedOffer, receivedOffer)
 }
 
+//nolint:dupl
 func TestNegotiationConsumerOffer(t *testing.T) {
 	t.Parallel()
 	ctx, cancel, env := setupEnvironment(t)
@@ -459,6 +380,10 @@ func TestNegotiationConsumerOffer(t *testing.T) {
 	createNegotiation(ctx, t, env.store, contract.States.REQUESTED, constants.DataspaceConsumer)
 
 	u := env.server.URL + "/callback/negotiations/" + staticConsumerPID.String() + "/offers"
+
+	env.contractService.On(
+		"OfferReceived", mock.Anything, mock.Anything,
+	).Return(&provider.ContractServiceOfferReceivedResponse{}, nil)
 
 	body := encode(t, shared.ContractOfferMessage{
 		Context:         shared.GetDSPContext(),
@@ -481,23 +406,6 @@ func TestNegotiationConsumerOffer(t *testing.T) {
 	assert.Equal(t, contract.States.OFFERED, negotiation.GetState())
 	assert.Equal(t, odrlOffer, negotiation.GetOffer())
 	assert.Equal(t, callBack.String(), negotiation.GetCallback().String())
-
-	reconEntry := env.reconciler.e
-	assert.Equal(t, staticConsumerPID, reconEntry.EntityID)
-	assert.Equal(t, statemachine.ReconciliationContract, reconEntry.Type)
-	assert.Equal(t, constants.DataspaceConsumer, reconEntry.Role)
-	assert.Equal(t, contract.States.ACCEPTED.String(), reconEntry.TargetState)
-	assert.Equal(t, http.MethodPost, reconEntry.Method)
-
-	cburl := shared.MustParseURL(callBack.String())
-	cburl.Path = path.Join(cburl.Path, "negotiations", staticProviderPID.String(), "events")
-	assert.Equal(t, cburl, reconEntry.URL)
-
-	msg := decode[shared.ContractNegotiationEventMessage](t, bytes.NewReader(reconEntry.Body))
-	assert.EqualValues(t, "dspace:ContractNegotiationEventMessage", msg.Type)
-	assert.Equal(t, staticProviderPID.URN(), msg.ProviderPID)
-	assert.Equal(t, staticConsumerPID.URN(), msg.ConsumerPID)
-	assert.Equal(t, contract.States.ACCEPTED.String(), msg.EventType)
 }
 
 func TestNegotiationConsumerAgreement(t *testing.T) {
@@ -507,6 +415,12 @@ func TestNegotiationConsumerAgreement(t *testing.T) {
 
 	for _, s := range []contract.State{contract.States.REQUESTED, contract.States.ACCEPTED} {
 		createNegotiation(ctx, t, env.store, s, constants.DataspaceConsumer)
+
+		env.contractService.EXPECT().AgreementReceived(
+			mock.Anything, &provider.ContractServiceAgreementReceivedRequest{
+				Pid: staticConsumerPID.String(),
+			},
+		).Return(&provider.ContractServiceAgreementReceivedResponse{}, nil)
 
 		u := env.server.URL + "/callback/negotiations/" + staticConsumerPID.String() + "/agreement"
 
@@ -533,26 +447,6 @@ func TestNegotiationConsumerAgreement(t *testing.T) {
 		assert.Equal(t, odrlOffer, negotiation.GetOffer())
 		assert.Equal(t, &odrlAgreement, negotiation.GetAgreement())
 		assert.Equal(t, callBack.String(), negotiation.GetCallback().String())
-
-		reconEntry := env.reconciler.e
-		assert.Equal(t, staticConsumerPID, reconEntry.EntityID)
-		assert.Equal(t, statemachine.ReconciliationContract, reconEntry.Type)
-		assert.Equal(t, constants.DataspaceConsumer, reconEntry.Role)
-		assert.Equal(t, contract.States.VERIFIED.String(), reconEntry.TargetState)
-		assert.Equal(t, http.MethodPost, reconEntry.Method)
-
-		cburl := shared.MustParseURL(callBack.String())
-		cburl.Path = path.Join(cburl.Path, "negotiations", staticProviderPID.String(), "agreement/verification")
-		assert.Equal(t, cburl, reconEntry.URL)
-
-		msg := decode[shared.ContractAgreementVerificationMessage](t, bytes.NewReader(reconEntry.Body))
-		assert.EqualValues(t, "dspace:ContractAgreementVerificationMessage", msg.Type)
-		assert.Equal(t, staticProviderPID.URN(), msg.ProviderPID)
-		assert.Equal(t, staticConsumerPID.URN(), msg.ConsumerPID)
-
-		agreement, err := env.store.GetAgreement(ctx, agreementID)
-		assert.Nil(t, err)
-		assert.Equal(t, targetID.URN(), agreement.Target)
 	}
 }
 
@@ -561,6 +455,11 @@ func TestNegotiationConsumerEventFinalized(t *testing.T) {
 	ctx, cancel, env := setupEnvironment(t)
 	defer cancel()
 
+	env.contractService.EXPECT().FinalizationReceived(
+		mock.Anything, &provider.ContractServiceFinalizationReceivedRequest{
+			Pid: staticConsumerPID.String(),
+		},
+	).Return(&provider.ContractServiceFinalizationReceivedResponse{}, nil)
 	createNegotiation(ctx, t, env.store, contract.States.VERIFIED, constants.DataspaceConsumer)
 
 	u := env.server.URL + "/callback/negotiations/" + staticConsumerPID.String() + "/events"
@@ -586,9 +485,6 @@ func TestNegotiationConsumerEventFinalized(t *testing.T) {
 	assert.Equal(t, contract.States.FINALIZED, negotiation.GetState())
 	assert.Equal(t, odrlOffer, negotiation.GetOffer())
 	assert.Equal(t, callBack.String(), negotiation.GetCallback().String())
-
-	reconEntry := env.reconciler.e
-	assert.Equal(t, statemachine.ReconciliationEntry{}, reconEntry)
 }
 
 func TestNegotiationTermination(t *testing.T) {
@@ -606,6 +502,17 @@ func TestNegotiationTermination(t *testing.T) {
 			defer cancel()
 			u := env.server.URL + "/negotiations/" + pidMap[r].String() + "/termination"
 			createNegotiation(ctx, t, env.store, s, r)
+			pid := staticConsumerPID.String()
+			if r == constants.DataspaceProvider {
+				pid = staticProviderPID.String()
+			}
+			env.contractService.EXPECT().TerminationReceived(
+				mock.Anything, &provider.ContractServiceTerminationReceivedRequest{
+					Pid:    pid,
+					Code:   "some code",
+					Reason: []string{"test"},
+				},
+			).Return(&provider.ContractServiceTerminationReceivedResponse{}, nil)
 
 			body := encode(t, shared.ContractNegotiationTerminationMessage{
 				Context:     shared.GetDSPContext(),
@@ -614,8 +521,8 @@ func TestNegotiationTermination(t *testing.T) {
 				ProviderPID: staticProviderPID.URN(),
 				Code:        "some code",
 				Reason: []shared.Multilanguage{{
-					Value:    "en",
-					Language: "test",
+					Value:    "test",
+					Language: "en",
 				}},
 			})
 			status := fetchAndDecode[shared.ContractNegotiation](ctx, t, http.MethodPost, u, body)
