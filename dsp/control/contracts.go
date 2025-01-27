@@ -124,9 +124,15 @@ func sendContractMessage[T any](
 		return nil, status.Errorf(codes.InvalidArgument, "invalid initial state: %s", negotiation.GetState())
 	}
 
-	ctx, contractInit := statemachine.GetContractNegotiation(ctx, negotiation, s.provider, s.contractService, s.reconciler)
+	ctx, contractTransition := statemachine.GetContractNegotiation(
+		ctx,
+		negotiation,
+		s.provider,
+		s.contractService,
+		s.reconciler,
+	)
 
-	apply, err := contractInit.Send(ctx)
+	apply, err := contractTransition.Send(ctx)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "Couldn't progress contract negotiation: %s", err)
 	}
