@@ -145,7 +145,7 @@ func init() {
 		persistenceBadgerMemory,
 		"badger-in-memory",
 		"Put badger database in memory, will not survive restarts",
-		false,
+		true,
 	)
 	cfg.AddPersistentFlag(
 		Command, persistenceBadgerDBPath, "badger-dbpath", "Path to store the badger database", "",
