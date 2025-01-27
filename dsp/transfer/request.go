@@ -25,7 +25,7 @@ import (
 	"github.com/go-dataspace/run-dsp/dsp/constants"
 	"github.com/go-dataspace/run-dsp/dsp/shared"
 	"github.com/go-dataspace/run-dsp/odrl"
-	providerv1 "github.com/go-dataspace/run-dsrpc/gen/go/dsp/v1alpha1"
+	providerv1 "github.com/go-dataspace/run-dsrpc/gen/go/dsp/v1alpha2"
 	"github.com/google/uuid"
 )
 

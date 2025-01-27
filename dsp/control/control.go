@@ -31,7 +31,7 @@ import (
 	"github.com/go-dataspace/run-dsp/jsonld"
 	"github.com/go-dataspace/run-dsp/logging"
 	"github.com/go-dataspace/run-dsp/odrl"
-	dspv1alpha1 "github.com/go-dataspace/run-dsrpc/gen/go/dsp/v1alpha1"
+	dspcontrol "github.com/go-dataspace/run-dsrpc/gen/go/dsp/v1alpha2"
 	"github.com/google/uuid"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -41,28 +41,31 @@ import (
 var dspaceContext = jsonld.NewRootContext([]jsonld.ContextEntry{{ID: constants.DSPContext}})
 
 type Server struct {
-	dspv1alpha1.ClientServiceServer
+	dspcontrol.ControlServiceServer
 
-	requester  shared.Requester
-	store      persistence.StorageProvider
-	reconciler statemachine.Reconciler
-	provider   dspv1alpha1.ProviderServiceClient
-	selfURL    *url.URL
+	requester       shared.Requester
+	store           persistence.StorageProvider
+	reconciler      statemachine.Reconciler
+	provider        dspcontrol.ProviderServiceClient
+	contractService dspcontrol.ContractServiceClient
+	selfURL         *url.URL
 }
 
 func New(
 	requester shared.Requester,
 	store persistence.StorageProvider,
 	reconciler statemachine.Reconciler,
-	provider dspv1alpha1.ProviderServiceClient,
+	provider dspcontrol.ProviderServiceClient,
+	contractService dspcontrol.ContractServiceClient,
 	selfURL *url.URL,
 ) *Server {
 	return &Server{
-		requester:  requester,
-		store:      store,
-		reconciler: reconciler,
-		provider:   provider,
-		selfURL:    selfURL,
+		requester:       requester,
+		store:           store,
+		reconciler:      reconciler,
+		provider:        provider,
+		contractService: contractService,
+		selfURL:         selfURL,
 	}
 }
 
@@ -95,17 +98,10 @@ func (s *Server) getProviderURL(ctx context.Context, u string) (*url.URL, error)
 	)
 }
 
-// Ping is a request to test if the provider is working, and to test the auth information.
-func (s *Server) Ping(
-	_ context.Context, _ *dspv1alpha1.ClientServicePingRequest,
-) (*dspv1alpha1.ClientServicePingResponse, error) {
-	return &dspv1alpha1.ClientServicePingResponse{}, nil
-}
-
 // Gets the catalogue based on the query parameters and the authorization header.
 func (s *Server) GetProviderCatalogue(
-	ctx context.Context, req *dspv1alpha1.GetProviderCatalogueRequest,
-) (*dspv1alpha1.GetProviderCatalogueResponse, error) {
+	ctx context.Context, req *dspcontrol.GetProviderCatalogueRequest,
+) (*dspcontrol.GetProviderCatalogueResponse, error) {
 	providerURL, err := s.getProviderURL(ctx, req.ProviderUri)
 	if err != nil {
 		return nil, err
@@ -127,15 +123,15 @@ func (s *Server) GetProviderCatalogue(
 		return nil, err
 	}
 
-	return &dspv1alpha1.GetProviderCatalogueResponse{
+	return &dspcontrol.GetProviderCatalogueResponse{
 		Datasets: processCatalogue(resp.Datasets),
 	}, nil
 }
 
 // Gets information about a single dataset.
 func (s *Server) GetProviderDataset(
-	ctx context.Context, req *dspv1alpha1.GetProviderDatasetRequest,
-) (*dspv1alpha1.GetProviderDatasetResponse, error) {
+	ctx context.Context, req *dspcontrol.GetProviderDatasetRequest,
+) (*dspcontrol.GetProviderDatasetResponse, error) {
 	providerURL, err := s.getProviderURL(ctx, req.ProviderUrl)
 	if err != nil {
 		return nil, err
@@ -157,7 +153,7 @@ func (s *Server) GetProviderDataset(
 		return nil, err
 	}
 
-	return &dspv1alpha1.GetProviderDatasetResponse{
+	return &dspcontrol.GetProviderDatasetResponse{
 		ProviderUrl: req.ProviderUrl,
 		Dataset:     processDataset(resp),
 	}, err
@@ -167,8 +163,8 @@ func (s *Server) GetProviderDataset(
 //
 //nolint:funlen,cyclop
 func (s *Server) GetProviderDatasetDownloadInformation(
-	ctx context.Context, req *dspv1alpha1.GetProviderDatasetDownloadInformationRequest,
-) (*dspv1alpha1.GetProviderDatasetDownloadInformationResponse, error) {
+	ctx context.Context, req *dspcontrol.GetProviderDatasetDownloadInformationRequest,
+) (*dspcontrol.GetProviderDatasetDownloadInformationResponse, error) {
 	providerURL, err := s.getProviderURL(ctx, req.GetProviderUrl())
 	if err != nil {
 		return nil, err
@@ -203,7 +199,7 @@ func (s *Server) GetProviderDatasetDownloadInformation(
 		return nil, status.Errorf(codes.Internal, "couldn't retrieve contract negotiation: %s", err)
 	}
 
-	ctx, contractInit := statemachine.GetContractNegotiation(ctx, negotiation, s.provider, s.reconciler)
+	ctx, contractInit := statemachine.GetContractNegotiation(ctx, negotiation, s.provider, s.contractService, s.reconciler)
 	ctx, logger := logging.InjectLabels(ctx, "method", "GetProviderDownloadInformationRequest")
 
 	apply, err := contractInit.Send(ctx)
@@ -291,7 +287,7 @@ func (s *Server) GetProviderDatasetDownloadInformation(
 		}
 	}
 
-	return &dspv1alpha1.GetProviderDatasetDownloadInformationResponse{
+	return &dspcontrol.GetProviderDatasetDownloadInformationResponse{
 		PublishInfo: tReq.GetPublishInfo(),
 		TransferId:  tReq.GetConsumerPID().String(),
 	}, nil
@@ -299,8 +295,8 @@ func (s *Server) GetProviderDatasetDownloadInformation(
 
 // Tells provider that we have finished our transfer.
 func (s *Server) SignalTransferComplete(
-	ctx context.Context, req *dspv1alpha1.SignalTransferCompleteRequest,
-) (*dspv1alpha1.SignalTransferCompleteResponse, error) {
+	ctx context.Context, req *dspcontrol.SignalTransferCompleteRequest,
+) (*dspcontrol.SignalTransferCompleteResponse, error) {
 	id, err := uuid.Parse(req.GetTransferId())
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "Transfer ID is not a valid UUID.")
@@ -326,39 +322,39 @@ func (s *Server) SignalTransferComplete(
 		}
 	}
 
-	return &dspv1alpha1.SignalTransferCompleteResponse{}, nil
+	return &dspcontrol.SignalTransferCompleteResponse{}, nil
 }
 
 // Tells provider to cancel file transfer.
 func (s *Server) SignalTransferCancelled(
-	_ context.Context, _ *dspv1alpha1.SignalTransferCancelledRequest,
-) (*dspv1alpha1.SignalTransferCancelledResponse, error) {
+	_ context.Context, _ *dspcontrol.SignalTransferCancelledRequest,
+) (*dspcontrol.SignalTransferCancelledResponse, error) {
 	panic("not implemented") // TODO: Implement
 }
 
 // Tells provider to suspend file transfer.
 func (s *Server) SignalTransferSuspend(
-	_ context.Context, _ *dspv1alpha1.SignalTransferSuspendRequest,
-) (*dspv1alpha1.SignalTransferSuspendResponse, error) {
+	_ context.Context, _ *dspcontrol.SignalTransferSuspendRequest,
+) (*dspcontrol.SignalTransferSuspendResponse, error) {
 	panic("not implemented") // TODO: Implement
 }
 
 // Tells provider to resume file transfer.
 func (s *Server) SignalTransferResume(
-	_ context.Context, _ *dspv1alpha1.SignalTransferResumeRequest,
-) (*dspv1alpha1.SignalTransferResumeResponse, error) {
+	_ context.Context, _ *dspcontrol.SignalTransferResumeRequest,
+) (*dspcontrol.SignalTransferResumeResponse, error) {
 	panic("not implemented") // TODO: Implement
 }
 
-func processCatalogue(cat []shared.Dataset) []*dspv1alpha1.Dataset {
-	rCat := make([]*dspv1alpha1.Dataset, len(cat))
+func processCatalogue(cat []shared.Dataset) []*dspcontrol.Dataset {
+	rCat := make([]*dspcontrol.Dataset, len(cat))
 	for i, d := range cat {
 		rCat[i] = processDataset(d)
 	}
 	return rCat
 }
 
-func processDataset(dsp shared.Dataset) *dspv1alpha1.Dataset {
+func processDataset(dsp shared.Dataset) *dspcontrol.Dataset {
 	issued, err := time.Parse(time.RFC3339, dsp.Issued)
 	if err != nil {
 		issued = time.Unix(0, 0).UTC()
@@ -369,14 +365,14 @@ func processDataset(dsp shared.Dataset) *dspv1alpha1.Dataset {
 	}
 	a := ""
 	mediaType := ""
-	var desc []*dspv1alpha1.Multilingual
+	var desc []*dspcontrol.Multilingual
 	var size int64
-	var checksum *dspv1alpha1.Checksum
+	var checksum *dspcontrol.Checksum
 	if len(dsp.Distribution) > 0 {
 		d := dsp.Distribution[0]
-		desc = make([]*dspv1alpha1.Multilingual, len(d.Description))
+		desc = make([]*dspcontrol.Multilingual, len(d.Description))
 		for i, v := range d.Description {
-			desc[i] = &dspv1alpha1.Multilingual{
+			desc[i] = &dspcontrol.Multilingual{
 				Value:    v.Value,
 				Language: v.Language,
 			}
@@ -385,13 +381,13 @@ func processDataset(dsp shared.Dataset) *dspv1alpha1.Dataset {
 		mediaType = d.MediaType
 		size = int64(d.ByteSize)
 		if d.Checksum != nil {
-			checksum = &dspv1alpha1.Checksum{
+			checksum = &dspcontrol.Checksum{
 				Algorithm: d.Checksum.Algorithm,
 				Value:     d.Checksum.Value,
 			}
 		}
 	}
-	return &dspv1alpha1.Dataset{
+	return &dspcontrol.Dataset{
 		Id:            strings.TrimPrefix(dsp.ID, "urn:uuid:%s"),
 		Title:         dsp.Title,
 		AccessMethods: a,

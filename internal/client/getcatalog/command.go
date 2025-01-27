@@ -22,7 +22,7 @@ import (
 
 	"github.com/go-dataspace/run-dsp/internal/client/shared"
 	"github.com/go-dataspace/run-dsp/internal/ui"
-	dspv1alpha1 "github.com/go-dataspace/run-dsrpc/gen/go/dsp/v1alpha1"
+	dspcontrol "github.com/go-dataspace/run-dsrpc/gen/go/dsp/v1alpha2"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -60,7 +60,7 @@ var (
 			defer conn.Close()
 
 			ui.Info(fmt.Sprintf("Fetching catalogue from %s", provider))
-			catalogue, err := client.GetProviderCatalogue(ctx, &dspv1alpha1.GetProviderCatalogueRequest{
+			catalogue, err := client.GetProviderCatalogue(ctx, &dspcontrol.GetProviderCatalogueRequest{
 				ProviderUri: args[0],
 			})
 			if err != nil {

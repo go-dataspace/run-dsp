@@ -29,7 +29,7 @@ import (
 
 	"github.com/go-dataspace/run-dsp/internal/client/shared"
 	"github.com/go-dataspace/run-dsp/internal/ui"
-	dspv1alpha1 "github.com/go-dataspace/run-dsrpc/gen/go/dsp/v1alpha1"
+	dspcontrol "github.com/go-dataspace/run-dsrpc/gen/go/dsp/v1alpha2"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -99,7 +99,7 @@ and then downloads it into an output directory.`,
 			ui.Info(fmt.Sprintf("Fetching dataset %s from %s", args[1], provider))
 			resp, err := client.GetProviderDatasetDownloadInformation(
 				ctx,
-				&dspv1alpha1.GetProviderDatasetDownloadInformationRequest{
+				&dspcontrol.GetProviderDatasetDownloadInformationRequest{
 					ProviderUrl: provider,
 					DatasetId:   args[1],
 				},
@@ -108,7 +108,7 @@ and then downloads it into an output directory.`,
 				return fmt.Errorf("failed to get download information: %w", err)
 			}
 			defer func() {
-				_, err := client.SignalTransferComplete(ctx, &dspv1alpha1.SignalTransferCompleteRequest{
+				_, err := client.SignalTransferComplete(ctx, &dspcontrol.SignalTransferCompleteRequest{
 					TransferId: resp.TransferId,
 				})
 				if err != nil {
@@ -126,7 +126,7 @@ and then downloads it into an output directory.`,
 	}
 )
 
-func downloadFile(o string, pi *dspv1alpha1.PublishInfo) (string, error) {
+func downloadFile(o string, pi *dspcontrol.PublishInfo) (string, error) {
 	fName := path.Base(pi.Url)
 	fName, err := url.PathUnescape(fName)
 	if err != nil {
@@ -161,13 +161,13 @@ func downloadFile(o string, pi *dspv1alpha1.PublishInfo) (string, error) {
 	return dlPath, nil
 }
 
-func setAuth(pi *dspv1alpha1.PublishInfo, req *http.Request) {
+func setAuth(pi *dspcontrol.PublishInfo, req *http.Request) {
 	switch pi.AuthenticationType {
-	case dspv1alpha1.AuthenticationType_AUTHENTICATION_TYPE_BASIC:
+	case dspcontrol.AuthenticationType_AUTHENTICATION_TYPE_BASIC:
 		req.SetBasicAuth(pi.Username, pi.Password)
-	case dspv1alpha1.AuthenticationType_AUTHENTICATION_TYPE_BEARER:
+	case dspcontrol.AuthenticationType_AUTHENTICATION_TYPE_BEARER:
 		req.Header.Set("Authorization", "Bearer "+pi.Password)
-	case dspv1alpha1.AuthenticationType_AUTHENTICATION_TYPE_UNSPECIFIED:
+	case dspcontrol.AuthenticationType_AUTHENTICATION_TYPE_UNSPECIFIED:
 		return
 	default:
 		panic(fmt.Sprintf("unexpected dspv1alpha1.AuthenticationType: %#v", pi.AuthenticationType))

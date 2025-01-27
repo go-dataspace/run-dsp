@@ -13,7 +13,13 @@
 # limitations under the License.
 
 with-expecter: true
+issue-845-fix: true
 packages:
-  github.com/go-dataspace/run-dsrpc/gen/go/dsp/v1alpha1:
+  github.com/go-dataspace/run-dsrpc/gen/go/dsp/v1alpha2:
+    config:
+      resolve-type-alias: false
     interfaces:
       ProviderServiceClient:
+        config:
+      ContractServiceClient:
+        config:

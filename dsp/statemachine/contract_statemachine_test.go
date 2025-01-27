@@ -25,10 +25,12 @@ import (
 	"github.com/go-dataspace/run-dsp/dsp/shared"
 	"github.com/go-dataspace/run-dsp/dsp/statemachine"
 	"github.com/go-dataspace/run-dsp/logging"
-	mockprovider "github.com/go-dataspace/run-dsp/mocks/github.com/go-dataspace/run-dsrpc/gen/go/dsp/v1alpha1"
+	mockprovider "github.com/go-dataspace/run-dsp/mocks/github.com/go-dataspace/run-dsrpc/gen/go/dsp/v1alpha2"
 	"github.com/go-dataspace/run-dsp/odrl"
+	provider "github.com/go-dataspace/run-dsrpc/gen/go/dsp/v1alpha2"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 )
 
 type MockRequester struct {
@@ -89,6 +91,7 @@ func TestTermination(t *testing.T) {
 	requester := &MockRequester{}
 
 	mockProvider := mockprovider.NewMockProviderServiceClient(t)
+	mockCService := mockprovider.NewMockContractServiceClient(t)
 
 	reconciler := statemachine.NewReconciler(ctx, requester, store)
 	reconciler.Run()
@@ -109,7 +112,16 @@ func TestTermination(t *testing.T) {
 			negotiation := contract.New(
 				providerPID, consumerPID,
 				state, offer, providerCallback, consumerCallback, role)
-			ctx, consumerInit := statemachine.GetContractNegotiation(ctx, negotiation, mockProvider, reconciler)
+			pid := consumerPID
+			if role == constants.DataspaceProvider {
+				pid = providerPID
+			}
+			mockCService.On("TerminationReceived", mock.Anything, &provider.ContractServiceTerminationReceivedRequest{
+				Pid:    pid.String(),
+				Code:   "meh",
+				Reason: []string{"test"},
+			}).Return(&provider.ContractServiceTerminationReceivedResponse{}, nil)
+			ctx, consumerInit := statemachine.GetContractNegotiation(ctx, negotiation, mockProvider, mockCService, reconciler)
 			msg := shared.ContractNegotiationTerminationMessage{
 				Context:     shared.GetDSPContext(),
 				Type:        "dspace:ContractNegotiationTerminationMessage",
@@ -123,12 +135,11 @@ func TestTermination(t *testing.T) {
 					},
 				},
 			}
-			ctx, next, err := consumerInit.Recv(ctx, msg)
-			assert.IsType(t, &statemachine.ContractNegotiationTerminated{}, next)
+			_, applyFunc, err := consumerInit.Recv(ctx, msg)
 			assert.Nil(t, err)
-			_, err = next.Send(ctx)
+			assert.Equal(t, contract.States.TERMINATED, consumerInit.GetState())
+			err = applyFunc()
 			assert.Nil(t, err)
-			assert.Equal(t, contract.States.TERMINATED, next.GetContract().GetState())
 		}
 	}
 }

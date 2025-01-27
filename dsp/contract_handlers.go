@@ -175,30 +175,31 @@ func processMessage[T any](
 		req.Context(),
 		contract,
 		dh.provider,
+		dh.contractService,
 		dh.reconciler,
 	)
 
-	ctx, nextState, err := pState.Recv(ctx, msg)
+	ctx, apply, err := pState.Recv(ctx, msg)
 	if err != nil {
 		return contractError(fmt.Sprintf("invalid request: %s", err),
 			http.StatusBadRequest, "400", "Invalid request", pState.GetContract())
 	}
 
-	apply, err := nextState.Send(ctx)
-	if err != nil {
-		return contractError(fmt.Sprintf("couldn't progress to next state: %s", err.Error()),
-			http.StatusInternalServerError, "500", "Not able to progress state", nextState.GetContract())
-	}
-	err = storeNegotiation(ctx, dh.store, nextState.GetContract())
+	err = storeNegotiation(ctx, dh.store, pState.GetContract())
 	if err != nil {
 		return err
 	}
 
-	if err := shared.EncodeValid(w, req, http.StatusOK, nextState.GetContractNegotiation()); err != nil {
+	if err := apply(); err != nil {
+		return contractError(fmt.Sprintf("failed to propagate: %s", err),
+			http.StatusInternalServerError, "500", "Internal error", pState.GetContract(),
+		)
+	}
+
+	if err := shared.EncodeValid(w, req, http.StatusOK, pState.GetContractNegotiation()); err != nil {
 		logger.Error("Couldn't serve response", "err", err)
 	}
 
-	go apply()
 	return nil
 }
 

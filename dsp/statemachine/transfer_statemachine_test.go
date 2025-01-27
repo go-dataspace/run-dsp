@@ -25,7 +25,7 @@ import (
 	"github.com/go-dataspace/run-dsp/dsp/statemachine"
 	"github.com/go-dataspace/run-dsp/dsp/transfer"
 	"github.com/go-dataspace/run-dsp/logging"
-	mockprovider "github.com/go-dataspace/run-dsp/mocks/github.com/go-dataspace/run-dsrpc/gen/go/dsp/v1alpha1"
+	mockprovider "github.com/go-dataspace/run-dsp/mocks/github.com/go-dataspace/run-dsrpc/gen/go/dsp/v1alpha2"
 	"github.com/go-dataspace/run-dsp/odrl"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"

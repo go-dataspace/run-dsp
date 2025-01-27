@@ -21,7 +21,7 @@ import (
 	"os"
 
 	"github.com/go-dataspace/run-dsp/internal/client/authinjector"
-	dspv1alpha1 "github.com/go-dataspace/run-dsrpc/gen/go/dsp/v1alpha1"
+	dspcontrol "github.com/go-dataspace/run-dsrpc/gen/go/dsp/v1alpha2"
 	"github.com/spf13/viper"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -29,7 +29,7 @@ import (
 )
 
 // GetRUNDSPClient returns a configured RUNDSP client and its connection.
-func GetRUNDSPClient() (dspv1alpha1.ClientServiceClient, *grpc.ClientConn, error) {
+func GetRUNDSPClient() (dspcontrol.ControlServiceClient, *grpc.ClientConn, error) {
 	tlsCredentials, err := loadTLSCredentials()
 	if err != nil {
 		return nil, nil, err
@@ -49,7 +49,7 @@ func GetRUNDSPClient() (dspv1alpha1.ClientServiceClient, *grpc.ClientConn, error
 		return nil, nil, fmt.Errorf("could not connect to endpoint: %w", err)
 	}
 
-	client := dspv1alpha1.NewClientServiceClient(conn)
+	client := dspcontrol.NewControlServiceClient(conn)
 	return client, conn, nil
 }
 

@@ -16,16 +16,18 @@ package statemachine
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/url"
 	"strings"
 
+	"github.com/go-dataspace/run-dsp/dsp/constants"
 	"github.com/go-dataspace/run-dsp/dsp/contract"
 	"github.com/go-dataspace/run-dsp/dsp/shared"
 	"github.com/go-dataspace/run-dsp/logging"
 	"github.com/go-dataspace/run-dsp/odrl"
-	providerv1 "github.com/go-dataspace/run-dsrpc/gen/go/dsp/v1alpha1"
+	provider "github.com/go-dataspace/run-dsrpc/gen/go/dsp/v1alpha2"
 	"github.com/google/uuid"
 )
 
@@ -33,6 +35,8 @@ var (
 	emptyUUID   = uuid.UUID{}
 	ErrNotFound = errors.New("not found")
 )
+
+type applyFunc func() error
 
 type Contracter interface {
 	GetProviderPID() uuid.UUID
@@ -51,19 +55,22 @@ type Contracter interface {
 // ContractPhase represents a contract in a certain state.
 type ContractNegotiationState interface {
 	Contracter
-	Recv(ctx context.Context, message any) (context.Context, ContractNegotiationState, error)
+	Recv(ctx context.Context, message any) (context.Context, applyFunc, error)
 	Send(ctx context.Context) (func(), error)
-	GetProvider() providerv1.ProviderServiceClient
+	GetProvider() provider.ProviderServiceClient
 	GetReconciler() Reconciler
+	GetContractService() provider.ContractServiceClient
 }
 
 type stateMachineDeps struct {
-	p providerv1.ProviderServiceClient
+	p provider.ProviderServiceClient
+	c provider.ContractServiceClient
 	r Reconciler
 }
 
-func (cd *stateMachineDeps) GetProvider() providerv1.ProviderServiceClient { return cd.p }
-func (cd *stateMachineDeps) GetReconciler() Reconciler                     { return cd.r }
+func (cd *stateMachineDeps) GetProvider() provider.ProviderServiceClient        { return cd.p }
+func (cd *stateMachineDeps) GetReconciler() Reconciler                          { return cd.r }
+func (cd *stateMachineDeps) GetContractService() provider.ContractServiceClient { return cd.c }
 
 // ContractNegotiationInitial is an initial state for a contract that hasn't been actually
 // been submitted yet.
@@ -77,56 +84,92 @@ type ContractNegotiationInitial struct {
 // message. It will set the desired states but not generate the missing PID.
 func (cn *ContractNegotiationInitial) Recv(
 	ctx context.Context, message any,
-) (context.Context, ContractNegotiationState, error) {
+) (context.Context, applyFunc, error) {
 	ctx, logger := logging.InjectLabels(ctx, "recv_type", fmt.Sprintf("%T", cn))
 	logger.Debug("Receiving message")
 	switch t := message.(type) {
 	case shared.ContractRequestMessage:
-		ctx, logger = logging.InjectLabels(ctx,
-			"recv_msg_type", fmt.Sprintf("%T", t),
-			"dataset_target", cn.GetOffer().Target,
-		)
-		logger.Debug("Received message")
-
-		target, err := shared.URNtoRawID(cn.GetOffer().Target)
-		if err != nil {
-			logger.Error("can't parse URN", "err", err)
-			return ctx, nil, fmt.Errorf("can't parse URN: %w", err)
-		}
-		// This is the initial request, we can assume all data is freshly made based on the request.
-		_, err = cn.GetProvider().GetDataset(ctx, &providerv1.GetDatasetRequest{
-			DatasetId: target,
-		})
-		if err != nil {
-			logger.Error("target dataset not found", "err", err)
-			return ctx, nil, fmt.Errorf("dataset %s: %w", cn.GetOffer().Target, ErrNotFound)
-		}
-		if err := cn.SetState(contract.States.REQUESTED); err != nil {
-			logger.Error("could not transition state", "err", err)
-			return ctx, nil, fmt.Errorf("could not set state: %w", err)
-		}
-		cn.Negotiation.SetProviderPID(uuid.New())
-		cn.Negotiation.SetInitial()
-
-		ctx, cns := GetContractNegotiation(ctx, cn.GetContract(), cn.GetProvider(), cn.GetReconciler())
-		return ctx, cns, nil
+		return cn.processContractRequest(ctx, t)
 	case shared.ContractOfferMessage:
-		ctx, logger = logging.InjectLabels(ctx,
-			"recv_msg_type", fmt.Sprintf("%T", t),
-			"dataset_target", cn.GetOffer().Target,
-		)
-		// This is the initial offer, we can assuem all data is freshly made based on the offer.
-		if err := cn.SetState(contract.States.OFFERED); err != nil {
-			logger.Error("could not transition state", "err", err)
-			return ctx, nil, fmt.Errorf("could not set state: %w", err)
-		}
-		cn.Negotiation.SetConsumerPID(uuid.New())
-		cn.Negotiation.SetInitial()
-		ctx, cns := GetContractNegotiation(ctx, cn.GetContract(), cn.GetProvider(), cn.GetReconciler())
-		return ctx, cns, nil
+		return cn.processContractOffer(ctx, t)
 	default:
 		return ctx, nil, fmt.Errorf("Message type %s is not supported at this stage", t)
 	}
+}
+
+func (cn *ContractNegotiationInitial) processContractOffer(
+	ctx context.Context,
+	t shared.ContractOfferMessage,
+) (context.Context, applyFunc, error) {
+	ctx, logger := logging.InjectLabels(ctx,
+		"recv_msg_type", fmt.Sprintf("%T", t),
+		"dataset_target", cn.GetOffer().Target,
+	)
+	// This is the initial offer, we can assuem all data is freshly made based on the offer.
+	if err := cn.SetState(contract.States.OFFERED); err != nil {
+		logger.Error("could not transition state", "err", err)
+		return ctx, nil, fmt.Errorf("could not set state: %w", err)
+	}
+	cn.Negotiation.SetConsumerPID(uuid.New())
+	cn.Negotiation.SetInitial()
+
+	offer, err := json.Marshal(cn.GetOffer())
+	if err != nil {
+		logger.Error("couldn't marshall offer", "err", err)
+		return ctx, nil, err
+	}
+
+	return ctx, func() error {
+		_, err := cn.c.OfferReceived(ctx, &provider.ContractServiceOfferReceivedRequest{
+			Pid:   cn.GetConsumerPID().String(),
+			Offer: string(offer),
+		})
+		return err
+	}, nil
+}
+
+func (cn *ContractNegotiationInitial) processContractRequest(
+	ctx context.Context,
+	t shared.ContractRequestMessage,
+) (context.Context, applyFunc, error) {
+	ctx, logger := logging.InjectLabels(ctx,
+		"recv_msg_type", fmt.Sprintf("%T", t),
+		"dataset_target", cn.GetOffer().Target,
+	)
+	logger.Debug("Received message")
+
+	target, err := shared.URNtoRawID(cn.GetOffer().Target)
+	if err != nil {
+		logger.Error("can't parse URN", "err", err)
+		return ctx, nil, fmt.Errorf("can't parse URN: %w", err)
+	}
+	// This is the initial request, we can assume all data is freshly made based on the request.
+	_, err = cn.GetProvider().GetDataset(ctx, &provider.GetDatasetRequest{
+		DatasetId: target,
+	})
+	if err != nil {
+		logger.Error("target dataset not found", "err", err)
+		return ctx, nil, fmt.Errorf("dataset %s: %w", cn.GetOffer().Target, ErrNotFound)
+	}
+	if err := cn.SetState(contract.States.REQUESTED); err != nil {
+		logger.Error("could not transition state", "err", err)
+		return ctx, nil, fmt.Errorf("could not set state: %w", err)
+	}
+	cn.Negotiation.SetProviderPID(uuid.New())
+	cn.Negotiation.SetInitial()
+	offer, err := json.Marshal(cn.GetOffer())
+	if err != nil {
+		logger.Error("couldn't marshall offer", "err", err)
+		return ctx, nil, err
+	}
+
+	return ctx, func() error {
+		_, err := cn.c.RequestReceived(ctx, &provider.ContractServiceRequestReceivedRequest{
+			Pid:   cn.GetProviderPID().String(),
+			Offer: string(offer),
+		})
+		return err
+	}, nil
 }
 
 // Send progresses to the next state for the INITIAL state.
@@ -150,7 +193,7 @@ func (cn *ContractNegotiationInitial) Send(ctx context.Context) (func(), error) 
 			logger.Error("invalid URN", "err", err)
 			return func() {}, fmt.Errorf("invalid URN `%s`: %w", cn.GetOffer().Target, err)
 		}
-		_, err = cn.GetProvider().GetDataset(ctx, &providerv1.GetDatasetRequest{
+		_, err = cn.GetProvider().GetDataset(ctx, &provider.GetDatasetRequest{
 			DatasetId: targetID,
 		})
 		if err != nil {
@@ -174,11 +217,12 @@ type ContractNegotiationRequested struct {
 // forcefully set the callback. After that it will set the status of the contract to OFFERED.
 func (cn *ContractNegotiationRequested) Recv(
 	ctx context.Context, message any,
-) (context.Context, ContractNegotiationState, error) {
+) (context.Context, applyFunc, error) {
 	ctx, logger := logging.InjectLabels(ctx, "recv_type", fmt.Sprintf("%T", cn))
 	logger.Debug("Receiving message")
 	var consumerPID, providerPID, callbackAddress string
 	var targetState contract.State
+	var af applyFunc
 
 	switch t := message.(type) {
 	case shared.ContractOfferMessage:
@@ -193,6 +237,19 @@ func (cn *ContractNegotiationRequested) Recv(
 			"recv_msg_type", fmt.Sprintf("%T", t),
 		)
 		logger.Debug("Received message")
+		offer, err := json.Marshal(cn.GetOffer())
+		if err != nil {
+			logger.Error("couldn't marshall offer", "err", err)
+			return ctx, nil, err
+		}
+
+		af = func() error {
+			_, err := cn.c.OfferReceived(ctx, &provider.ContractServiceOfferReceivedRequest{
+				Pid:   cn.GetConsumerPID().String(),
+				Offer: string(offer),
+			})
+			return err
+		}
 	case shared.ContractAgreementMessage:
 		consumerPID = t.ConsumerPID
 		providerPID = t.ProviderPID
@@ -202,13 +259,19 @@ func (cn *ContractNegotiationRequested) Recv(
 		ctx, logger = logging.InjectLabels(ctx,
 			"recv_msg_type", fmt.Sprintf("%T", t),
 		)
+		af = func() error {
+			_, err := cn.c.AgreementReceived(ctx, &provider.ContractServiceAgreementReceivedRequest{
+				Pid: cn.GetConsumerPID().String(),
+			})
+			return err
+		}
 	case shared.ContractNegotiationTerminationMessage:
 		return processTermination(ctx, t, cn)
 	default:
 		return ctx, nil, fmt.Errorf("unsupported message type")
 	}
 	logger.Debug("Received message")
-	return verifyAndTransform(ctx, cn, providerPID, consumerPID, callbackAddress, targetState)
+	return verifyAndTransform(ctx, cn, providerPID, consumerPID, callbackAddress, targetState, af)
 }
 
 // Send determines if an offer of agreemetn has to be sent.
@@ -230,13 +293,16 @@ type ContractNegotiationOffered struct {
 
 // Recv gets called when a provider receives a request message. It will verify it and set the proper status for
 // the next step.
+//
+//nolint:funlen
 func (cn *ContractNegotiationOffered) Recv(
 	ctx context.Context, message any,
-) (context.Context, ContractNegotiationState, error) {
+) (context.Context, applyFunc, error) {
 	ctx, logger := logging.InjectLabels(ctx, "recv_type", fmt.Sprintf("%T", cn))
 	logger.Debug("Receiving message")
 	var consumerPID, providerPID, callbackAddress string
 	var targetState contract.State
+	var af applyFunc
 
 	switch t := message.(type) {
 	case shared.ContractRequestMessage:
@@ -251,6 +317,18 @@ func (cn *ContractNegotiationOffered) Recv(
 			"recv_msg_type", fmt.Sprintf("%T", t),
 		)
 		logger.Debug("Received message")
+		offer, err := json.Marshal(cn.GetOffer())
+		if err != nil {
+			logger.Error("couldn't marshall offer", "err", err)
+			return ctx, nil, err
+		}
+		af = func() error {
+			_, err := cn.c.RequestReceived(ctx, &provider.ContractServiceRequestReceivedRequest{
+				Pid:   cn.GetProviderPID().String(),
+				Offer: string(offer),
+			})
+			return err
+		}
 	case shared.ContractNegotiationEventMessage:
 		ctx, logger = logging.InjectLabels(ctx,
 			"recv_msg_type", fmt.Sprintf("%T", t),
@@ -270,12 +348,18 @@ func (cn *ContractNegotiationOffered) Recv(
 		}
 		targetState = receivedStatus
 		logger.Debug("Received message")
+		af = func() error {
+			_, err := cn.c.AcceptedReceived(ctx, &provider.ContractServiceAcceptedReceivedRequest{
+				Pid: cn.GetProviderPID().String(),
+			})
+			return err
+		}
 	case shared.ContractNegotiationTerminationMessage:
 		return processTermination(ctx, t, cn)
 	default:
 		return ctx, nil, fmt.Errorf("unsupported message type")
 	}
-	return verifyAndTransform(ctx, cn, providerPID, consumerPID, callbackAddress, targetState)
+	return verifyAndTransform(ctx, cn, providerPID, consumerPID, callbackAddress, targetState, af)
 }
 
 func (cn *ContractNegotiationOffered) Send(ctx context.Context) (func(), error) {
@@ -298,7 +382,7 @@ type ContractNegotiationAccepted struct {
 // Recv gets called on the consumer when the provider sends a contract agreement message.
 func (cn *ContractNegotiationAccepted) Recv(
 	ctx context.Context, message any,
-) (context.Context, ContractNegotiationState, error) {
+) (context.Context, applyFunc, error) {
 	ctx, logger := logging.InjectLabels(ctx, "recv_type", fmt.Sprintf("%T", cn))
 	logger.Debug("Receiving message")
 	switch t := message.(type) {
@@ -308,7 +392,20 @@ func (cn *ContractNegotiationAccepted) Recv(
 		)
 		logger.Debug("Received message")
 		cn.SetAgreement(&t.Agreement)
-		return verifyAndTransform(ctx, cn, t.ProviderPID, t.ConsumerPID, t.CallbackAddress, contract.States.AGREED)
+		return verifyAndTransform(
+			ctx,
+			cn,
+			t.ProviderPID,
+			t.ConsumerPID,
+			t.CallbackAddress,
+			contract.States.AGREED,
+			func() error {
+				_, err := cn.c.AgreementReceived(ctx, &provider.ContractServiceAgreementReceivedRequest{
+					Pid: cn.GetConsumerPID().String(),
+				})
+				return err
+			},
+		)
 	case shared.ContractNegotiationTerminationMessage:
 		return processTermination(ctx, t, cn)
 	default:
@@ -328,7 +425,7 @@ type ContractNegotiationAgreed struct {
 
 func (cn *ContractNegotiationAgreed) Recv(
 	ctx context.Context, message any,
-) (context.Context, ContractNegotiationState, error) {
+) (context.Context, applyFunc, error) {
 	ctx, logger := logging.InjectLabels(ctx, "recv_type", fmt.Sprintf("%T", cn))
 	logger.Info("Receiving message")
 	switch t := message.(type) {
@@ -336,7 +433,20 @@ func (cn *ContractNegotiationAgreed) Recv(
 		ctx, _ = logging.InjectLabels(ctx,
 			"recv_msg_type", fmt.Sprintf("%T", t),
 		)
-		return verifyAndTransform(ctx, cn, t.ProviderPID, t.ConsumerPID, cn.GetCallback().String(), contract.States.VERIFIED)
+		return verifyAndTransform(
+			ctx,
+			cn,
+			t.ProviderPID,
+			t.ConsumerPID,
+			cn.GetCallback().String(),
+			contract.States.VERIFIED,
+			func() error {
+				_, err := cn.c.VerificationReceived(ctx, &provider.ContractServiceVerificationReceivedRequest{
+					Pid: cn.GetProviderPID().String(),
+				})
+				return err
+			},
+		)
 	case shared.ContractNegotiationTerminationMessage:
 		return processTermination(ctx, t, cn)
 	default:
@@ -356,7 +466,7 @@ type ContractNegotiationVerified struct {
 
 func (cn *ContractNegotiationVerified) Recv(
 	ctx context.Context, message any,
-) (context.Context, ContractNegotiationState, error) {
+) (context.Context, applyFunc, error) {
 	ctx, logger := logging.InjectLabels(ctx, "recv_type", fmt.Sprintf("%T", cn))
 	logger.Debug("Receiving message")
 	switch t := message.(type) {
@@ -376,7 +486,19 @@ func (cn *ContractNegotiationVerified) Recv(
 		}
 		logger.Debug("Received message")
 		return verifyAndTransform(
-			ctx, cn, t.ProviderPID, t.ConsumerPID, cn.GetCallback().String(), contract.States.FINALIZED)
+			ctx,
+			cn,
+			t.ProviderPID,
+			t.ConsumerPID,
+			cn.GetCallback().String(),
+			contract.States.FINALIZED,
+			func() error {
+				_, err := cn.c.FinalizationReceived(ctx, &provider.ContractServiceFinalizationReceivedRequest{
+					Pid: cn.GetConsumerPID().String(),
+				})
+				return err
+			},
+		)
 	case shared.ContractNegotiationTerminationMessage:
 		return processTermination(ctx, t, cn)
 	default:
@@ -397,7 +519,7 @@ type ContractNegotiationFinalized struct {
 
 func (cn *ContractNegotiationFinalized) Recv(
 	ctx context.Context, message any,
-) (context.Context, ContractNegotiationState, error) {
+) (context.Context, applyFunc, error) {
 	return ctx, nil, fmt.Errorf("this is a final state")
 }
 
@@ -412,7 +534,7 @@ type ContractNegotiationTerminated struct {
 
 func (cn *ContractNegotiationTerminated) Recv(
 	ctx context.Context, message any,
-) (context.Context, ContractNegotiationState, error) {
+) (context.Context, applyFunc, error) {
 	return ctx, nil, fmt.Errorf("this is a final state")
 }
 
@@ -424,11 +546,12 @@ func (cn *ContractNegotiationTerminated) Send(ctx context.Context) (func(), erro
 func GetContractNegotiation(
 	ctx context.Context,
 	c *contract.Negotiation,
-	p providerv1.ProviderServiceClient,
+	p provider.ProviderServiceClient,
+	cs provider.ContractServiceClient,
 	r Reconciler,
 ) (context.Context, ContractNegotiationState) {
 	var cns ContractNegotiationState
-	deps := stateMachineDeps{p: p, r: r}
+	deps := stateMachineDeps{p: p, c: cs, r: r}
 	switch c.GetState() {
 	case contract.States.INITIAL:
 		cns = &ContractNegotiationInitial{Negotiation: c, stateMachineDeps: deps}
@@ -464,7 +587,8 @@ func verifyAndTransform(
 	cn ContractNegotiationState,
 	providerPID, consumerPID, callbackAddress string,
 	targetState contract.State,
-) (context.Context, ContractNegotiationState, error) {
+	af applyFunc,
+) (context.Context, applyFunc, error) {
 	ctx, logger := logging.InjectLabels(ctx, "target_state", targetState)
 	if cn.GetProviderPID().URN() != strings.ToLower(providerPID) {
 		logger.Error(
@@ -500,18 +624,40 @@ func verifyAndTransform(
 		return ctx, nil, fmt.Errorf("could not set state: %w", err)
 	}
 
-	ctx, cns := GetContractNegotiation(ctx, cn.GetContract(), cn.GetProvider(), cn.GetReconciler())
-	return ctx, cns, nil
+	return ctx, af, nil
 }
 
 func processTermination(
 	ctx context.Context, t shared.ContractNegotiationTerminationMessage, cn ContractNegotiationState,
-) (context.Context, ContractNegotiationState, error) {
+) (context.Context, applyFunc, error) {
 	logger := logging.Extract(ctx)
 	logger = logger.With("termination_code", t.Code)
 	for _, reason := range t.Reason {
 		logger = logger.With(fmt.Sprintf("reason_%s", reason.Language), reason.Value)
 	}
 	ctx = logging.Inject(ctx, logger)
-	return verifyAndTransform(ctx, cn, t.ProviderPID, t.ConsumerPID, cn.GetCallback().String(), contract.States.TERMINATED)
+	return verifyAndTransform(
+		ctx,
+		cn,
+		t.ProviderPID,
+		t.ConsumerPID,
+		cn.GetCallback().String(),
+		contract.States.TERMINATED,
+		func() error {
+			pid := cn.GetConsumerPID().String()
+			if cn.GetContract().GetRole() == constants.DataspaceProvider {
+				pid = cn.GetProviderPID().String()
+			}
+			reason := ""
+			if len(t.Reason) > 0 {
+				reason = t.Reason[0].Value
+			}
+			_, err := cn.GetContractService().TerminationReceived(ctx, &provider.ContractServiceTerminationReceivedRequest{
+				Pid:    pid,
+				Code:   t.Code,
+				Reason: []string{reason},
+			})
+			return err
+		},
+	)
 }
