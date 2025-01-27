@@ -96,7 +96,7 @@ func (s *Server) ContractRequest(
 func sendContractMessage[T any](
 	ctx context.Context,
 	s *Server,
-	validInitialStates []contract.State,
+	validFromStates []contract.State,
 	rawPid string,
 	role constants.DataspaceRole,
 	initial bool,
@@ -120,7 +120,7 @@ func sendContractMessage[T any](
 		"role", negotiation.GetRole(),
 	)
 	logger.Info("Processing negotiation")
-	if !slices.Contains(validInitialStates, negotiation.GetState()) {
+	if !slices.Contains(validFromStates, negotiation.GetState()) {
 		return nil, status.Errorf(codes.InvalidArgument, "invalid initial state: %s", negotiation.GetState())
 	}
 
