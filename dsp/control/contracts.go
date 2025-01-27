@@ -148,7 +148,7 @@ func (s *Server) ContractOffer(
 	ctx context.Context,
 	req *dspcontrol.ContractOfferRequest,
 ) (*dspcontrol.ContractOfferResponse, error) {
-	ctx, logger := logging.InjectLabels(ctx, "method", "ContactOffer")
+	ctx, logger := logging.InjectLabels(ctx, "method", "ContractOffer")
 	logger.Info("Called")
 
 	rawOffer := req.GetOffer()
