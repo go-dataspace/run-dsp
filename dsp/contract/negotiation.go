@@ -141,6 +141,28 @@ func (cn *Negotiation) GetCallback() *url.URL            { return cn.callback }
 func (cn *Negotiation) GetSelf() *url.URL                { return cn.self }
 func (cn *Negotiation) GetContract() *Negotiation        { return cn }
 
+func (cn *Negotiation) GetLocalPID() uuid.UUID {
+	switch cn.role {
+	case constants.DataspaceConsumer:
+		return cn.GetConsumerPID()
+	case constants.DataspaceProvider:
+		return cn.GetProviderPID()
+	default:
+		panic("not a valid role")
+	}
+}
+
+func (cn *Negotiation) GetRemotePID() uuid.UUID {
+	switch cn.role {
+	case constants.DataspaceConsumer:
+		return cn.GetProviderPID()
+	case constants.DataspaceProvider:
+		return cn.GetConsumerPID()
+	default:
+		panic("not a valid role")
+	}
+}
+
 // Negotiation setters, these will panic when the negotiation is RO.
 func (cn *Negotiation) SetProviderPID(u uuid.UUID) {
 	cn.panicRO()
