@@ -1,4 +1,4 @@
-FROM docker.io/library/golang:1.23.3
+FROM docker.io/library/golang:1.23.5
 
 RUN apt-get update && \
     # Go tools:

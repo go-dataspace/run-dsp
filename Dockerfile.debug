@@ -16,7 +16,7 @@
 ###########################################
 # DO NOT USE ANYWHERE NEAR SENSITIVE DATA #
 ###########################################
-FROM docker.io/library/golang:1.23.3 AS builder
+FROM docker.io/library/golang:1.23.5 AS builder
 WORKDIR /app
 COPY . ./
 RUN make debug
