@@ -64,6 +64,7 @@ func GetDSPRoutes(
 	mux.Handle("POST /negotiations/{providerPID}/events", WrapHandlerWithError(ch.providerContractEventHandler))
 	mux.Handle("POST /negotiations/{providerPID}/agreement/verification",
 		WrapHandlerWithError(ch.providerContractVerificationHandler))
+	mux.Handle("POST /negotiations/{PID}/termination", WrapHandlerWithError(ch.contractTerminationHandler))
 
 	// Contract negotiation consumer callbacks)
 	mux.Handle("POST /negotiations/offers", WrapHandlerWithError(ch.consumerContractOfferHandler))
@@ -73,7 +74,7 @@ func GetDSPRoutes(
 		WrapHandlerWithError(ch.consumerContractAgreementHandler))
 	mux.Handle("POST /callback/negotiations/{consumerPID}/events", WrapHandlerWithError(ch.consumerContractEventHandler))
 
-	mux.Handle("POST /negotiations/{PID}/termination", WrapHandlerWithError(ch.contractTerminationHandler))
+	mux.Handle("POST /callback/negotiations/{PID}/termination", WrapHandlerWithError(ch.contractTerminationHandler))
 
 	// Transfer process endpoints
 	mux.Handle("GET /transfers/{providerPID}", WrapHandlerWithError(ch.providerTransferProcessHandler))

@@ -461,3 +461,54 @@ func TestContractFinalize(t *testing.T) {
 	assert.Equal(t, staticProviderPID.URN(), reqPayload.ProviderPID)
 	assert.Equal(t, contract.States.FINALIZED.String(), reqPayload.EventType)
 }
+
+func TestContractTerminate(t *testing.T) {
+	t.Parallel()
+
+	for _, role := range []constants.DataspaceRole{constants.DataspaceProvider, constants.DataspaceConsumer} {
+		for _, state := range []contract.State{
+			contract.States.REQUESTED,
+			contract.States.OFFERED,
+			contract.States.ACCEPTED,
+			contract.States.AGREED,
+			contract.States.VERIFIED,
+		} {
+			ctx, cancel, env := setupEnvironment(t)
+			createNegotiation(ctx, t, env.store, state, role)
+
+			curPID := staticProviderPID
+			remPID := staticConsumerPID
+			if role == constants.DataspaceConsumer {
+				curPID = staticConsumerPID
+				remPID = staticProviderPID
+			}
+			_, err := env.server.ContractTerminate(ctx, &provider.ContractTerminateRequest{
+				Pid:    curPID.String(),
+				Code:   "test",
+				Reason: []string{"test"},
+			})
+
+			assert.Nil(t, err)
+
+			assert.NotNil(t, env.reconciler.e)
+			assert.Equal(t, statemachine.ReconciliationContract, env.reconciler.e.Type)
+			assert.Equal(t, role, env.reconciler.e.Role)
+			assert.Equal(t, contract.States.TERMINATED.String(), env.reconciler.e.TargetState)
+			assert.Equal(t, http.MethodPost, env.reconciler.e.Method)
+			assert.Equal(
+				t,
+				mkRequestUrl(callBack, "negotiations", remPID.String(), "termination"),
+				env.reconciler.e.URL.String(),
+			)
+
+			var reqPayload shared.ContractNegotiationTerminationMessage
+			err = json.Unmarshal(env.reconciler.e.Body, &reqPayload)
+			assert.Nil(t, err)
+			assert.Equal(t, staticConsumerPID.URN(), reqPayload.ConsumerPID)
+			assert.Equal(t, staticProviderPID.URN(), reqPayload.ProviderPID)
+			assert.Equal(t, "test", reqPayload.Code)
+			assert.Equal(t, "test", reqPayload.Reason[0].Value)
+			cancel()
+		}
+	}
+}

@@ -17,6 +17,7 @@ package control
 import (
 	"context"
 	"encoding/json"
+	"path"
 	"slices"
 
 	"github.com/go-dataspace/run-dsp/dsp/constants"
@@ -255,8 +256,60 @@ func (s *Server) ContractFinalize(
 
 // ContractTerminate sends a ContractTerminationMessage.
 func (s *Server) ContractTerminate(
-	_ context.Context,
-	_ *dspcontrol.ContractTerminateRequest,
+	ctx context.Context,
+	req *dspcontrol.ContractTerminateRequest,
 ) (*dspcontrol.ContractTerminateResponse, error) {
-	panic("not implemented") // TODO: Implement
+	ctx, logger := logging.InjectLabels(ctx, "method", "ContractTerminate")
+	logger.Info("Called")
+
+	pid, err := uuid.Parse(req.GetPid())
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "could not parse PID: %s", err)
+	}
+
+	var negotiation *contract.Negotiation
+	for _, role := range []constants.DataspaceRole{constants.DataspaceConsumer, constants.DataspaceProvider} {
+		negotiation, err = s.store.GetContractR(ctx, pid, role)
+		if err == nil {
+			logger.Info("Contract found", "pid", negotiation.GetLocalPID().String(), "role", role)
+			break
+		}
+	}
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "could not find contract with PID %s: %s", pid.String(), err)
+	}
+	reasons := make([]shared.Multilanguage, 0)
+	for _, reason := range req.Reason {
+		reasons = append(reasons, shared.Multilanguage{
+			Language: "en", // hardcoded for now, going i18n will be its own PR.
+			Value:    reason,
+		})
+	}
+	negotiationTermination := shared.ContractNegotiationTerminationMessage{
+		Context:     shared.GetDSPContext(),
+		Type:        "dspace:ContractNegotiationTerminationMessage",
+		ProviderPID: negotiation.GetProviderPID().URN(),
+		ConsumerPID: negotiation.GetConsumerPID().URN(),
+		Code:        req.GetCode(),
+		Reason:      reasons,
+	}
+
+	reqBody, err := shared.ValidateAndMarshal(ctx, negotiationTermination)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "could not encode termination message: %s", err)
+	}
+
+	cu := shared.MustParseURL(negotiation.GetCallback().String())
+	cu.Path = path.Join(cu.Path, "negotiations", negotiation.GetRemotePID().String(), "termination")
+	s.reconciler.Add(statemachine.ReconciliationEntry{
+		EntityID:    negotiation.GetLocalPID(),
+		Type:        statemachine.ReconciliationContract,
+		Role:        negotiation.GetRole(),
+		TargetState: contract.States.TERMINATED.String(),
+		Method:      "POST",
+		URL:         cu,
+		Body:        reqBody,
+		Context:     ctx,
+	})
+	return &dspcontrol.ContractTerminateResponse{}, nil
 }
