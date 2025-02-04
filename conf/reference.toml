@@ -23,9 +23,16 @@ caCert = "/path/to/ca.crt"            # Path to the CA certificate of the CA tha
 clientCert = "/path/to/client.crt"    # Client certificate to authenticate with to the provider. ($SERVER.PROVIDER.CLIENTCERT)
 clientCertKey = "/path/to/client.key" # Key to the above mentioned certificate. ($SERVER.PROVIDER.CLIENTCERTKEY)
 
+## Contract service gRPC settings
+[server.contractService]
+address = "127.0.0.1:9092"            # The address of the contract service. ($SERVER.CONTRACTSERVICE.ADDRESS)
+insecure = false                      # Disable TLS when connecting to the contract service. ($SERVER.CONTRACTSERVICE.INSECURE)
+caCert = "/path/to/ca.crt"            # Path to the CA certificate of the CA that issued the server certificate of the contract service. ($SERVER.CONTRACTSERVICE.CACERT)
+clientCert = "/path/to/client.crt"    # Client certificate to authenticate with to the contract service. ($SERVER.CONTRACTSERVICE.CLIENTCERT)
+clientCertKey = "/path/to/client.key" # Key to the above mentioned certificate. ($SERVER.CONTRACTSERVICE.CLIENTCERTKEY)
+
 ## Control service settings
 [server.control]
-enabled = true                   # Enable the control service. ($SERVER.CONTROL.ENABLED)
 address = "127.0.0.1"            # IP address of the local machine to listen to for the control service. ($SERVER.CONTROL.ADDRESS)
 port = 8081                      # TCP port to listen on for the control service. ($SERVER.CONTROL.PORT)
 insecure = false                 # Disable TLS for the control service ($SERVER.CONTROL.INSECURE)
@@ -33,6 +40,16 @@ cert = "/path/to/control.crt"    # TLS certificate to use for the control servic
 certKey = "/path/to/control.key" # Key to the above mentioned certificate. ($SERVER.CONTROL.CERTKEY)
 verifyClientCerts = true         # Only allow access to clients with a certificate issued by the CA defined below. ($SERVER.CONTROL.VERIFYCLIENTCERTS)
 clientCACert = "/etc/hosts"      # Certificate of the CA that issues client certificates. ($SERVER.CONTROL.CLIENTCACERT)
+
+## Persistence settings
+[server.persistence]
+backend = "badger"  #  Persistence backend to use. "badger" is the only available option right now. ($SERVER.PERSISTENCE.BACKEND)
+
+## Badger persistence backend settings
+[server.persistence.badger]
+memory = true       # Enable in-memory mode, this will put the database in-memory, making it not persist
+                    # between restarts. ($SERVER.PERSISTENCE.BADGER.MEMORY)
+dbPath = "/path/to/database" # Directory to store the database in. ($SERVER.PERSISTENCE.BADGER.DBPATH}
 
 [client]
 address = "127.0.0.1:8080"            # Address to the RUN-DSP control service we want to connect to. ($CLIENT.ADDRESS)
