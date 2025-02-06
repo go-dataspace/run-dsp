@@ -77,6 +77,7 @@ func (s *Server) ContractRequest(
 			providerURL,
 			shared.MustParseURL(s.selfURL.String()),
 			constants.DataspaceConsumer,
+			req.GetAutoAccept() || s.contractService == nil,
 		)
 		rawPID = negotiation.GetConsumerPID().String()
 		if err := s.store.PutContract(ctx, negotiation); err != nil {
@@ -91,6 +92,7 @@ func (s *Server) ContractRequest(
 		rawPID,
 		constants.DataspaceConsumer,
 		true,
+		req.GetAutoAccept(),
 	)
 }
 
@@ -100,7 +102,7 @@ func sendContractMessage[T any](
 	validFromStates []contract.State,
 	rawPid string,
 	role constants.DataspaceRole,
-	initial bool,
+	initial, autoAccept bool,
 ) (*T, error) {
 	var thing T
 	pid, err := uuid.Parse(rawPid)
@@ -113,6 +115,9 @@ func sendContractMessage[T any](
 	}
 	if initial {
 		negotiation.SetInitial()
+	}
+	if autoAccept {
+		negotiation.SetAutoAccept()
 	}
 	ctx, logger := logging.InjectLabels(ctx,
 		"negotiation_consumer_pid", negotiation.GetConsumerPID(),
@@ -140,7 +145,9 @@ func sendContractMessage[T any](
 	if err := s.store.PutContract(ctx, negotiation); err != nil {
 		return nil, status.Errorf(codes.Internal, "couldn't store contract negotiation: %s", err)
 	}
-	apply()
+
+	// The applyFunc for Send doesn't really return errors but the signature says for uniformity.
+	_ = apply()
 	return &thing, nil
 }
 
@@ -177,6 +184,7 @@ func (s *Server) ContractOffer(
 			providerURL,
 			shared.MustParseURL(s.selfURL.String()),
 			constants.DataspaceProvider,
+			req.GetAutoAccept() || s.contractService == nil,
 		)
 		rawPID = negotiation.GetProviderPID().String()
 		if err := s.store.PutContract(ctx, negotiation); err != nil {
@@ -191,6 +199,7 @@ func (s *Server) ContractOffer(
 		rawPID,
 		constants.DataspaceProvider,
 		true,
+		req.GetAutoAccept(),
 	)
 }
 
@@ -206,6 +215,7 @@ func (s *Server) ContractAccept(
 		req.GetPid(),
 		constants.DataspaceConsumer,
 		false,
+		req.GetAutoAccept(),
 	)
 }
 
@@ -221,6 +231,7 @@ func (s *Server) ContractAgree(
 		req.GetPid(),
 		constants.DataspaceProvider,
 		false,
+		req.GetAutoAccept(),
 	)
 }
 
@@ -236,6 +247,7 @@ func (s *Server) ContractVerify(
 		req.GetPid(),
 		constants.DataspaceConsumer,
 		false,
+		req.GetAutoAccept(),
 	)
 }
 
@@ -251,6 +263,7 @@ func (s *Server) ContractFinalize(
 		req.GetPid(),
 		constants.DataspaceProvider,
 		false,
+		req.GetAutoAccept(),
 	)
 }
 

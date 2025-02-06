@@ -48,6 +48,8 @@ github.com/go-dataspace/run-dsrpc v0.0.5-alpha2 h1:NH5QlZjCjx5OBoVQo7rSZb89lKj9N
 github.com/go-dataspace/run-dsrpc v0.0.5-alpha2/go.mod h1:GS4hV6keaQWCn9KTwMqNgzOdIgPnJ/+NSHSvgrsLbTE=
 github.com/go-dataspace/run-dsrpc v0.0.6-alpha2 h1:pD9KnxpHLtRcBIuys0xWpvhxer92WrOgsEJfUYTYSZo=
 github.com/go-dataspace/run-dsrpc v0.0.6-alpha2/go.mod h1:ietl2RJlnxlorgwb4XBwnJyTSL6GqcClOqEBtEETQh4=
+github.com/go-dataspace/run-dsrpc v0.0.7-alpha2 h1:XaS1plRrFhr+go2C7L+p/rrvaqTDSUbzZQwaDEXomFs=
+github.com/go-dataspace/run-dsrpc v0.0.7-alpha2/go.mod h1:ietl2RJlnxlorgwb4XBwnJyTSL6GqcClOqEBtEETQh4=
 github.com/go-playground/assert/v2 v2.2.0 h1:JvknZsQTYeFEAhQwI4qEt9cyV5ONwRHC+lYKSsYSR8s=
 github.com/go-playground/assert/v2 v2.2.0/go.mod h1:VDjEfimB/XKnb+ZQfWdccd7VUvScMdVu0Titje2rxJ4=
 github.com/go-playground/locales v0.14.1 h1:EWaQ/wswjilfKLTECiXz7Rh+3BjFhfDFKv/oXslEjJA=

@@ -189,6 +189,7 @@ func (s *Server) GetProviderDatasetDownloadInformation(
 		providerURL,
 		selfURL,
 		dspconstants.DataspaceConsumer,
+		s.contractService == nil,
 	)
 	// Store and retrieve contract negotiation so that it's saved and the locking works.
 	if err := s.store.PutContract(ctx, negotiation); err != nil {
@@ -210,7 +211,8 @@ func (s *Server) GetProviderDatasetDownloadInformation(
 		return nil, status.Errorf(codes.Internal, "Couldn't store contract negotiation: %s", err)
 	}
 	logger.Debug("Beginning contract negotiation")
-	apply()
+	// These don't really return errors, the err is for uniformity with the recv applyFunc
+	_ = apply()
 
 	negotiation, err = s.store.GetContractR(ctx, consumerPID, dspconstants.DataspaceConsumer)
 	if err != nil {
@@ -259,7 +261,7 @@ func (s *Server) GetProviderDatasetDownloadInformation(
 	}
 	transferInit := statemachine.GetTransferRequestNegotiation(transferReq, s.provider, s.reconciler)
 
-	apply, err = transferInit.Send(ctx)
+	tApply, err := transferInit.Send(ctx)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "Couldn't generate inital initial request.")
 	}
@@ -268,7 +270,7 @@ func (s *Server) GetProviderDatasetDownloadInformation(
 	}
 
 	logger.Debug("Beginning transfer request")
-	apply()
+	tApply()
 
 	tReq, err := s.store.GetTransferR(ctx, transferConsumerPID, dspconstants.DataspaceConsumer)
 	if err != nil {

@@ -111,7 +111,7 @@ func TestTermination(t *testing.T) {
 			providerPID := uuid.New()
 			negotiation := contract.New(
 				providerPID, consumerPID,
-				state, offer, providerCallback, consumerCallback, role)
+				state, offer, providerCallback, consumerCallback, role, false)
 			pid := consumerPID
 			if role == constants.DataspaceProvider {
 				pid = providerPID

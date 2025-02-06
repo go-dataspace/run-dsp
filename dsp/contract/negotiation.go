@@ -70,6 +70,7 @@ type Negotiation struct {
 	callback    *url.URL
 	self        *url.URL
 	role        constants.DataspaceRole
+	autoAccept  bool
 
 	initial  bool
 	ro       bool
@@ -85,6 +86,7 @@ type storableNegotiation struct {
 	Callback    *url.URL
 	Self        *url.URL
 	Role        constants.DataspaceRole
+	AutoAccept  bool
 }
 
 func New(
@@ -93,6 +95,7 @@ func New(
 	offer odrl.Offer,
 	callback, self *url.URL,
 	role constants.DataspaceRole,
+	autoAccept bool,
 ) *Negotiation {
 	return &Negotiation{
 		providerPID: providerPID,
@@ -102,6 +105,7 @@ func New(
 		callback:    callback,
 		self:        self,
 		role:        role,
+		autoAccept:  autoAccept,
 		modified:    true,
 	}
 }
@@ -122,6 +126,7 @@ func FromBytes(b []byte) (*Negotiation, error) {
 		callback:    sn.Callback,
 		self:        sn.Self,
 		role:        sn.Role,
+		autoAccept:  sn.AutoAccept,
 	}, nil
 }
 
@@ -203,6 +208,11 @@ func (cn *Negotiation) SetCallback(u string) error {
 	return nil
 }
 
+// AutoAccept is a property that decides if we're going to accept all operations to do with
+// this contract negotiation.
+func (cn *Negotiation) AutoAccept() bool { return cn.autoAccept }
+func (cn *Negotiation) SetAutoAccept()   { cn.autoAccept = true }
+
 // Properties that decisions are based on.
 func (cn *Negotiation) ReadOnly() bool { return cn.ro }
 func (cn *Negotiation) Initial() bool  { return cn.initial }
@@ -232,6 +242,7 @@ func (cn *Negotiation) ToBytes() ([]byte, error) {
 		Callback:    cn.callback,
 		Self:        cn.self,
 		Role:        cn.role,
+		AutoAccept:  cn.autoAccept,
 	}
 	var buf bytes.Buffer
 	enc := gob.NewEncoder(&buf)

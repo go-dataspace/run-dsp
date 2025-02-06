@@ -7,7 +7,7 @@ require (
 	github.com/dgraph-io/badger/v4 v4.4.0
 	github.com/fatih/color v1.17.0
 	github.com/gammazero/deque v1.0.0
-	github.com/go-dataspace/run-dsrpc v0.0.6-alpha2
+	github.com/go-dataspace/run-dsrpc v0.0.7-alpha2
 	github.com/go-playground/validator/v10 v10.22.0
 	github.com/google/uuid v1.6.0
 	github.com/grpc-ecosystem/go-grpc-middleware/v2 v2.1.0
