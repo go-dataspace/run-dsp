@@ -44,7 +44,7 @@ func makeContractRequestFunction(
 	reqBody []byte,
 	destinationState contract.State,
 	reconciler Reconciler,
-) func() {
+) applyFunc {
 	var id uuid.UUID
 	if c.GetRole() == constants.DataspaceConsumer {
 		id = c.GetConsumerPID()
@@ -72,8 +72,8 @@ func makeRequestFunction(
 	destinationState string,
 	recType ReconciliationType,
 	reconciler Reconciler,
-) func() {
-	return func() {
+) applyFunc {
+	return func() error {
 		reconciler.Add(ReconciliationEntry{
 			EntityID:    id,
 			Type:        recType,
@@ -84,11 +84,12 @@ func makeRequestFunction(
 			Body:        reqBody,
 			Context:     ctx,
 		})
+		return nil
 	}
 }
 
 //nolint:dupl
-func sendContractRequest(ctx context.Context, r Reconciler, c *contract.Negotiation) (func(), error) {
+func sendContractRequest(ctx context.Context, r Reconciler, c *contract.Negotiation) (applyFunc, error) {
 	ctx, logger := logging.InjectLabels(ctx, "operation", "sendContractRequest")
 	contractRequest := shared.ContractRequestMessage{
 		Context:         shared.GetDSPContext(),
@@ -105,7 +106,7 @@ func sendContractRequest(ctx context.Context, r Reconciler, c *contract.Negotiat
 	reqBody, err := shared.ValidateAndMarshal(ctx, contractRequest)
 	if err != nil {
 		logger.Error("Could not validate contract request", "err", err)
-		return func() {}, fmt.Errorf("could not validate contract request: %w", err)
+		return func() error { return nil }, fmt.Errorf("could not validate contract request: %w", err)
 	}
 
 	cu := cloneURL(c.GetCallback())
@@ -127,7 +128,7 @@ func sendContractRequest(ctx context.Context, r Reconciler, c *contract.Negotiat
 }
 
 //nolint:dupl
-func sendContractOffer(ctx context.Context, r Reconciler, c *contract.Negotiation) (func(), error) {
+func sendContractOffer(ctx context.Context, r Reconciler, c *contract.Negotiation) (applyFunc, error) {
 	ctx, logger := logging.InjectLabels(ctx, "operation", "sendContractOffer")
 	contractOffer := shared.ContractOfferMessage{
 		Context:         shared.GetDSPContext(),
@@ -144,7 +145,7 @@ func sendContractOffer(ctx context.Context, r Reconciler, c *contract.Negotiatio
 	reqBody, err := shared.ValidateAndMarshal(ctx, contractOffer)
 	if err != nil {
 		logger.Error("Could not validate contract request", "err", err)
-		return func() {}, fmt.Errorf("could not validate contract request: %w", err)
+		return func() error { return nil }, fmt.Errorf("could not validate contract request: %w", err)
 	}
 
 	cu := cloneURL(c.GetCallback())
@@ -167,7 +168,7 @@ func sendContractOffer(ctx context.Context, r Reconciler, c *contract.Negotiatio
 	), nil
 }
 
-func sendContractAgreement(ctx context.Context, r Reconciler, c *contract.Negotiation) (func(), error) {
+func sendContractAgreement(ctx context.Context, r Reconciler, c *contract.Negotiation) (applyFunc, error) {
 	ctx, logger := logging.InjectLabels(ctx, "operation", "sendContractAgreement")
 	c.SetAgreement(&odrl.Agreement{
 		PolicyClass: odrl.PolicyClass{},
@@ -188,7 +189,7 @@ func sendContractAgreement(ctx context.Context, r Reconciler, c *contract.Negoti
 	reqBody, err := shared.ValidateAndMarshal(ctx, contractAgreement)
 	if err != nil {
 		logger.Error("Couldn't validate contract agreement", "err", err)
-		return func() {}, fmt.Errorf("couldn't validate contract agreement: %w", err)
+		return func() error { return nil }, fmt.Errorf("couldn't validate contract agreement: %w", err)
 	}
 	cu := cloneURL(c.GetCallback())
 	cu.Path = path.Join(cu.Path, "negotiations", c.GetConsumerPID().String(), "agreement")
@@ -205,7 +206,7 @@ func sendContractAgreement(ctx context.Context, r Reconciler, c *contract.Negoti
 
 func sendContractEvent(
 	ctx context.Context, r Reconciler, c *contract.Negotiation, pid uuid.UUID, state contract.State,
-) (func(), error) {
+) (applyFunc, error) {
 	ctx, logger := logging.InjectLabels(ctx, "operation", "sendContractEvent")
 	contractEvent := shared.ContractNegotiationEventMessage{
 		Context:     shared.GetDSPContext(),
@@ -217,7 +218,7 @@ func sendContractEvent(
 	reqBody, err := shared.ValidateAndMarshal(ctx, contractEvent)
 	if err != nil {
 		logger.Error("Couldn't validate contract event", "err", err)
-		return func() {}, fmt.Errorf("couldn't validate contract event: %w", err)
+		return func() error { return nil }, fmt.Errorf("couldn't validate contract event: %w", err)
 	}
 	cu := cloneURL(c.GetCallback())
 	cu.Path = path.Join(cu.Path, "negotiations", pid.String(), "events")
@@ -232,7 +233,7 @@ func sendContractEvent(
 	), nil
 }
 
-func sendContractVerification(ctx context.Context, r Reconciler, c *contract.Negotiation) (func(), error) {
+func sendContractVerification(ctx context.Context, r Reconciler, c *contract.Negotiation) (applyFunc, error) {
 	ctx, logger := logging.InjectLabels(ctx, "operation", "sendContractVerification")
 	contractVerification := shared.ContractAgreementVerificationMessage{
 		Context:     shared.GetDSPContext(),
@@ -244,7 +245,7 @@ func sendContractVerification(ctx context.Context, r Reconciler, c *contract.Neg
 	reqBody, err := shared.ValidateAndMarshal(ctx, contractVerification)
 	if err != nil {
 		logger.Error("Couldn't validate contract verification", "err", err)
-		return func() {}, fmt.Errorf("couldn't validate contract verification: %w", err)
+		return func() error { return nil }, fmt.Errorf("couldn't validate contract verification: %w", err)
 	}
 
 	cu := cloneURL(c.GetCallback())

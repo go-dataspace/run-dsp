@@ -66,6 +66,7 @@ const (
 	providerClientCert    = "server.provider.clientCert"
 	providerClientCertKey = "server.provider.clientCertKey"
 
+	contractServiceEnabled       = "server.contrctService.enabled"
 	contractServiceAddress       = "server.contractService.address"
 	contractServiceInsecure      = "server.contractService.insecure"
 	contractServiceCACert        = "server.contractService.caCert"
@@ -116,6 +117,13 @@ func init() {
 	cfg.AddPersistentFlag(
 		Command, providerClientCertKey, "provider-client-cert-key", "Key for client certificate", "")
 
+	cfg.AddPersistentFlag(
+		Command,
+		contractServiceEnabled,
+		"contract-service-enabled",
+		"Connect to a contract service to coordinate contract negotiation.",
+		false,
+	)
 	cfg.AddPersistentFlag(
 		Command, contractServiceAddress, "contract-service-address", "Address of the contract service gRPC endpoint", "")
 	cfg.AddPersistentFlag(
@@ -202,19 +210,21 @@ var Command = &cobra.Command{
 			}
 		}
 
-		err = cfg.CheckConnectAddr(viper.GetString(contractServiceAddress))
-		if err != nil {
-			return err
-		}
-
-		if !viper.GetBool(contractServiceInsecure) {
-			err = cfg.CheckFilesExist(
-				viper.GetString(contractServiceCACert),
-				viper.GetString(contractServiceClientCert),
-				viper.GetString(contractServiceClientCertKey),
-			)
+		if viper.GetBool(contractServiceEnabled) {
+			err = cfg.CheckConnectAddr(viper.GetString(contractServiceAddress))
 			if err != nil {
 				return err
+			}
+
+			if !viper.GetBool(contractServiceInsecure) {
+				err = cfg.CheckFilesExist(
+					viper.GetString(contractServiceCACert),
+					viper.GetString(contractServiceClientCert),
+					viper.GetString(contractServiceClientCertKey),
+				)
+				if err != nil {
+					return err
+				}
 			}
 		}
 
@@ -267,6 +277,7 @@ var Command = &cobra.Command{
 				ClientCert:    viper.GetString(providerClientCert),
 				ClientCertKey: viper.GetString(providerClientCertKey),
 			},
+			ContractServiceEnabled: viper.GetBool(contractServiceEnabled),
 			ContractServiceAddress: viper.GetString(contractServiceAddress),
 			ContractServiceTLSConfig: tlsConfig{
 				Insecure:      viper.GetBool(contractServiceInsecure),
@@ -310,6 +321,7 @@ type command struct {
 	ProviderTLSConfig tlsConfig
 
 	// GRPC settings for the contract service.
+	ContractServiceEnabled   bool
 	ContractServiceAddress   string
 	ContractServiceTLSConfig tlsConfig
 
@@ -350,28 +362,28 @@ func (c *command) Run(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-
 	httpClient := &shared.HTTPRequester{}
 	reconciler := statemachine.NewReconciler(ctx, httpClient, store)
 	reconciler.Run()
-
 	selfURL := cloneURL(c.ExternalURL)
 	selfURL.Path = path.Join(selfURL.Path, constants.APIPath)
-
 	contractService, csConn, err := c.getContractService(ctx)
 	if err != nil {
 		return err
 	}
-	defer csConn.Close()
-
+	if csConn != nil {
+		defer csConn.Close()
+	}
 	ctlSVC := control.New(httpClient, store, reconciler, provider, contractService, selfURL)
 	err = c.startControl(ctx, wg, ctlSVC)
 	if err != nil {
 		return err
 	}
-	err = c.configureContractService(ctx, store, contractService)
-	if err != nil {
-		return err
+	if contractService != nil {
+		err = c.configureContractService(ctx, store, contractService)
+		if err != nil {
+			return err
+		}
 	}
 
 	mux := http.NewServeMux()
@@ -530,7 +542,10 @@ func (c *command) getProvider(ctx context.Context) (
 }
 
 func (c *command) getContractService(ctx context.Context) (providerv1.ContractServiceClient, *grpc.ClientConn, error) {
-	return getGRPCClient(ctx, c.ContractServiceAddress, c.ContractServiceTLSConfig, providerv1.NewContractServiceClient)
+	if c.ContractServiceEnabled {
+		return getGRPCClient(ctx, c.ContractServiceAddress, c.ContractServiceTLSConfig, providerv1.NewContractServiceClient)
+	}
+	return nil, nil, nil
 }
 
 func getGRPCClient[T any](

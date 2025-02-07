@@ -49,6 +49,8 @@ type Contracter interface {
 	GetContract() *contract.Negotiation
 	GetOffer() odrl.Offer
 	GetContractNegotiation() shared.ContractNegotiation
+	AutoAccept() bool
+	SetAutoAccept()
 }
 
 // ContractArchiver is an interface to retrieving and saving of contract negotiations.
@@ -56,7 +58,7 @@ type Contracter interface {
 type ContractNegotiationState interface {
 	Contracter
 	Recv(ctx context.Context, message any) (context.Context, applyFunc, error)
-	Send(ctx context.Context) (func(), error)
+	Send(ctx context.Context) (applyFunc, error)
 	GetProvider() provider.ProviderServiceClient
 	GetReconciler() Reconciler
 	GetContractService() provider.ContractServiceClient
@@ -119,13 +121,18 @@ func (cn *ContractNegotiationInitial) processContractOffer(
 		return ctx, nil, err
 	}
 
-	return ctx, func() error {
+	ntfyFunc := func() error {
 		_, err := cn.c.OfferReceived(ctx, &provider.ContractServiceOfferReceivedRequest{
 			Pid:   cn.GetConsumerPID().String(),
 			Offer: string(offer),
 		})
 		return err
-	}, nil
+	}
+	if cn.AutoAccept() || cn.c == nil {
+		ntfyFunc = func() error { return nil }
+	}
+
+	return ctx, ntfyFunc, nil
 }
 
 func (cn *ContractNegotiationInitial) processContractRequest(
@@ -163,25 +170,30 @@ func (cn *ContractNegotiationInitial) processContractRequest(
 		return ctx, nil, err
 	}
 
-	return ctx, func() error {
+	ntfyFunc := func() error {
 		_, err := cn.c.RequestReceived(ctx, &provider.ContractServiceRequestReceivedRequest{
 			Pid:   cn.GetProviderPID().String(),
 			Offer: string(offer),
 		})
 		return err
-	}, nil
+	}
+	if cn.AutoAccept() || cn.c == nil {
+		ntfyFunc = func() error { return nil }
+	}
+
+	return ctx, ntfyFunc, nil
 }
 
 // Send progresses to the next state for the INITIAL state.
 // This needs either the contract's consumer or provider PID set, but not both.
 // If the provider PID is set, it will send out a contract offer to the callback.
 // If the consumer PID is set, it will send out a contract request to the callback.
-func (cn *ContractNegotiationInitial) Send(ctx context.Context) (func(), error) {
+func (cn *ContractNegotiationInitial) Send(ctx context.Context) (applyFunc, error) {
 	ctx, logger := logging.InjectLabels(ctx, "send_type", fmt.Sprintf("%T", cn))
 	if (cn.GetConsumerPID() == emptyUUID && cn.GetProviderPID() == emptyUUID) ||
 		(cn.GetConsumerPID() != emptyUUID && cn.GetProviderPID() != emptyUUID) {
 		logger.Error("can't deduce if provider or consumer")
-		return func() {}, fmt.Errorf("can't deduce if provider or consumer contract")
+		return func() error { return nil }, fmt.Errorf("can't deduce if provider or consumer contract")
 	}
 
 	switch {
@@ -191,7 +203,7 @@ func (cn *ContractNegotiationInitial) Send(ctx context.Context) (func(), error) 
 		targetID, err := shared.URNtoRawID(cn.GetOffer().Target)
 		if err != nil {
 			logger.Error("invalid URN", "err", err)
-			return func() {}, fmt.Errorf("invalid URN `%s`: %w", cn.GetOffer().Target, err)
+			return func() error { return nil }, fmt.Errorf("invalid URN `%s`: %w", cn.GetOffer().Target, err)
 		}
 		_, err = cn.GetProvider().GetDataset(ctx, &provider.GetDatasetRequest{
 			DatasetId: targetID,
@@ -203,7 +215,7 @@ func (cn *ContractNegotiationInitial) Send(ctx context.Context) (func(), error) 
 		return sendContractOffer(ctx, cn.GetReconciler(), cn.GetContract())
 	default:
 		logger.Error("Could not deduce type of contract")
-		return func() {}, fmt.Errorf("can't deduce if provider or consumer contract")
+		return func() error { return nil }, fmt.Errorf("can't deduce if provider or consumer contract")
 	}
 }
 
@@ -239,7 +251,6 @@ func (cn *ContractNegotiationRequested) Recv(
 		logger.Debug("Received message")
 		offer, err := json.Marshal(cn.GetOffer())
 		if err != nil {
-			logger.Error("couldn't marshall offer", "err", err)
 			return ctx, nil, err
 		}
 
@@ -270,12 +281,15 @@ func (cn *ContractNegotiationRequested) Recv(
 	default:
 		return ctx, nil, fmt.Errorf("unsupported message type")
 	}
+	if cn.AutoAccept() || cn.c == nil {
+		af = func() error { return nil }
+	}
 	logger.Debug("Received message")
 	return verifyAndTransform(ctx, cn, providerPID, consumerPID, callbackAddress, targetState, af)
 }
 
 // Send determines if an offer of agreemetn has to be sent.
-func (cn *ContractNegotiationRequested) Send(ctx context.Context) (func(), error) {
+func (cn *ContractNegotiationRequested) Send(ctx context.Context) (applyFunc, error) {
 	ctx, _ = logging.InjectLabels(ctx, "send_type", fmt.Sprintf("%T", cn))
 	// Detect if this is a consumer initiated or provider initiated request.
 	if cn.Negotiation.Initial() {
@@ -294,7 +308,7 @@ type ContractNegotiationOffered struct {
 // Recv gets called when a provider receives a request message. It will verify it and set the proper status for
 // the next step.
 //
-//nolint:funlen
+//nolint:funlen,cyclop
 func (cn *ContractNegotiationOffered) Recv(
 	ctx context.Context, message any,
 ) (context.Context, applyFunc, error) {
@@ -359,10 +373,13 @@ func (cn *ContractNegotiationOffered) Recv(
 	default:
 		return ctx, nil, fmt.Errorf("unsupported message type")
 	}
+	if cn.AutoAccept() {
+		af = func() error { return nil }
+	}
 	return verifyAndTransform(ctx, cn, providerPID, consumerPID, callbackAddress, targetState, af)
 }
 
-func (cn *ContractNegotiationOffered) Send(ctx context.Context) (func(), error) {
+func (cn *ContractNegotiationOffered) Send(ctx context.Context) (applyFunc, error) {
 	ctx, _ = logging.InjectLabels(ctx, "send_type", fmt.Sprintf("%T", cn))
 	// Detect if this is a consumer initiated or provider initiated request.
 	if cn.Negotiation.Initial() {
@@ -392,6 +409,15 @@ func (cn *ContractNegotiationAccepted) Recv(
 		)
 		logger.Debug("Received message")
 		cn.SetAgreement(&t.Agreement)
+		af := func() error {
+			_, err := cn.c.AgreementReceived(ctx, &provider.ContractServiceAgreementReceivedRequest{
+				Pid: cn.GetConsumerPID().String(),
+			})
+			return err
+		}
+		if cn.AutoAccept() {
+			af = func() error { return nil }
+		}
 		return verifyAndTransform(
 			ctx,
 			cn,
@@ -399,12 +425,7 @@ func (cn *ContractNegotiationAccepted) Recv(
 			t.ConsumerPID,
 			t.CallbackAddress,
 			contract.States.AGREED,
-			func() error {
-				_, err := cn.c.AgreementReceived(ctx, &provider.ContractServiceAgreementReceivedRequest{
-					Pid: cn.GetConsumerPID().String(),
-				})
-				return err
-			},
+			af,
 		)
 	case shared.ContractNegotiationTerminationMessage:
 		return processTermination(ctx, t, cn)
@@ -413,7 +434,7 @@ func (cn *ContractNegotiationAccepted) Recv(
 	}
 }
 
-func (cn *ContractNegotiationAccepted) Send(ctx context.Context) (func(), error) {
+func (cn *ContractNegotiationAccepted) Send(ctx context.Context) (applyFunc, error) {
 	ctx, _ = logging.InjectLabels(ctx, "send_type", fmt.Sprintf("%T", cn))
 	return sendContractAgreement(ctx, cn.GetReconciler(), cn.GetContract())
 }
@@ -433,6 +454,15 @@ func (cn *ContractNegotiationAgreed) Recv(
 		ctx, _ = logging.InjectLabels(ctx,
 			"recv_msg_type", fmt.Sprintf("%T", t),
 		)
+		af := func() error {
+			_, err := cn.c.VerificationReceived(ctx, &provider.ContractServiceVerificationReceivedRequest{
+				Pid: cn.GetProviderPID().String(),
+			})
+			return err
+		}
+		if cn.AutoAccept() {
+			af = func() error { return nil }
+		}
 		return verifyAndTransform(
 			ctx,
 			cn,
@@ -440,12 +470,7 @@ func (cn *ContractNegotiationAgreed) Recv(
 			t.ConsumerPID,
 			cn.GetCallback().String(),
 			contract.States.VERIFIED,
-			func() error {
-				_, err := cn.c.VerificationReceived(ctx, &provider.ContractServiceVerificationReceivedRequest{
-					Pid: cn.GetProviderPID().String(),
-				})
-				return err
-			},
+			af,
 		)
 	case shared.ContractNegotiationTerminationMessage:
 		return processTermination(ctx, t, cn)
@@ -454,7 +479,7 @@ func (cn *ContractNegotiationAgreed) Recv(
 	}
 }
 
-func (cn *ContractNegotiationAgreed) Send(ctx context.Context) (func(), error) {
+func (cn *ContractNegotiationAgreed) Send(ctx context.Context) (applyFunc, error) {
 	ctx, _ = logging.InjectLabels(ctx, "send_type", fmt.Sprintf("%T", cn))
 	return sendContractVerification(ctx, cn.GetReconciler(), cn.GetContract())
 }
@@ -485,6 +510,15 @@ func (cn *ContractNegotiationVerified) Recv(
 			return ctx, nil, fmt.Errorf("invalid status: %s", receivedStatus)
 		}
 		logger.Debug("Received message")
+		af := func() error {
+			_, err := cn.c.FinalizationReceived(ctx, &provider.ContractServiceFinalizationReceivedRequest{
+				Pid: cn.GetConsumerPID().String(),
+			})
+			return err
+		}
+		if cn.AutoAccept() {
+			af = func() error { return nil }
+		}
 		return verifyAndTransform(
 			ctx,
 			cn,
@@ -492,12 +526,7 @@ func (cn *ContractNegotiationVerified) Recv(
 			t.ConsumerPID,
 			cn.GetCallback().String(),
 			contract.States.FINALIZED,
-			func() error {
-				_, err := cn.c.FinalizationReceived(ctx, &provider.ContractServiceFinalizationReceivedRequest{
-					Pid: cn.GetConsumerPID().String(),
-				})
-				return err
-			},
+			af,
 		)
 	case shared.ContractNegotiationTerminationMessage:
 		return processTermination(ctx, t, cn)
@@ -506,7 +535,7 @@ func (cn *ContractNegotiationVerified) Recv(
 	}
 }
 
-func (cn *ContractNegotiationVerified) Send(ctx context.Context) (func(), error) {
+func (cn *ContractNegotiationVerified) Send(ctx context.Context) (applyFunc, error) {
 	ctx, _ = logging.InjectLabels(ctx, "send_type", fmt.Sprintf("%T", cn))
 	return sendContractEvent(
 		ctx, cn.GetReconciler(), cn.GetContract(), cn.GetConsumerPID(), contract.States.FINALIZED)
@@ -523,8 +552,8 @@ func (cn *ContractNegotiationFinalized) Recv(
 	return ctx, nil, fmt.Errorf("this is a final state")
 }
 
-func (cn *ContractNegotiationFinalized) Send(ctx context.Context) (func(), error) {
-	return func() {}, nil
+func (cn *ContractNegotiationFinalized) Send(ctx context.Context) (applyFunc, error) {
+	return func() error { return nil }, nil
 }
 
 type ContractNegotiationTerminated struct {
@@ -538,9 +567,9 @@ func (cn *ContractNegotiationTerminated) Recv(
 	return ctx, nil, fmt.Errorf("this is a final state")
 }
 
-func (cn *ContractNegotiationTerminated) Send(ctx context.Context) (func(), error) {
+func (cn *ContractNegotiationTerminated) Send(ctx context.Context) (applyFunc, error) {
 	// Nothing to do here.
-	return func() {}, nil
+	return func() error { return nil }, nil
 }
 
 func GetContractNegotiation(
@@ -577,6 +606,7 @@ func GetContractNegotiation(
 		"contract_providerPID", cns.GetProviderPID().String(),
 		"contract_state", cns.GetState().String(),
 		"contract_role", cns.GetContract().GetRole(),
+		"auto_accept", cns.AutoAccept(),
 	)
 	logger.Debug("Found contract")
 	return ctx, cns
@@ -636,6 +666,25 @@ func processTermination(
 		logger = logger.With(fmt.Sprintf("reason_%s", reason.Language), reason.Value)
 	}
 	ctx = logging.Inject(ctx, logger)
+	af := func() error {
+		pid := cn.GetConsumerPID().String()
+		if cn.GetContract().GetRole() == constants.DataspaceProvider {
+			pid = cn.GetProviderPID().String()
+		}
+		reason := ""
+		if len(t.Reason) > 0 {
+			reason = t.Reason[0].Value
+		}
+		_, err := cn.GetContractService().TerminationReceived(ctx, &provider.ContractServiceTerminationReceivedRequest{
+			Pid:    pid,
+			Code:   t.Code,
+			Reason: []string{reason},
+		})
+		return err
+	}
+	if cn.AutoAccept() || cn.GetContractService() == nil {
+		af = func() error { return nil }
+	}
 	return verifyAndTransform(
 		ctx,
 		cn,
@@ -643,21 +692,6 @@ func processTermination(
 		t.ConsumerPID,
 		cn.GetCallback().String(),
 		contract.States.TERMINATED,
-		func() error {
-			pid := cn.GetConsumerPID().String()
-			if cn.GetContract().GetRole() == constants.DataspaceProvider {
-				pid = cn.GetProviderPID().String()
-			}
-			reason := ""
-			if len(t.Reason) > 0 {
-				reason = t.Reason[0].Value
-			}
-			_, err := cn.GetContractService().TerminationReceived(ctx, &provider.ContractServiceTerminationReceivedRequest{
-				Pid:    pid,
-				Code:   t.Code,
-				Reason: []string{reason},
-			})
-			return err
-		},
+		af,
 	)
 }

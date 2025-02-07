@@ -43,16 +43,22 @@ func makeTransferRequestFunction(
 	} else {
 		id = t.GetProviderPID()
 	}
-	return makeRequestFunction(
-		ctx,
-		cu,
-		reqBody,
-		id,
-		t.GetRole(),
-		destinationState.String(),
-		ReconciliationTransferRequest,
-		reconciler,
-	)
+	return func() {
+		f := makeRequestFunction(
+			ctx,
+			cu,
+			reqBody,
+			id,
+			t.GetRole(),
+			destinationState.String(),
+			ReconciliationTransferRequest,
+			reconciler,
+		)
+		err := f()
+		if err != nil {
+			panic(err.Error())
+		}
+	}
 }
 
 func sendTransferRequest(ctx context.Context, tr *TransferRequestNegotiationInitial) (func(), error) {

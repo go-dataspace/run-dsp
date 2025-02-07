@@ -147,6 +147,7 @@ func createNegotiation(
 		callBack,
 		selfURL,
 		role,
+		false,
 	)
 	err := store.PutContract(ctx, neg)
 	assert.Nil(t, err)

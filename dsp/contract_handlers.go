@@ -20,6 +20,7 @@ import (
 	"net/http"
 	"net/url"
 	"path"
+	"reflect"
 
 	"github.com/go-dataspace/run-dsp/dsp/constants"
 	"github.com/go-dataspace/run-dsp/dsp/contract"
@@ -127,6 +128,7 @@ func (dh *dspHandlers) providerContractRequestHandler(w http.ResponseWriter, req
 		cbURL,
 		dh.selfURL,
 		constants.DataspaceProvider,
+		reflect.ValueOf(dh.contractService).IsNil(),
 	)
 
 	if err := storeNegotiation(ctx, dh.store, negotiation); err != nil {
@@ -183,6 +185,22 @@ func processMessage[T any](
 	if err != nil {
 		return contractError(fmt.Sprintf("invalid request: %s", err),
 			http.StatusBadRequest, "400", "Invalid request", pState.GetContract())
+	}
+
+	if contract.AutoAccept() || reflect.ValueOf(dh.contractService).IsNil() {
+		ctx, transition := statemachine.GetContractNegotiation(
+			ctx,
+			pState.GetContract(),
+			dh.provider,
+			dh.contractService,
+			dh.reconciler,
+		)
+		apply, err = transition.Send(ctx)
+		if err != nil {
+			return contractError(fmt.Sprintf("failed to send: %s", err),
+				http.StatusInternalServerError, "500", "Internal error", pState.GetContract(),
+			)
+		}
 	}
 
 	err = storeNegotiation(ctx, dh.store, pState.GetContract())
@@ -252,7 +270,7 @@ func (dh *dspHandlers) contractTerminationHandler(w http.ResponseWriter, req *ht
 	pid := req.PathValue("PID")
 	id, err := uuid.Parse(pid)
 	if err != nil {
-		return contractError(fmt.Sprintf("Incalid PID: %s", pid),
+		return contractError(fmt.Sprintf("Invalid PID: %s", pid),
 			http.StatusBadRequest, "400", "Invalid request: PID is not a UUID", nil)
 	}
 	if _, err := dh.store.GetContractR(ctx, id, constants.DataspaceProvider); err == nil {
@@ -301,6 +319,7 @@ func (dh *dspHandlers) consumerContractOfferHandler(w http.ResponseWriter, req *
 		cbURL,
 		selfURL,
 		constants.DataspaceConsumer,
+		reflect.ValueOf(dh.contractService).IsNil(),
 	)
 	if err := storeNegotiation(ctx, dh.store, negotiation); err != nil {
 		return err
