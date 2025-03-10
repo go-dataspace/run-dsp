@@ -55,10 +55,10 @@ linters:
     - nonamedreturns
     - promlinter
     - staticcheck
-    - tenv
     - testpackage
     - unconvert
     - unparam
     - unused
+    - usetesting
     - wastedassign
     - whitespace

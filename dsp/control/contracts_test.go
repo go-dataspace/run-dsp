@@ -108,7 +108,7 @@ func setupEnvironment(t *testing.T) (
 	*environment,
 ) {
 	t.Helper()
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
 	slog.SetDefault(logger)
 	prov := mockprovider.NewMockProviderServiceClient(t)

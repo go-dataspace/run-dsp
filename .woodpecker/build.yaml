@@ -1,4 +1,4 @@
-# Copyright 2024 go-dataspace
+# Copyright 2025 go-dataspace
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,13 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# This creates an image that runs a run-dsp debug binary in dlv.
-###########################################
-# DO NOT USE ANYWHERE NEAR SENSITIVE DATA #
-###########################################
-FROM docker.io/library/golang:1.24.1 AS builder
-WORKDIR /app
-COPY . ./
-RUN make debug
-RUN go install github.com/go-delve/delve/cmd/dlv@latest
-ENTRYPOINT [ "/go/bin/dlv", "exec", "--listen=:4000", "--headless", "--log", "--accept-multiclient", "--continue",  "./_build/run-dsp.debug" ]
+when:
+  - event: push
+    branch: main
+  - event: pull_request
+  - event: tag
+    ref: refs/tags/v*
+
+steps:
+  - name: build
+    image: golang:1.24.1
+    commands:
+      - make build

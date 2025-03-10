@@ -42,7 +42,7 @@ func TestTransferTermination(t *testing.T) {
 		Timestamp:   time.Time{},
 	}
 	logger := logging.NewJSON("error", true)
-	ctx := logging.Inject(context.Background(), logger)
+	ctx := logging.Inject(t.Context(), logger)
 	ctx, done := context.WithCancel(ctx)
 	defer done()
 
