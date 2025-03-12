@@ -19,8 +19,8 @@ import (
 	"net/http"
 	"net/url"
 
-	"github.com/go-dataspace/run-dsp/dsp/persistence"
-	"github.com/go-dataspace/run-dsp/dsp/statemachine"
+	"codeberg.org/go-dataspace/run-dsp/dsp/persistence"
+	"codeberg.org/go-dataspace/run-dsp/dsp/statemachine"
 	provider "github.com/go-dataspace/run-dsrpc/gen/go/dsp/v1alpha2"
 )
 

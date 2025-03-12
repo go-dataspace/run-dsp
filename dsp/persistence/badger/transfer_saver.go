@@ -19,9 +19,9 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/go-dataspace/run-dsp/dsp/constants"
-	"github.com/go-dataspace/run-dsp/dsp/transfer"
-	"github.com/go-dataspace/run-dsp/logging"
+	"codeberg.org/go-dataspace/run-dsp/dsp/constants"
+	"codeberg.org/go-dataspace/run-dsp/dsp/transfer"
+	"codeberg.org/go-dataspace/run-dsp/logging"
 	"github.com/google/uuid"
 )
 

@@ -22,9 +22,9 @@ import (
 	"slices"
 	"strconv"
 
-	"github.com/go-dataspace/run-dsp/dsp/constants"
-	"github.com/go-dataspace/run-dsp/dsp/shared"
-	"github.com/go-dataspace/run-dsp/odrl"
+	"codeberg.org/go-dataspace/run-dsp/dsp/constants"
+	"codeberg.org/go-dataspace/run-dsp/dsp/shared"
+	"codeberg.org/go-dataspace/run-dsp/odrl"
 	"github.com/google/uuid"
 )
 

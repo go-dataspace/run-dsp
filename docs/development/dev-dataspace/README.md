@@ -16,7 +16,7 @@ This setup expects you have `docker-compose` installed. This setup is also teste
 `podman`, as long as the environment variable `DOCKER_HOST` is set to the appropriate socket.
 
 Client examples assume you have RUN-DSP installed and in your PATH, you can get a precompiled binary
-[here](https://github.com/go-dataspace/run-dsp/releases/latest).
+[here](https://codeberg.org/go-dataspace/run-dsp/releases/latest).
 
 Alternatively, if you have go installed, you can also replace every instance of the `run-dsp` command
 with `go run ./cmd/`, assuming you are in the root of this repository.

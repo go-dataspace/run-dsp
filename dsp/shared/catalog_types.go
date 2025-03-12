@@ -15,8 +15,8 @@
 package shared
 
 import (
-	"github.com/go-dataspace/run-dsp/jsonld"
-	"github.com/go-dataspace/run-dsp/odrl"
+	"codeberg.org/go-dataspace/run-dsp/jsonld"
+	"codeberg.org/go-dataspace/run-dsp/odrl"
 )
 
 // CatalogRequestMessage is a message to request a catalog. Note that the filter format is defined

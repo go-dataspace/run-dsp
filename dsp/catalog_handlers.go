@@ -18,8 +18,8 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/go-dataspace/run-dsp/dsp/shared"
-	"github.com/go-dataspace/run-dsp/logging"
+	"codeberg.org/go-dataspace/run-dsp/dsp/shared"
+	"codeberg.org/go-dataspace/run-dsp/logging"
 	provider "github.com/go-dataspace/run-dsrpc/gen/go/dsp/v1alpha2"
 )
 

@@ -20,8 +20,8 @@ import (
 	"fmt"
 	"time"
 
+	"codeberg.org/go-dataspace/run-dsp/logging"
 	"github.com/dgraph-io/badger/v4"
-	"github.com/go-dataspace/run-dsp/logging"
 )
 
 const (

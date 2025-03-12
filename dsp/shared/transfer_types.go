@@ -15,7 +15,7 @@
 package shared
 
 import (
-	"github.com/go-dataspace/run-dsp/jsonld"
+	"codeberg.org/go-dataspace/run-dsp/jsonld"
 )
 
 // TransferRequestMessage requests a data transfer.

@@ -18,7 +18,7 @@ package oid_test
 import (
 	"testing"
 
-	"github.com/go-dataspace/run-dsp/oid"
+	"codeberg.org/go-dataspace/run-dsp/oid"
 	"github.com/stretchr/testify/assert"
 )
 

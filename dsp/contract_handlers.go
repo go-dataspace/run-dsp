@@ -22,13 +22,13 @@ import (
 	"path"
 	"reflect"
 
-	"github.com/go-dataspace/run-dsp/dsp/constants"
-	"github.com/go-dataspace/run-dsp/dsp/contract"
-	"github.com/go-dataspace/run-dsp/dsp/persistence"
-	"github.com/go-dataspace/run-dsp/dsp/shared"
-	"github.com/go-dataspace/run-dsp/dsp/statemachine"
-	"github.com/go-dataspace/run-dsp/logging"
-	"github.com/go-dataspace/run-dsp/odrl"
+	"codeberg.org/go-dataspace/run-dsp/dsp/constants"
+	"codeberg.org/go-dataspace/run-dsp/dsp/contract"
+	"codeberg.org/go-dataspace/run-dsp/dsp/persistence"
+	"codeberg.org/go-dataspace/run-dsp/dsp/shared"
+	"codeberg.org/go-dataspace/run-dsp/dsp/statemachine"
+	"codeberg.org/go-dataspace/run-dsp/logging"
+	"codeberg.org/go-dataspace/run-dsp/odrl"
 	"github.com/google/uuid"
 )
 

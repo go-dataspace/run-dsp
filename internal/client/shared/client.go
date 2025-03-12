@@ -20,7 +20,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/go-dataspace/run-dsp/internal/client/authinjector"
+	"codeberg.org/go-dataspace/run-dsp/internal/client/authinjector"
 	dspcontrol "github.com/go-dataspace/run-dsrpc/gen/go/dsp/v1alpha2"
 	"github.com/spf13/viper"
 	"google.golang.org/grpc"

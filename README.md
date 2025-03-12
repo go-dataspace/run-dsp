@@ -3,13 +3,20 @@
 </p>
 
 <p align="center">
-    <img alt="Test and build status" src="https://github.com/go-dataspace/run-dsp/actions/workflows/test-and-lint.yaml/badge.svg">
-    <img alt="GitHub Release" src="https://img.shields.io/github/v/release/go-dataspace/run-dsp?sort=semver">
-    <img alt="Go Report Card" src="https://goreportcard.com/badge/github.com/go-dataspace/run-dsp">
+    <img alt="Test and build status" src="https://ci.ponc.tech/api/badges/1/status.svg">
+    <img alt="Latest Release" src="https://codeberg.org/go-dataspace/run-dsp/badges/release.svg?sort=semver">
+    <img alt="Go Report Card" src="https://goreportcard.com/badge/codeberg.org/go-dataspace/run-dsp">
     <img alt="Project status" src="https://badgen.net/badge/Warning/Pre-Alpha/red">
+    <a href="https://codeberg.org/go-dataspace/run-dsp">
+        <img alt="Canonical Repository" src="https://badgen.net/badge/Canonical%20Repository/Codeberg/purple">
+    </a>
 </p>
 
 # RUN-DSP
+
+> [!IMPORTANT]
+> The canonical repository for RUN-DSP is now on [codeberg](https://codeberg.org/go-dataspace/run-dsp).
+> Please submit issues and pull requests there.
 
 > [!IMPORTANT]
 > RUN-DSP and the gRPC bindings are considered in "pre-alpha" state, this means that things can

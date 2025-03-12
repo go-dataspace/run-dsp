@@ -18,7 +18,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/go-dataspace/run-dsp/oid"
+	"codeberg.org/go-dataspace/run-dsp/oid"
 	"github.com/google/uuid"
 )
 

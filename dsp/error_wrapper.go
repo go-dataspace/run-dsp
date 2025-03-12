@@ -18,8 +18,8 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/go-dataspace/run-dsp/dsp/shared"
-	"github.com/go-dataspace/run-dsp/logging"
+	"codeberg.org/go-dataspace/run-dsp/dsp/shared"
+	"codeberg.org/go-dataspace/run-dsp/logging"
 )
 
 // HTTPReturnError is an interface for a dataspace protocol error, containing all the information

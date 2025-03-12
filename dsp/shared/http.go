@@ -22,8 +22,8 @@ import (
 	"net/http"
 	"net/url"
 
-	"github.com/go-dataspace/run-dsp/internal/authforwarder"
-	"github.com/go-dataspace/run-dsp/logging"
+	"codeberg.org/go-dataspace/run-dsp/internal/authforwarder"
+	"codeberg.org/go-dataspace/run-dsp/logging"
 )
 
 type Requester interface {

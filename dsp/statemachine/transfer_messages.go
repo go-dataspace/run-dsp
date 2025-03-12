@@ -21,10 +21,10 @@ import (
 	"path"
 	"strings"
 
-	"github.com/go-dataspace/run-dsp/dsp/constants"
-	"github.com/go-dataspace/run-dsp/dsp/shared"
-	"github.com/go-dataspace/run-dsp/dsp/transfer"
-	"github.com/go-dataspace/run-dsp/logging"
+	"codeberg.org/go-dataspace/run-dsp/dsp/constants"
+	"codeberg.org/go-dataspace/run-dsp/dsp/shared"
+	"codeberg.org/go-dataspace/run-dsp/dsp/transfer"
+	"codeberg.org/go-dataspace/run-dsp/logging"
 	provider "github.com/go-dataspace/run-dsrpc/gen/go/dsp/v1alpha2"
 	"github.com/google/uuid"
 )

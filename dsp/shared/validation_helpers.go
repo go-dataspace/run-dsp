@@ -22,10 +22,10 @@ import (
 	"net/http"
 	"slices"
 
-	"github.com/go-dataspace/run-dsp/internal/constants"
-	"github.com/go-dataspace/run-dsp/jsonld"
-	"github.com/go-dataspace/run-dsp/logging"
-	"github.com/go-dataspace/run-dsp/odrl"
+	"codeberg.org/go-dataspace/run-dsp/internal/constants"
+	"codeberg.org/go-dataspace/run-dsp/jsonld"
+	"codeberg.org/go-dataspace/run-dsp/logging"
+	"codeberg.org/go-dataspace/run-dsp/odrl"
 	"github.com/go-playground/validator/v10"
 )
 

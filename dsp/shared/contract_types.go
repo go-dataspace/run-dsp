@@ -15,8 +15,8 @@
 package shared
 
 import (
-	"github.com/go-dataspace/run-dsp/jsonld"
-	"github.com/go-dataspace/run-dsp/odrl"
+	"codeberg.org/go-dataspace/run-dsp/jsonld"
+	"codeberg.org/go-dataspace/run-dsp/odrl"
 )
 
 // ContractRequestMessage is a dsp contract request.

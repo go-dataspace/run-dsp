@@ -19,10 +19,10 @@ package persistence
 import (
 	"context"
 
-	"github.com/go-dataspace/run-dsp/dsp/constants"
-	"github.com/go-dataspace/run-dsp/dsp/contract"
-	"github.com/go-dataspace/run-dsp/dsp/transfer"
-	"github.com/go-dataspace/run-dsp/odrl"
+	"codeberg.org/go-dataspace/run-dsp/dsp/constants"
+	"codeberg.org/go-dataspace/run-dsp/dsp/contract"
+	"codeberg.org/go-dataspace/run-dsp/dsp/transfer"
+	"codeberg.org/go-dataspace/run-dsp/odrl"
 	"github.com/google/uuid"
 )
 

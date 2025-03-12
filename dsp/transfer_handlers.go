@@ -21,12 +21,12 @@ import (
 	"net/http"
 	"net/url"
 
-	"github.com/go-dataspace/run-dsp/dsp/constants"
-	"github.com/go-dataspace/run-dsp/dsp/persistence"
-	"github.com/go-dataspace/run-dsp/dsp/shared"
-	"github.com/go-dataspace/run-dsp/dsp/statemachine"
-	"github.com/go-dataspace/run-dsp/dsp/transfer"
-	"github.com/go-dataspace/run-dsp/logging"
+	"codeberg.org/go-dataspace/run-dsp/dsp/constants"
+	"codeberg.org/go-dataspace/run-dsp/dsp/persistence"
+	"codeberg.org/go-dataspace/run-dsp/dsp/shared"
+	"codeberg.org/go-dataspace/run-dsp/dsp/statemachine"
+	"codeberg.org/go-dataspace/run-dsp/dsp/transfer"
+	"codeberg.org/go-dataspace/run-dsp/logging"
 	"github.com/google/uuid"
 )
 

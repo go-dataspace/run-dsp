@@ -20,10 +20,10 @@ import (
 	"os"
 	"slices"
 
-	"github.com/go-dataspace/run-dsp/internal/client"
-	"github.com/go-dataspace/run-dsp/internal/server"
-	"github.com/go-dataspace/run-dsp/internal/ui"
-	"github.com/go-dataspace/run-dsp/logging"
+	"codeberg.org/go-dataspace/run-dsp/internal/client"
+	"codeberg.org/go-dataspace/run-dsp/internal/server"
+	"codeberg.org/go-dataspace/run-dsp/internal/ui"
+	"codeberg.org/go-dataspace/run-dsp/logging"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
