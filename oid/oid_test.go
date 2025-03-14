@@ -18,8 +18,8 @@ package oid_test
 import (
 	"testing"
 
-	"codeberg.org/go-dataspace/run-dsp/oid"
 	"github.com/stretchr/testify/assert"
+	"go-dataspace.eu/run-dsp/oid"
 )
 
 func TestParse(t *testing.T) {

@@ -19,11 +19,11 @@ package persistence
 import (
 	"context"
 
-	"codeberg.org/go-dataspace/run-dsp/dsp/constants"
-	"codeberg.org/go-dataspace/run-dsp/dsp/contract"
-	"codeberg.org/go-dataspace/run-dsp/dsp/transfer"
-	"codeberg.org/go-dataspace/run-dsp/odrl"
 	"github.com/google/uuid"
+	"go-dataspace.eu/run-dsp/dsp/constants"
+	"go-dataspace.eu/run-dsp/dsp/contract"
+	"go-dataspace.eu/run-dsp/dsp/transfer"
+	"go-dataspace.eu/run-dsp/odrl"
 )
 
 // StorageProvider is an interface that combines the *Saver interfaces.

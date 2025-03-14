@@ -20,11 +20,11 @@ import (
 	"net/http"
 	"net/url"
 
-	"codeberg.org/go-dataspace/run-dsp/dsp/persistence"
-	"codeberg.org/go-dataspace/run-dsp/dsp/shared"
-	"codeberg.org/go-dataspace/run-dsp/dsp/statemachine"
-	"codeberg.org/go-dataspace/run-dsp/internal/constants"
 	provider "github.com/go-dataspace/run-dsrpc/gen/go/dsp/v1alpha2"
+	"go-dataspace.eu/run-dsp/dsp/persistence"
+	"go-dataspace.eu/run-dsp/dsp/shared"
+	"go-dataspace.eu/run-dsp/dsp/statemachine"
+	"go-dataspace.eu/run-dsp/internal/constants"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )

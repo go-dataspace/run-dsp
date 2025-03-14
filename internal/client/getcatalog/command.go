@@ -20,11 +20,11 @@ import (
 	"fmt"
 	"net/url"
 
-	"codeberg.org/go-dataspace/run-dsp/internal/client/shared"
-	"codeberg.org/go-dataspace/run-dsp/internal/ui"
 	dspcontrol "github.com/go-dataspace/run-dsrpc/gen/go/dsp/v1alpha2"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"go-dataspace.eu/run-dsp/internal/client/shared"
+	"go-dataspace.eu/run-dsp/internal/ui"
 )
 
 func init() {

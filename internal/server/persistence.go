@@ -18,8 +18,8 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/go-dataspace/run-dsp/dsp/persistence"
-	"codeberg.org/go-dataspace/run-dsp/dsp/persistence/badger"
+	"go-dataspace.eu/run-dsp/dsp/persistence"
+	"go-dataspace.eu/run-dsp/dsp/persistence/badger"
 )
 
 func (c *command) getStorageProvider(ctx context.Context) (persistence.StorageProvider, error) {

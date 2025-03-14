@@ -1,4 +1,4 @@
-module codeberg.org/go-dataspace/run-dsp
+module go-dataspace.eu/run-dsp
 
 go 1.24.1
 

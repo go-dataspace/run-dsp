@@ -20,12 +20,12 @@ import (
 	"os"
 	"slices"
 
-	"codeberg.org/go-dataspace/run-dsp/internal/client"
-	"codeberg.org/go-dataspace/run-dsp/internal/server"
-	"codeberg.org/go-dataspace/run-dsp/internal/ui"
-	"codeberg.org/go-dataspace/run-dsp/logging"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"go-dataspace.eu/run-dsp/internal/client"
+	"go-dataspace.eu/run-dsp/internal/server"
+	"go-dataspace.eu/run-dsp/internal/ui"
+	"go-dataspace.eu/run-dsp/logging"
 )
 
 var (

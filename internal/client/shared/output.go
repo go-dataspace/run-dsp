@@ -23,11 +23,11 @@ import (
 	"text/tabwriter"
 	"time"
 
-	"codeberg.org/go-dataspace/run-dsp/internal/ui"
 	"github.com/alecthomas/chroma/v2/quick"
 	"github.com/fatih/color"
 	dspcontrol "github.com/go-dataspace/run-dsrpc/gen/go/dsp/v1alpha2"
 	"github.com/spf13/viper"
+	"go-dataspace.eu/run-dsp/internal/ui"
 )
 
 // PrintCatalogue prints out a catalogue, either as a table or as JSON.

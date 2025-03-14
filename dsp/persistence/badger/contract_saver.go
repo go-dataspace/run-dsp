@@ -19,10 +19,10 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/go-dataspace/run-dsp/dsp/constants"
-	"codeberg.org/go-dataspace/run-dsp/dsp/contract"
-	"codeberg.org/go-dataspace/run-dsp/logging"
 	"github.com/google/uuid"
+	"go-dataspace.eu/run-dsp/dsp/constants"
+	"go-dataspace.eu/run-dsp/dsp/contract"
+	"go-dataspace.eu/run-dsp/logging"
 )
 
 // GetContractR gets a contract and sets the read-only property.

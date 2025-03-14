@@ -20,8 +20,8 @@ import (
 	"encoding/gob"
 	"fmt"
 
-	"codeberg.org/go-dataspace/run-dsp/odrl"
 	"github.com/google/uuid"
+	"go-dataspace.eu/run-dsp/odrl"
 )
 
 func mkAgreementKey(id string) []byte {

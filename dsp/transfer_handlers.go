@@ -21,13 +21,13 @@ import (
 	"net/http"
 	"net/url"
 
-	"codeberg.org/go-dataspace/run-dsp/dsp/constants"
-	"codeberg.org/go-dataspace/run-dsp/dsp/persistence"
-	"codeberg.org/go-dataspace/run-dsp/dsp/shared"
-	"codeberg.org/go-dataspace/run-dsp/dsp/statemachine"
-	"codeberg.org/go-dataspace/run-dsp/dsp/transfer"
-	"codeberg.org/go-dataspace/run-dsp/logging"
 	"github.com/google/uuid"
+	"go-dataspace.eu/run-dsp/dsp/constants"
+	"go-dataspace.eu/run-dsp/dsp/persistence"
+	"go-dataspace.eu/run-dsp/dsp/shared"
+	"go-dataspace.eu/run-dsp/dsp/statemachine"
+	"go-dataspace.eu/run-dsp/dsp/transfer"
+	"go-dataspace.eu/run-dsp/logging"
 )
 
 type TransferError struct {
