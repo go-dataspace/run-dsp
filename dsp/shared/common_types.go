@@ -19,7 +19,7 @@ package shared
 // Reference: https://docs.internationaldataspaces.org/ids-knowledgebase/v/dataspace-protocol
 
 import (
-	"codeberg.org/go-dataspace/run-dsp/jsonld"
+	"go-dataspace.eu/run-dsp/jsonld"
 )
 
 // VersionResponse contains multiple protocol version specifications.

@@ -22,10 +22,10 @@ import (
 	"slices"
 	"strconv"
 
-	"codeberg.org/go-dataspace/run-dsp/dsp/constants"
-	"codeberg.org/go-dataspace/run-dsp/dsp/shared"
-	"codeberg.org/go-dataspace/run-dsp/odrl"
 	"github.com/google/uuid"
+	"go-dataspace.eu/run-dsp/dsp/constants"
+	"go-dataspace.eu/run-dsp/dsp/shared"
+	"go-dataspace.eu/run-dsp/odrl"
 )
 
 var validTransitions = map[State][]State{

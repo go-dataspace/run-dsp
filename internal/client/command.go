@@ -19,14 +19,14 @@ import (
 	"fmt"
 	"os"
 
-	"codeberg.org/go-dataspace/run-dsp/internal/cfg"
-	"codeberg.org/go-dataspace/run-dsp/internal/client/downloaddataset"
-	"codeberg.org/go-dataspace/run-dsp/internal/client/getcatalog"
-	"codeberg.org/go-dataspace/run-dsp/internal/client/getdataset"
-	"codeberg.org/go-dataspace/run-dsp/internal/client/shared"
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"go-dataspace.eu/run-dsp/internal/cfg"
+	"go-dataspace.eu/run-dsp/internal/client/downloaddataset"
+	"go-dataspace.eu/run-dsp/internal/client/getcatalog"
+	"go-dataspace.eu/run-dsp/internal/client/getdataset"
+	"go-dataspace.eu/run-dsp/internal/client/shared"
 )
 
 var (

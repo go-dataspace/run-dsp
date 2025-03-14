@@ -21,11 +21,11 @@ import (
 	"net/url"
 	"strings"
 
-	"codeberg.org/go-dataspace/run-dsp/dsp/constants"
-	"codeberg.org/go-dataspace/run-dsp/dsp/shared"
-	"codeberg.org/go-dataspace/run-dsp/dsp/transfer"
 	provider "github.com/go-dataspace/run-dsrpc/gen/go/dsp/v1alpha2"
 	"github.com/google/uuid"
+	"go-dataspace.eu/run-dsp/dsp/constants"
+	"go-dataspace.eu/run-dsp/dsp/shared"
+	"go-dataspace.eu/run-dsp/dsp/transfer"
 )
 
 var ErrNotImplemented = errors.New("not implemented")

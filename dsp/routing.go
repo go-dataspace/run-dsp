@@ -19,9 +19,9 @@ import (
 	"net/http"
 	"net/url"
 
-	"codeberg.org/go-dataspace/run-dsp/dsp/persistence"
-	"codeberg.org/go-dataspace/run-dsp/dsp/statemachine"
 	provider "github.com/go-dataspace/run-dsrpc/gen/go/dsp/v1alpha2"
+	"go-dataspace.eu/run-dsp/dsp/persistence"
+	"go-dataspace.eu/run-dsp/dsp/statemachine"
 )
 
 // GetRoutes gets all the dataspace routes.

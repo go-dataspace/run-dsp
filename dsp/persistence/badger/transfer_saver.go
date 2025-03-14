@@ -19,10 +19,10 @@ import (
 	"context"
 	"fmt"
 
-	"codeberg.org/go-dataspace/run-dsp/dsp/constants"
-	"codeberg.org/go-dataspace/run-dsp/dsp/transfer"
-	"codeberg.org/go-dataspace/run-dsp/logging"
 	"github.com/google/uuid"
+	"go-dataspace.eu/run-dsp/dsp/constants"
+	"go-dataspace.eu/run-dsp/dsp/transfer"
+	"go-dataspace.eu/run-dsp/logging"
 )
 
 // GetTransferR gets a transfer and sets the read-only property.

@@ -18,8 +18,8 @@ import (
 	"fmt"
 	"strings"
 
-	"codeberg.org/go-dataspace/run-dsp/oid"
 	"github.com/google/uuid"
+	"go-dataspace.eu/run-dsp/oid"
 )
 
 // IDtoURN generates the URN for the ID. Right now we only support preformatted URNs,

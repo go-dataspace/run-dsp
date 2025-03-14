@@ -22,11 +22,11 @@ import (
 	"net/http"
 	"slices"
 
-	"codeberg.org/go-dataspace/run-dsp/internal/constants"
-	"codeberg.org/go-dataspace/run-dsp/jsonld"
-	"codeberg.org/go-dataspace/run-dsp/logging"
-	"codeberg.org/go-dataspace/run-dsp/odrl"
 	"github.com/go-playground/validator/v10"
+	"go-dataspace.eu/run-dsp/internal/constants"
+	"go-dataspace.eu/run-dsp/jsonld"
+	"go-dataspace.eu/run-dsp/logging"
+	"go-dataspace.eu/run-dsp/odrl"
 )
 
 var validate *validator.Validate

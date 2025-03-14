@@ -17,7 +17,7 @@ package main
 import (
 	_ "time/tzdata"
 
-	"codeberg.org/go-dataspace/run-dsp/cmd/root"
+	"go-dataspace.eu/run-dsp/cmd/root"
 )
 
 func main() {

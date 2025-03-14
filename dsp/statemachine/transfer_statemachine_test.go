@@ -19,16 +19,16 @@ import (
 	"testing"
 	"time"
 
-	"codeberg.org/go-dataspace/run-dsp/dsp/constants"
-	"codeberg.org/go-dataspace/run-dsp/dsp/persistence/badger"
-	"codeberg.org/go-dataspace/run-dsp/dsp/shared"
-	"codeberg.org/go-dataspace/run-dsp/dsp/statemachine"
-	"codeberg.org/go-dataspace/run-dsp/dsp/transfer"
-	"codeberg.org/go-dataspace/run-dsp/logging"
-	mockprovider "codeberg.org/go-dataspace/run-dsp/mocks/github.com/go-dataspace/run-dsrpc/gen/go/dsp/v1alpha2"
-	"codeberg.org/go-dataspace/run-dsp/odrl"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
+	"go-dataspace.eu/run-dsp/dsp/constants"
+	"go-dataspace.eu/run-dsp/dsp/persistence/badger"
+	"go-dataspace.eu/run-dsp/dsp/shared"
+	"go-dataspace.eu/run-dsp/dsp/statemachine"
+	"go-dataspace.eu/run-dsp/dsp/transfer"
+	"go-dataspace.eu/run-dsp/logging"
+	mockprovider "go-dataspace.eu/run-dsp/mocks/github.com/go-dataspace/run-dsrpc/gen/go/dsp/v1alpha2"
+	"go-dataspace.eu/run-dsp/odrl"
 )
 
 var agreementID = uuid.MustParse("e1c68180-de68-428d-9853-7d4dd3c66904")
