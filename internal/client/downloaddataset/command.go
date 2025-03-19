@@ -27,11 +27,11 @@ import (
 	"path"
 	"strconv"
 
-	dspcontrol "github.com/go-dataspace/run-dsrpc/gen/go/dsp/v1alpha2"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"go-dataspace.eu/run-dsp/internal/client/shared"
 	"go-dataspace.eu/run-dsp/internal/ui"
+	dspcontrol "go-dataspace.eu/run-dsrpc/gen/go/dsp/v1alpha2"
 )
 
 func init() {

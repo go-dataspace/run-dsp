@@ -18,9 +18,9 @@ import (
 	"net/http"
 	"time"
 
-	provider "github.com/go-dataspace/run-dsrpc/gen/go/dsp/v1alpha2"
 	"go-dataspace.eu/run-dsp/dsp/shared"
 	"go-dataspace.eu/run-dsp/logging"
+	provider "go-dataspace.eu/run-dsrpc/gen/go/dsp/v1alpha2"
 )
 
 // CatalogError implements HTTPError for catalog requests.

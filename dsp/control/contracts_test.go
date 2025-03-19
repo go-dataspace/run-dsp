@@ -24,7 +24,6 @@ import (
 	"path"
 	"testing"
 
-	provider "github.com/go-dataspace/run-dsrpc/gen/go/dsp/v1alpha2"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -35,8 +34,9 @@ import (
 	"go-dataspace.eu/run-dsp/dsp/persistence/badger"
 	"go-dataspace.eu/run-dsp/dsp/shared"
 	"go-dataspace.eu/run-dsp/dsp/statemachine"
-	mockprovider "go-dataspace.eu/run-dsp/mocks/github.com/go-dataspace/run-dsrpc/gen/go/dsp/v1alpha2"
+	mockprovider "go-dataspace.eu/run-dsp/mocks/go-dataspace.eu/run-dsrpc/gen/go/dsp/v1alpha2"
 	"go-dataspace.eu/run-dsp/odrl"
+	provider "go-dataspace.eu/run-dsrpc/gen/go/dsp/v1alpha2"
 )
 
 var (

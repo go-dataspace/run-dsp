@@ -33,7 +33,6 @@ import (
 	"sync"
 	"time"
 
-	providerv1 "github.com/go-dataspace/run-dsrpc/gen/go/dsp/v1alpha2"
 	grpclog "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/logging"
 	"github.com/justinas/alice"
 	"github.com/spf13/cobra"
@@ -47,6 +46,7 @@ import (
 	"go-dataspace.eu/run-dsp/internal/cfg"
 	"go-dataspace.eu/run-dsp/internal/constants"
 	"go-dataspace.eu/run-dsp/logging"
+	providerv1 "go-dataspace.eu/run-dsrpc/gen/go/dsp/v1alpha2"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"

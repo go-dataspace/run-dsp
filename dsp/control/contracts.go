@@ -20,7 +20,6 @@ import (
 	"path"
 	"slices"
 
-	dspcontrol "github.com/go-dataspace/run-dsrpc/gen/go/dsp/v1alpha2"
 	"github.com/google/uuid"
 	"go-dataspace.eu/run-dsp/dsp/constants"
 	"go-dataspace.eu/run-dsp/dsp/contract"
@@ -28,6 +27,7 @@ import (
 	"go-dataspace.eu/run-dsp/dsp/statemachine"
 	"go-dataspace.eu/run-dsp/logging"
 	"go-dataspace.eu/run-dsp/odrl"
+	dspcontrol "go-dataspace.eu/run-dsrpc/gen/go/dsp/v1alpha2"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )

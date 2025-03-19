@@ -21,7 +21,6 @@ import (
 	"strings"
 	"time"
 
-	dspcontrol "github.com/go-dataspace/run-dsrpc/gen/go/dsp/v1alpha2"
 	"github.com/google/uuid"
 	dspconstants "go-dataspace.eu/run-dsp/dsp/constants"
 	"go-dataspace.eu/run-dsp/dsp/contract"
@@ -33,6 +32,7 @@ import (
 	"go-dataspace.eu/run-dsp/jsonld"
 	"go-dataspace.eu/run-dsp/logging"
 	"go-dataspace.eu/run-dsp/odrl"
+	dspcontrol "go-dataspace.eu/run-dsrpc/gen/go/dsp/v1alpha2"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"

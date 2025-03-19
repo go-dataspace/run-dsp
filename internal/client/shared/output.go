@@ -25,9 +25,9 @@ import (
 
 	"github.com/alecthomas/chroma/v2/quick"
 	"github.com/fatih/color"
-	dspcontrol "github.com/go-dataspace/run-dsrpc/gen/go/dsp/v1alpha2"
 	"github.com/spf13/viper"
 	"go-dataspace.eu/run-dsp/internal/ui"
+	dspcontrol "go-dataspace.eu/run-dsrpc/gen/go/dsp/v1alpha2"
 )
 
 // PrintCatalogue prints out a catalogue, either as a table or as JSON.

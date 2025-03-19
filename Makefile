@@ -36,3 +36,6 @@ vulncheck:
 
 generate:
 	go generate ./...
+
+gomocks:
+	go tool mockery

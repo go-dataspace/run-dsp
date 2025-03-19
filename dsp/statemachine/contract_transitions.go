@@ -22,13 +22,13 @@ import (
 	"net/url"
 	"strings"
 
-	provider "github.com/go-dataspace/run-dsrpc/gen/go/dsp/v1alpha2"
 	"github.com/google/uuid"
 	"go-dataspace.eu/run-dsp/dsp/constants"
 	"go-dataspace.eu/run-dsp/dsp/contract"
 	"go-dataspace.eu/run-dsp/dsp/shared"
 	"go-dataspace.eu/run-dsp/logging"
 	"go-dataspace.eu/run-dsp/odrl"
+	provider "go-dataspace.eu/run-dsrpc/gen/go/dsp/v1alpha2"
 )
 
 var (

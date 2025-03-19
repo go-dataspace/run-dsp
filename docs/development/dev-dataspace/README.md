@@ -34,7 +34,7 @@ This will start the following containers:
 
 - `run-dsp-client`: The RUN-DSP instance that will act as a client.
 - `run-dsp-provider`: The RUN-DSP instance that will act as a provider.
-- `reference-provider`: The simple [reference provider](https://github.com/go-dataspace/reference-provider) that RUN-DSP will request dataset operations from.
+- `reference-provider`: The simple [reference provider](https://go-dataspace.eu/reference-provider) that RUN-DSP will request dataset operations from.
 
 Note, inside the docker-compose network, their names are also their hostnames.
 

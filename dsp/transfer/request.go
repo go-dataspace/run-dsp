@@ -22,11 +22,11 @@ import (
 	"slices"
 	"strconv"
 
-	providerv1 "github.com/go-dataspace/run-dsrpc/gen/go/dsp/v1alpha2"
 	"github.com/google/uuid"
 	"go-dataspace.eu/run-dsp/dsp/constants"
 	"go-dataspace.eu/run-dsp/dsp/shared"
 	"go-dataspace.eu/run-dsp/odrl"
+	providerv1 "go-dataspace.eu/run-dsrpc/gen/go/dsp/v1alpha2"
 )
 
 var validTransferTransitions = map[State][]State{

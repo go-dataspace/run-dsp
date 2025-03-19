@@ -20,9 +20,9 @@ import (
 	"fmt"
 	"os"
 
-	dspcontrol "github.com/go-dataspace/run-dsrpc/gen/go/dsp/v1alpha2"
 	"github.com/spf13/viper"
 	"go-dataspace.eu/run-dsp/internal/client/authinjector"
+	dspcontrol "go-dataspace.eu/run-dsrpc/gen/go/dsp/v1alpha2"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"

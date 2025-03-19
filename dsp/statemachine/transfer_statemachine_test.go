@@ -27,7 +27,7 @@ import (
 	"go-dataspace.eu/run-dsp/dsp/statemachine"
 	"go-dataspace.eu/run-dsp/dsp/transfer"
 	"go-dataspace.eu/run-dsp/logging"
-	mockprovider "go-dataspace.eu/run-dsp/mocks/github.com/go-dataspace/run-dsrpc/gen/go/dsp/v1alpha2"
+	mockprovider "go-dataspace.eu/run-dsp/mocks/go-dataspace.eu/run-dsrpc/gen/go/dsp/v1alpha2"
 	"go-dataspace.eu/run-dsp/odrl"
 )
 
