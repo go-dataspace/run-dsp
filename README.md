@@ -97,9 +97,9 @@ as an example of how to implement the provider service.
 #### Interacting with dataspace participants.
 
 RUN-DSP offers gRPC calls to allow an application to easily interact with other dataspace
-participants. The [RUN-DSP client](./docs/usage/client.md) uses these to implement a basic dataspace
-client. The control service can be configured using the `[server.control]` section of the
-configuration file.
+participants. The [dspace-cli](https://codeberg.org/go-dataspace/dspace-cli) tool
+uses these to implement a dataspace client. The control service can be configured using the
+`[server.control]` section of the configuration file.
 
 ## Contributing
 

@@ -3,7 +3,6 @@ module go-dataspace.eu/run-dsp
 go 1.24.3
 
 require (
-	github.com/alecthomas/chroma/v2 v2.14.0
 	github.com/dgraph-io/badger/v4 v4.4.0
 	github.com/fatih/color v1.18.0
 	github.com/gammazero/deque v1.0.0
@@ -62,7 +61,6 @@ require (
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/denis-tingaikin/go-header v0.5.0 // indirect
 	github.com/dgraph-io/ristretto/v2 v2.0.0 // indirect
-	github.com/dlclark/regexp2 v1.11.0 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/ettle/strcase v0.2.0 // indirect
 	github.com/fatih/structtag v1.2.0 // indirect

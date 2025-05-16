@@ -50,11 +50,3 @@ backend = "badger"  #  Persistence backend to use. "badger" is the only availabl
 memory = true       # Enable in-memory mode, this will put the database in-memory, making it not persist
                     # between restarts. ($SERVER.PERSISTENCE.BADGER.MEMORY)
 dbPath = "/path/to/database" # Directory to store the database in. ($SERVER.PERSISTENCE.BADGER.DBPATH}
-
-[client]
-address = "127.0.0.1:8080"            # Address to the RUN-DSP control service we want to connect to. ($CLIENT.ADDRESS)
-insecure = false                      # Disable TLS for the control service connection. ($CLIENT.INSECURE)
-caCert = "/path/to/ca.crt"            # Path to the CA certificate of the CA that issued the certificate of the control service. ($CLIENT.CACERT)
-clientCert = "/path/to/client.crt"    # Client certificate to authenticate with to the control service. ($CLIENT.CLIENTCERT)
-clientCertKey = "/path/to/client.key" # Key to the above mentioned certificate. ($CLIENT.CLIENTCERTKEY)
-authMD = "Bearer abcde"               # What to put in the gRPC authorization metadata. ($CLIENT.AUTHMD)

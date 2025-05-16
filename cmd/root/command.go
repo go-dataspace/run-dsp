@@ -22,7 +22,6 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"go-dataspace.eu/run-dsp/internal/client"
 	"go-dataspace.eu/run-dsp/internal/server"
 	"go-dataspace.eu/run-dsp/internal/ui"
 	"go-dataspace.eu/run-dsp/logging"
@@ -78,7 +77,6 @@ func init() {
 	viper.SetDefault("logLevel", "info")
 
 	rootCmd.AddCommand(server.Command)
-	rootCmd.AddCommand(client.Command)
 }
 
 func initConfig() {
