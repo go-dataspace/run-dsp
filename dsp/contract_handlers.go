@@ -119,7 +119,6 @@ func (dh *dspHandlers) providerContractRequestHandler(w http.ResponseWriter, req
 		return contractError(fmt.Sprintf("Invalid callback URL %s: %s", contractReq.CallbackAddress, err.Error()),
 			http.StatusBadRequest, "400", "Invalid request: Non-valid callback URL.", nil)
 	}
-
 	negotiation := contract.New(
 		uuid.UUID{},
 		consumerPID,
@@ -128,7 +127,7 @@ func (dh *dspHandlers) providerContractRequestHandler(w http.ResponseWriter, req
 		cbURL,
 		dh.selfURL,
 		constants.DataspaceProvider,
-		reflect.ValueOf(dh.contractService).IsNil(),
+		dh.contractService == nil || reflect.ValueOf(dh.contractService).IsNil(),
 	)
 
 	if err := storeNegotiation(ctx, dh.store, negotiation); err != nil {
