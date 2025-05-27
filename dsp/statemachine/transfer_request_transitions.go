@@ -128,8 +128,13 @@ func (tr *TransferRequestNegotiationRequested) Send(ctx context.Context) (func()
 		}
 		tr.SetPublishInfo(resp.PublishInfo)
 	case transfer.DirectionPush:
-		// TODO: Signal provider to start uploading dataset here.
-		return func() {}, fmt.Errorf("push flow: %w", ErrNotImplemented)
+		resp, err := tr.GetProvider().ReceiveDataset(ctx, &provider.ReceiveDatasetRequest{
+			DatasetId: tr.GetTarget(),
+		})
+		if err != nil {
+			return func() {}, err
+		}
+		tr.SetPublishInfo(resp.PublishInfo)
 	case transfer.DirectionUnknown:
 		return func() {}, fmt.Errorf("unknown transfer direction")
 	default:
