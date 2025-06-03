@@ -21,6 +21,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net"
@@ -202,12 +203,23 @@ var Command = &cobra.Command{
 		if !viper.GetBool(providerInsecure) {
 			err = cfg.CheckFilesExist(
 				viper.GetString(providerCACert),
-				viper.GetString(providerClientCert),
-				viper.GetString(providerClientCertKey),
 			)
 			if err != nil {
 				return err
 			}
+			if viper.GetString(providerClientCert) != "" {
+				if viper.GetString(providerClientCertKey) == "" {
+					return errors.New("provider client cert set but no provider client key set")
+				}
+				err = cfg.CheckFilesExist(
+					viper.GetString(providerClientCert),
+					viper.GetString(providerClientCertKey),
+				)
+				if err != nil {
+					return err
+				}
+			}
+
 		}
 
 		if viper.GetBool(contractServiceEnabled) {
@@ -224,6 +236,18 @@ var Command = &cobra.Command{
 				)
 				if err != nil {
 					return err
+				}
+				if viper.GetString(contractServiceClientCert) != "" {
+					if viper.GetString(contractServiceClientCertKey) == "" {
+						return errors.New("contractService client cert set but no contractService client key set")
+					}
+					err = cfg.CheckFilesExist(
+						viper.GetString(contractServiceClientCert),
+						viper.GetString(contractServiceClientCertKey),
+					)
+					if err != nil {
+						return err
+					}
 				}
 			}
 		}
