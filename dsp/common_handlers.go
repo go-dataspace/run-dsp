@@ -24,15 +24,16 @@ import (
 	"go-dataspace.eu/run-dsp/dsp/shared"
 	"go-dataspace.eu/run-dsp/dsp/statemachine"
 	"go-dataspace.eu/run-dsp/internal/constants"
-	provider "go-dataspace.eu/run-dsrpc/gen/go/dsp/v1alpha2"
+	dsrpc "go-dataspace.eu/run-dsrpc/gen/go/dsp/v1alpha2"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
 
 type dspHandlers struct {
 	store               persistence.StorageProvider
-	provider            provider.ProviderServiceClient
-	contractService     provider.ContractServiceClient
+	authNService        dsrpc.AuthNServiceClient
+	provider            dsrpc.ProviderServiceClient
+	contractService     dsrpc.ContractServiceClient
 	reconciler          statemachine.Reconciler
 	selfURL             *url.URL
 	dataserviceID       string

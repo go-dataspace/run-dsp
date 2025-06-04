@@ -27,7 +27,7 @@ import (
 	"go-dataspace.eu/run-dsp/dsp/statemachine"
 	"go-dataspace.eu/run-dsp/logging"
 	"go-dataspace.eu/run-dsp/odrl"
-	dspcontrol "go-dataspace.eu/run-dsrpc/gen/go/dsp/v1alpha2"
+	dsrpc "go-dataspace.eu/run-dsrpc/gen/go/dsp/v1alpha2"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -35,20 +35,20 @@ import (
 // VerifyConnection takes a token and verifies it's the same token it passed to the contract service.
 func (s *Server) VerifyConnection(
 	ctx context.Context,
-	req *dspcontrol.VerifyConnectionRequest,
-) (*dspcontrol.VerifyConnectionResponse, error) {
+	req *dsrpc.VerifyConnectionRequest,
+) (*dsrpc.VerifyConnectionResponse, error) {
 	recvToken := req.GetVerificationToken()
 	if token, err := s.store.GetToken(ctx, "contract-token"); err != nil || token != recvToken {
 		return nil, status.Errorf(codes.InvalidArgument, "could not verify code: %s", err)
 	}
-	return &dspcontrol.VerifyConnectionResponse{}, nil
+	return &dsrpc.VerifyConnectionResponse{}, nil
 }
 
 // ContractRequest sends a ContractRequestMessage.
 func (s *Server) ContractRequest(
 	ctx context.Context,
-	req *dspcontrol.ContractRequestRequest,
-) (*dspcontrol.ContractRequestResponse, error) {
+	req *dsrpc.ContractRequestRequest,
+) (*dsrpc.ContractRequestResponse, error) {
 	ctx, logger := logging.InjectLabels(ctx, "method", "ContactRequest")
 	logger.Info("Called")
 
@@ -78,6 +78,10 @@ func (s *Server) ContractRequest(
 			shared.MustParseURL(s.selfURL.String()),
 			constants.DataspaceConsumer,
 			req.GetAutoAccept() || s.contractService == nil,
+			&dsrpc.RequesterInfo{
+				Identifier:           *req.Pid,
+				AuthenticationStatus: dsrpc.AuthenticationStatus_AUTHENTICATION_STATUS_LOCAL_ORIGIN,
+			},
 		)
 		rawPID = negotiation.GetConsumerPID().String()
 		if err := s.store.PutContract(ctx, negotiation); err != nil {
@@ -85,7 +89,7 @@ func (s *Server) ContractRequest(
 		}
 	}
 
-	return sendContractMessage[dspcontrol.ContractRequestResponse](
+	return sendContractMessage[dsrpc.ContractRequestResponse](
 		ctx,
 		s,
 		[]contract.State{contract.States.INITIAL, contract.States.OFFERED},
@@ -154,8 +158,8 @@ func sendContractMessage[T any](
 // ContractOffer sends a ContractOfferMessage.
 func (s *Server) ContractOffer(
 	ctx context.Context,
-	req *dspcontrol.ContractOfferRequest,
-) (*dspcontrol.ContractOfferResponse, error) {
+	req *dsrpc.ContractOfferRequest,
+) (*dsrpc.ContractOfferResponse, error) {
 	ctx, logger := logging.InjectLabels(ctx, "method", "ContractOffer")
 	logger.Info("Called")
 
@@ -185,6 +189,10 @@ func (s *Server) ContractOffer(
 			shared.MustParseURL(s.selfURL.String()),
 			constants.DataspaceProvider,
 			req.GetAutoAccept() || s.contractService == nil,
+			&dsrpc.RequesterInfo{
+				Identifier:           *req.Pid,
+				AuthenticationStatus: dsrpc.AuthenticationStatus_AUTHENTICATION_STATUS_LOCAL_ORIGIN,
+			},
 		)
 		rawPID = negotiation.GetProviderPID().String()
 		if err := s.store.PutContract(ctx, negotiation); err != nil {
@@ -192,7 +200,7 @@ func (s *Server) ContractOffer(
 		}
 	}
 
-	return sendContractMessage[dspcontrol.ContractOfferResponse](
+	return sendContractMessage[dsrpc.ContractOfferResponse](
 		ctx,
 		s,
 		[]contract.State{contract.States.INITIAL, contract.States.REQUESTED},
@@ -206,9 +214,9 @@ func (s *Server) ContractOffer(
 // ContractAccept sends an accepted event message.
 func (s *Server) ContractAccept(
 	ctx context.Context,
-	req *dspcontrol.ContractAcceptRequest,
-) (*dspcontrol.ContractAcceptResponse, error) {
-	return sendContractMessage[dspcontrol.ContractAcceptResponse](
+	req *dsrpc.ContractAcceptRequest,
+) (*dsrpc.ContractAcceptResponse, error) {
+	return sendContractMessage[dsrpc.ContractAcceptResponse](
 		ctx,
 		s,
 		[]contract.State{contract.States.OFFERED},
@@ -222,9 +230,9 @@ func (s *Server) ContractAccept(
 // ContractAgree sends a ContractAcceptedMessage.
 func (s *Server) ContractAgree(
 	ctx context.Context,
-	req *dspcontrol.ContractAgreeRequest,
-) (*dspcontrol.ContractAgreeResponse, error) {
-	return sendContractMessage[dspcontrol.ContractAgreeResponse](
+	req *dsrpc.ContractAgreeRequest,
+) (*dsrpc.ContractAgreeResponse, error) {
+	return sendContractMessage[dsrpc.ContractAgreeResponse](
 		ctx,
 		s,
 		[]contract.State{contract.States.REQUESTED, contract.States.ACCEPTED},
@@ -238,9 +246,9 @@ func (s *Server) ContractAgree(
 // ContractVerify sends a ContractVerificationMessage.
 func (s *Server) ContractVerify(
 	ctx context.Context,
-	req *dspcontrol.ContractVerifyRequest,
-) (*dspcontrol.ContractVerifyResponse, error) {
-	return sendContractMessage[dspcontrol.ContractVerifyResponse](
+	req *dsrpc.ContractVerifyRequest,
+) (*dsrpc.ContractVerifyResponse, error) {
+	return sendContractMessage[dsrpc.ContractVerifyResponse](
 		ctx,
 		s,
 		[]contract.State{contract.States.AGREED},
@@ -254,9 +262,9 @@ func (s *Server) ContractVerify(
 // ContractFinalize sends a finalization event.
 func (s *Server) ContractFinalize(
 	ctx context.Context,
-	req *dspcontrol.ContractFinalizeRequest,
-) (*dspcontrol.ContractFinalizeResponse, error) {
-	return sendContractMessage[dspcontrol.ContractFinalizeResponse](
+	req *dsrpc.ContractFinalizeRequest,
+) (*dsrpc.ContractFinalizeResponse, error) {
+	return sendContractMessage[dsrpc.ContractFinalizeResponse](
 		ctx,
 		s,
 		[]contract.State{contract.States.VERIFIED},
@@ -270,8 +278,8 @@ func (s *Server) ContractFinalize(
 // ContractTerminate sends a ContractTerminationMessage.
 func (s *Server) ContractTerminate(
 	ctx context.Context,
-	req *dspcontrol.ContractTerminateRequest,
-) (*dspcontrol.ContractTerminateResponse, error) {
+	req *dsrpc.ContractTerminateRequest,
+) (*dsrpc.ContractTerminateResponse, error) {
 	ctx, logger := logging.InjectLabels(ctx, "method", "ContractTerminate")
 	logger.Info("Called")
 
@@ -324,5 +332,5 @@ func (s *Server) ContractTerminate(
 		Body:        reqBody,
 		Context:     ctx,
 	})
-	return &dspcontrol.ContractTerminateResponse{}, nil
+	return &dsrpc.ContractTerminateResponse{}, nil
 }

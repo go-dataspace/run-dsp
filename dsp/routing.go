@@ -21,7 +21,7 @@ import (
 
 	"go-dataspace.eu/run-dsp/dsp/persistence"
 	"go-dataspace.eu/run-dsp/dsp/statemachine"
-	provider "go-dataspace.eu/run-dsrpc/gen/go/dsp/v1alpha2"
+	dsrpc "go-dataspace.eu/run-dsrpc/gen/go/dsp/v1alpha2"
 )
 
 // GetRoutes gets all the dataspace routes.
@@ -35,16 +35,18 @@ func GetWellKnownRoutes() http.Handler {
 }
 
 func GetDSPRoutes(
-	provider provider.ProviderServiceClient,
-	contractService provider.ContractServiceClient,
+	authNService dsrpc.AuthNServiceClient,
+	provider dsrpc.ProviderServiceClient,
+	contractService dsrpc.ContractServiceClient,
 	store persistence.StorageProvider,
 	reconciler statemachine.Reconciler,
 	selfURL *url.URL,
-	pingResponse *provider.PingResponse,
+	pingResponse *dsrpc.PingResponse,
 ) http.Handler {
 	mux := http.NewServeMux()
 
 	ch := dspHandlers{
+		authNService:        authNService,
 		provider:            provider,
 		contractService:     contractService,
 		store:               store,

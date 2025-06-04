@@ -28,6 +28,7 @@ import (
 	"go-dataspace.eu/run-dsp/dsp/persistence"
 	"go-dataspace.eu/run-dsp/dsp/shared"
 	"go-dataspace.eu/run-dsp/dsp/statemachine"
+	"go-dataspace.eu/run-dsp/internal/authforwarder"
 	"go-dataspace.eu/run-dsp/logging"
 	"go-dataspace.eu/run-dsp/odrl"
 )
@@ -127,7 +128,7 @@ func (dh *dspHandlers) providerContractRequestHandler(w http.ResponseWriter, req
 		cbURL,
 		dh.selfURL,
 		constants.DataspaceProvider,
-		dh.contractService == nil || reflect.ValueOf(dh.contractService).IsNil(),
+		dh.contractService == nil || reflect.ValueOf(dh.contractService).IsNil(), authforwarder.ExtractRequesterInfo(req.Context()),
 	)
 
 	if err := storeNegotiation(ctx, dh.store, negotiation); err != nil {
@@ -318,7 +319,7 @@ func (dh *dspHandlers) consumerContractOfferHandler(w http.ResponseWriter, req *
 		cbURL,
 		selfURL,
 		constants.DataspaceConsumer,
-		reflect.ValueOf(dh.contractService).IsNil(),
+		reflect.ValueOf(dh.contractService).IsNil(), authforwarder.ExtractRequesterInfo(req.Context()),
 	)
 	if err := storeNegotiation(ctx, dh.store, negotiation); err != nil {
 		return err

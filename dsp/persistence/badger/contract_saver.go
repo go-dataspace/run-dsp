@@ -43,6 +43,12 @@ func (sp *StorageProvider) GetContractR(
 	if err != nil {
 		return nil, err
 	}
+
+	err = checkRequesterInfo(ctx, negotiation.GetRequesterInfo())
+	if err != nil {
+		return nil, err
+	}
+
 	negotiation.SetReadOnly()
 	return negotiation, nil
 }
@@ -61,7 +67,17 @@ func (sp *StorageProvider) GetContractRW(
 	if err != nil {
 		return nil, err
 	}
-	return contract.FromBytes(b)
+
+	negotiation, err := contract.FromBytes(b)
+	if err != nil {
+		return nil, err
+	}
+
+	err = checkRequesterInfo(ctx, negotiation.GetRequesterInfo())
+	if err != nil {
+		return nil, err
+	}
+	return negotiation, nil
 }
 
 // PutContract saves a contract to the database.

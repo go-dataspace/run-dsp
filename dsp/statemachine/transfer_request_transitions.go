@@ -25,7 +25,7 @@ import (
 	"go-dataspace.eu/run-dsp/dsp/constants"
 	"go-dataspace.eu/run-dsp/dsp/shared"
 	"go-dataspace.eu/run-dsp/dsp/transfer"
-	provider "go-dataspace.eu/run-dsrpc/gen/go/dsp/v1alpha2"
+	dsrpc "go-dataspace.eu/run-dsrpc/gen/go/dsp/v1alpha2"
 )
 
 var ErrNotImplemented = errors.New("not implemented")
@@ -42,7 +42,7 @@ type TransferRequester interface {
 	GetRole() constants.DataspaceRole
 	SetState(state transfer.State) error
 	GetTransferRequest() *transfer.Request
-	GetPublishInfo() *provider.PublishInfo
+	GetPublishInfo() *dsrpc.PublishInfo
 	GetTransferDirection() transfer.Direction
 	GetTransferProcess() shared.TransferProcess
 }
@@ -51,7 +51,7 @@ type TransferRequestNegotiationState interface {
 	TransferRequester
 	Recv(ctx context.Context, message any) (TransferRequestNegotiationState, error)
 	Send(ctx context.Context) (func(), error)
-	GetProvider() provider.ProviderServiceClient
+	GetProvider() dsrpc.ProviderServiceClient
 	GetReconciler() Reconciler
 }
 
@@ -65,7 +65,7 @@ func (tr *TransferRequestNegotiationInitial) Recv(
 ) (TransferRequestNegotiationState, error) {
 	switch t := message.(type) {
 	case shared.TransferRequestMessage:
-		_, err := tr.GetProvider().GetDataset(ctx, &provider.GetDatasetRequest{
+		_, err := tr.GetProvider().GetDataset(ctx, &dsrpc.GetDatasetRequest{
 			DatasetId: tr.GetTarget(),
 		})
 		if err != nil {
@@ -119,7 +119,7 @@ func (tr *TransferRequestNegotiationRequested) Recv(
 func (tr *TransferRequestNegotiationRequested) Send(ctx context.Context) (func(), error) {
 	switch tr.GetTransferDirection() {
 	case transfer.DirectionPull:
-		resp, err := tr.GetProvider().PublishDataset(ctx, &provider.PublishDatasetRequest{
+		resp, err := tr.GetProvider().PublishDataset(ctx, &dsrpc.PublishDatasetRequest{
 			DatasetId: tr.GetTarget(),
 			PublishId: tr.GetProviderPID().String(),
 		})
@@ -128,7 +128,7 @@ func (tr *TransferRequestNegotiationRequested) Send(ctx context.Context) (func()
 		}
 		tr.SetPublishInfo(resp.PublishInfo)
 	case transfer.DirectionPush:
-		resp, err := tr.GetProvider().ReceiveDataset(ctx, &provider.ReceiveDatasetRequest{
+		resp, err := tr.GetProvider().ReceiveDataset(ctx, &dsrpc.ReceiveDatasetRequest{
 			DatasetId: tr.GetTarget(),
 		})
 		if err != nil {
@@ -178,7 +178,7 @@ func unpublishTransfer(ctx context.Context, tr TransferRequestNegotiationState) 
 	switch tr.GetTransferDirection() {
 	case transfer.DirectionPull:
 		if tr.GetRole() == constants.DataspaceProvider {
-			_, err := tr.GetProvider().UnpublishDataset(ctx, &provider.UnpublishDatasetRequest{
+			_, err := tr.GetProvider().UnpublishDataset(ctx, &dsrpc.UnpublishDatasetRequest{
 				PublishId: tr.GetProviderPID().String(),
 			})
 			if err != nil {
@@ -231,7 +231,7 @@ func (tr *TransferRequestNegotiationTerminated) Send(ctx context.Context) (func(
 }
 
 func GetTransferRequestNegotiation(
-	tr *transfer.Request, p provider.ProviderServiceClient, r Reconciler,
+	tr *transfer.Request, p dsrpc.ProviderServiceClient, r Reconciler,
 ) TransferRequestNegotiationState {
 	deps := stateMachineDeps{p: p, r: r}
 	switch tr.GetState() {
@@ -250,12 +250,12 @@ func GetTransferRequestNegotiation(
 	}
 }
 
-func dataAddressToPublishInfo(d shared.DataAddress) (*provider.PublishInfo, error) {
+func dataAddressToPublishInfo(d shared.DataAddress) (*dsrpc.PublishInfo, error) {
 	p, err := makeEndpointPropertyMap(d.EndpointProperties)
 	if err != nil {
 		return nil, err
 	}
-	pi := &provider.PublishInfo{
+	pi := &dsrpc.PublishInfo{
 		Url: d.Endpoint,
 	}
 
@@ -265,10 +265,10 @@ func dataAddressToPublishInfo(d shared.DataAddress) (*provider.PublishInfo, erro
 	}
 	switch authType {
 	case "bearer":
-		pi.AuthenticationType = provider.AuthenticationType_AUTHENTICATION_TYPE_BEARER
+		pi.AuthenticationType = dsrpc.AuthenticationType_AUTHENTICATION_TYPE_BEARER
 		pi.Password = p["authorization"]
 	case "basic":
-		pi.AuthenticationType = provider.AuthenticationType_AUTHENTICATION_TYPE_BASIC
+		pi.AuthenticationType = dsrpc.AuthenticationType_AUTHENTICATION_TYPE_BASIC
 		pi.Username = p["username"]
 		pi.Password = p["password"]
 	default:

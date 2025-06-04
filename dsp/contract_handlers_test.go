@@ -38,9 +38,9 @@ import (
 	"go-dataspace.eu/run-dsp/dsp/persistence/badger"
 	"go-dataspace.eu/run-dsp/dsp/shared"
 	"go-dataspace.eu/run-dsp/dsp/statemachine"
-	mockprovider "go-dataspace.eu/run-dsp/mocks/go-dataspace.eu/run-dsrpc/gen/go/dsp/v1alpha2"
+	mockdsrpc "go-dataspace.eu/run-dsp/mocks/go-dataspace.eu/run-dsrpc/gen/go/dsp/v1alpha2"
 	"go-dataspace.eu/run-dsp/odrl"
-	provider "go-dataspace.eu/run-dsrpc/gen/go/dsp/v1alpha2"
+	dsrpc "go-dataspace.eu/run-dsrpc/gen/go/dsp/v1alpha2"
 )
 
 const (
@@ -95,8 +95,8 @@ func (mr *mockReconciler) Add(e statemachine.ReconciliationEntry) {
 
 type environment struct {
 	server          *httptest.Server
-	provider        *mockprovider.MockProviderServiceClient
-	contractService *mockprovider.MockContractServiceClient
+	provider        *mockdsrpc.MockProviderServiceClient
+	contractService *mockdsrpc.MockContractServiceClient
 	store           *badger.StorageProvider
 	reconciler      *mockReconciler
 }
@@ -109,23 +109,24 @@ func setupEnvironment(t *testing.T, autoAccept bool) (
 	ctx, cancel := context.WithCancel(t.Context())
 	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
 	slog.SetDefault(logger)
-	prov := mockprovider.NewMockProviderServiceClient(t)
-	var cService *mockprovider.MockContractServiceClient
+	authn := mockdsrpc.NewMockAuthNServiceClient(t)
+	prov := mockdsrpc.NewMockProviderServiceClient(t)
+	var cService *mockdsrpc.MockContractServiceClient
 	if !autoAccept {
 		// Only used in the initial requests as we don't set the negotiation there.
-		cService = mockprovider.NewMockContractServiceClient(t)
+		cService = mockdsrpc.NewMockContractServiceClient(t)
 	}
 	store, err := badger.New(ctx, true, "")
 	reconciler := &mockReconciler{}
 	assert.Nil(t, err)
-	pingResponse := &provider.PingResponse{
+	pingResponse := &dsrpc.PingResponse{
 		ProviderName:        "bla",
 		ProviderDescription: "bla",
 		Authenticated:       false,
 		DataserviceId:       dataserviceID,
 		DataserviceUrl:      dataserviceURL,
 	}
-	ts := httptest.NewServer(dsp.GetDSPRoutes(prov, cService, store, reconciler, selfURL, pingResponse))
+	ts := httptest.NewServer(dsp.GetDSPRoutes(authn, prov, cService, store, reconciler, selfURL, pingResponse))
 	e := environment{
 		server:          ts,
 		provider:        prov,
@@ -169,6 +170,7 @@ func createNegotiation(
 	state contract.State,
 	role constants.DataspaceRole,
 	autoAccept bool,
+	requesterInfo *dsrpc.RequesterInfo,
 ) {
 	t.Helper()
 	providerPID := staticProviderPID
@@ -182,6 +184,7 @@ func createNegotiation(
 		selfURL,
 		role,
 		autoAccept,
+		requesterInfo,
 	)
 	err := store.PutContract(ctx, neg)
 	assert.Nil(t, err)
@@ -191,7 +194,9 @@ func TestNegotiationStatus(t *testing.T) {
 	t.Parallel()
 	ctx, cancel, env := setupEnvironment(t, false)
 	defer cancel()
-	createNegotiation(ctx, t, env.store, contract.States.OFFERED, constants.DataspaceProvider, false)
+	createNegotiation(ctx, t, env.store, contract.States.OFFERED, constants.DataspaceProvider, false, &dsrpc.RequesterInfo{
+		AuthenticationStatus: dsrpc.AuthenticationStatus_AUTHENTICATION_STATUS_LOCAL_ORIGIN,
+	})
 	u := env.server.URL + fmt.Sprintf("/negotiations/%s", staticProviderPID.String())
 	status := fetchAndDecode[shared.ContractNegotiation](ctx, t, http.MethodGet, u, nil)
 	assert.Equal(t, "dspace:ContractNegotiation", status.Type)
@@ -214,16 +219,16 @@ func TestNegotiationProviderInitialRequest(t *testing.T) {
 		ctx, cancel, env := setupEnvironment(t, autoAccept)
 		defer cancel()
 
-		env.provider.On("GetDataset", mock.Anything, &provider.GetDatasetRequest{
+		env.provider.On("GetDataset", mock.Anything, &dsrpc.GetDatasetRequest{
 			DatasetId: targetID.String(),
-		}).Return(&provider.GetDatasetResponse{
-			Dataset: &provider.Dataset{},
+		}).Return(&dsrpc.GetDatasetResponse{
+			Dataset: &dsrpc.Dataset{},
 		}, nil)
 
 		if !autoAccept {
 			env.contractService.On(
 				"RequestReceived", mock.Anything, mock.Anything,
-			).Return(&provider.ContractServiceRequestReceivedResponse{}, nil)
+			).Return(&dsrpc.ContractServiceRequestReceivedResponse{}, nil)
 		}
 		u := env.server.URL + "/negotiations/request"
 
@@ -280,14 +285,17 @@ func TestNegotiationProviderRequest(t *testing.T) {
 		ctx, cancel, env := setupEnvironment(t, false)
 		defer cancel()
 
-		createNegotiation(ctx, t, env.store, contract.States.OFFERED, constants.DataspaceProvider, autoAccept)
+		createNegotiation(ctx, t, env.store, contract.States.OFFERED, constants.DataspaceProvider, autoAccept,
+			&dsrpc.RequesterInfo{
+				AuthenticationStatus: dsrpc.AuthenticationStatus_AUTHENTICATION_STATUS_LOCAL_ORIGIN,
+			})
 
 		u := env.server.URL + "/negotiations/" + staticProviderPID.String() + "/request"
 
 		if !autoAccept {
 			env.contractService.On(
 				"RequestReceived", mock.Anything, mock.Anything,
-			).Return(&provider.ContractServiceRequestReceivedResponse{}, nil)
+			).Return(&dsrpc.ContractServiceRequestReceivedResponse{}, nil)
 		}
 		body := encode(t, shared.ContractRequestMessage{
 			Context:         shared.GetDSPContext(),
@@ -337,16 +345,19 @@ func TestNegotiationProviderEventAccepted(t *testing.T) {
 		ctx, cancel, env := setupEnvironment(t, false)
 		defer cancel()
 
-		createNegotiation(ctx, t, env.store, contract.States.OFFERED, constants.DataspaceProvider, autoAccept)
+		createNegotiation(ctx, t, env.store, contract.States.OFFERED, constants.DataspaceProvider, autoAccept,
+			&dsrpc.RequesterInfo{
+				AuthenticationStatus: dsrpc.AuthenticationStatus_AUTHENTICATION_STATUS_LOCAL_ORIGIN,
+			})
 
 		u := env.server.URL + "/negotiations/" + staticProviderPID.String() + "/events"
 
 		if !autoAccept {
 			env.contractService.EXPECT().AcceptedReceived(
-				mock.Anything, &provider.ContractServiceAcceptedReceivedRequest{
+				mock.Anything, &dsrpc.ContractServiceAcceptedReceivedRequest{
 					Pid: staticProviderPID.String(),
 				},
-			).Return(&provider.ContractServiceAcceptedReceivedResponse{}, nil)
+			).Return(&dsrpc.ContractServiceAcceptedReceivedResponse{}, nil)
 		}
 		body := encode(t, shared.ContractNegotiationEventMessage{
 			Context:     shared.GetDSPContext(),
@@ -397,16 +408,19 @@ func TestNegotiationProviderAgreementVerification(t *testing.T) {
 		ctx, cancel, env := setupEnvironment(t, false)
 		defer cancel()
 
-		createNegotiation(ctx, t, env.store, contract.States.AGREED, constants.DataspaceProvider, autoAccept)
+		createNegotiation(ctx, t, env.store, contract.States.AGREED, constants.DataspaceProvider, autoAccept,
+			&dsrpc.RequesterInfo{
+				AuthenticationStatus: dsrpc.AuthenticationStatus_AUTHENTICATION_STATUS_LOCAL_ORIGIN,
+			})
 
 		u := env.server.URL + "/negotiations/" + staticProviderPID.String() + "/agreement/verification"
 
 		if !autoAccept {
 			env.contractService.EXPECT().VerificationReceived(
-				mock.Anything, &provider.ContractServiceVerificationReceivedRequest{
+				mock.Anything, &dsrpc.ContractServiceVerificationReceivedRequest{
 					Pid: staticProviderPID.String(),
 				},
-			).Return(&provider.ContractServiceVerificationReceivedResponse{}, nil)
+			).Return(&dsrpc.ContractServiceVerificationReceivedResponse{}, nil)
 		}
 
 		body := encode(t, shared.ContractAgreementVerificationMessage{
@@ -463,7 +477,7 @@ func TestNegotiationConsumerInitialOffer(t *testing.T) {
 		if !autoAccept {
 			env.contractService.On(
 				"OfferReceived", mock.Anything, mock.Anything,
-			).Return(&provider.ContractServiceOfferReceivedResponse{}, nil)
+			).Return(&dsrpc.ContractServiceOfferReceivedResponse{}, nil)
 		}
 
 		body := encode(t, shared.ContractOfferMessage{
@@ -520,14 +534,17 @@ func TestNegotiationConsumerOffer(t *testing.T) {
 		ctx, cancel, env := setupEnvironment(t, false)
 		defer cancel()
 
-		createNegotiation(ctx, t, env.store, contract.States.REQUESTED, constants.DataspaceConsumer, autoAccept)
+		createNegotiation(ctx, t, env.store, contract.States.REQUESTED, constants.DataspaceConsumer, autoAccept,
+			&dsrpc.RequesterInfo{
+				AuthenticationStatus: dsrpc.AuthenticationStatus_AUTHENTICATION_STATUS_LOCAL_ORIGIN,
+			})
 
 		u := env.server.URL + "/callback/negotiations/" + staticConsumerPID.String() + "/offers"
 
 		if !autoAccept {
 			env.contractService.On(
 				"OfferReceived", mock.Anything, mock.Anything,
-			).Return(&provider.ContractServiceOfferReceivedResponse{}, nil)
+			).Return(&dsrpc.ContractServiceOfferReceivedResponse{}, nil)
 		}
 
 		body := encode(t, shared.ContractOfferMessage{
@@ -583,14 +600,16 @@ func TestNegotiationConsumerAgreement(t *testing.T) {
 		defer cancel()
 
 		for _, s := range []contract.State{contract.States.REQUESTED, contract.States.ACCEPTED} {
-			createNegotiation(ctx, t, env.store, s, constants.DataspaceConsumer, autoAccept)
+			createNegotiation(ctx, t, env.store, s, constants.DataspaceConsumer, autoAccept, &dsrpc.RequesterInfo{
+				AuthenticationStatus: dsrpc.AuthenticationStatus_AUTHENTICATION_STATUS_LOCAL_ORIGIN,
+			})
 
 			if !autoAccept {
 				env.contractService.EXPECT().AgreementReceived(
-					mock.Anything, &provider.ContractServiceAgreementReceivedRequest{
+					mock.Anything, &dsrpc.ContractServiceAgreementReceivedRequest{
 						Pid: staticConsumerPID.String(),
 					},
-				).Return(&provider.ContractServiceAgreementReceivedResponse{}, nil)
+				).Return(&dsrpc.ContractServiceAgreementReceivedResponse{}, nil)
 			}
 
 			u := env.server.URL + "/callback/negotiations/" + staticConsumerPID.String() + "/agreement"
@@ -651,12 +670,15 @@ func TestNegotiationConsumerEventFinalized(t *testing.T) {
 
 		if !autoAccept {
 			env.contractService.EXPECT().FinalizationReceived(
-				mock.Anything, &provider.ContractServiceFinalizationReceivedRequest{
+				mock.Anything, &dsrpc.ContractServiceFinalizationReceivedRequest{
 					Pid: staticConsumerPID.String(),
 				},
-			).Return(&provider.ContractServiceFinalizationReceivedResponse{}, nil)
+			).Return(&dsrpc.ContractServiceFinalizationReceivedResponse{}, nil)
 		}
-		createNegotiation(ctx, t, env.store, contract.States.VERIFIED, constants.DataspaceConsumer, autoAccept)
+		createNegotiation(ctx, t, env.store, contract.States.VERIFIED, constants.DataspaceConsumer, autoAccept,
+			&dsrpc.RequesterInfo{
+				AuthenticationStatus: dsrpc.AuthenticationStatus_AUTHENTICATION_STATUS_LOCAL_ORIGIN,
+			})
 
 		u := env.server.URL + "/callback/negotiations/" + staticConsumerPID.String() + "/events"
 
@@ -699,7 +721,9 @@ func TestNegotiationTermination(t *testing.T) {
 				ctx, cancel, env := setupEnvironment(t, false)
 				defer cancel()
 				u := env.server.URL + "/negotiations/" + pidMap[r].String() + "/termination"
-				createNegotiation(ctx, t, env.store, s, r, autoAccept)
+				createNegotiation(ctx, t, env.store, s, r, autoAccept, &dsrpc.RequesterInfo{
+					AuthenticationStatus: dsrpc.AuthenticationStatus_AUTHENTICATION_STATUS_LOCAL_ORIGIN,
+				})
 				pid := staticConsumerPID.String()
 				if r == constants.DataspaceProvider {
 					pid = staticProviderPID.String()
@@ -707,12 +731,12 @@ func TestNegotiationTermination(t *testing.T) {
 
 				if !autoAccept {
 					env.contractService.EXPECT().TerminationReceived(
-						mock.Anything, &provider.ContractServiceTerminationReceivedRequest{
+						mock.Anything, &dsrpc.ContractServiceTerminationReceivedRequest{
 							Pid:    pid,
 							Code:   "some code",
 							Reason: []string{"test"},
 						},
-					).Return(&provider.ContractServiceTerminationReceivedResponse{}, nil)
+					).Return(&dsrpc.ContractServiceTerminationReceivedResponse{}, nil)
 				}
 
 				body := encode(t, shared.ContractNegotiationTerminationMessage{

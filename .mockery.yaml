@@ -19,7 +19,9 @@ packages:
     config:
       resolve-type-alias: false
     interfaces:
-      ProviderServiceClient:
+      AuthNServiceClient:
         config:
       ContractServiceClient:
+        config:
+      ProviderServiceClient:
         config:

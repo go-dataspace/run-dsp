@@ -32,7 +32,7 @@ import (
 	"go-dataspace.eu/run-dsp/jsonld"
 	"go-dataspace.eu/run-dsp/logging"
 	"go-dataspace.eu/run-dsp/odrl"
-	dspcontrol "go-dataspace.eu/run-dsrpc/gen/go/dsp/v1alpha2"
+	dsrpc "go-dataspace.eu/run-dsrpc/gen/go/dsp/v1alpha2"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -41,13 +41,13 @@ import (
 var dspaceContext = jsonld.NewRootContext([]jsonld.ContextEntry{{ID: constants.DSPContext}})
 
 type Server struct {
-	dspcontrol.ControlServiceServer
+	dsrpc.ControlServiceServer
 
 	requester       shared.Requester
 	store           persistence.StorageProvider
 	reconciler      statemachine.Reconciler
-	provider        dspcontrol.ProviderServiceClient
-	contractService dspcontrol.ContractServiceClient
+	provider        dsrpc.ProviderServiceClient
+	contractService dsrpc.ContractServiceClient
 	selfURL         *url.URL
 }
 
@@ -55,8 +55,8 @@ func New(
 	requester shared.Requester,
 	store persistence.StorageProvider,
 	reconciler statemachine.Reconciler,
-	provider dspcontrol.ProviderServiceClient,
-	contractService dspcontrol.ContractServiceClient,
+	provider dsrpc.ProviderServiceClient,
+	contractService dsrpc.ContractServiceClient,
 	selfURL *url.URL,
 ) *Server {
 	return &Server{
@@ -100,8 +100,8 @@ func (s *Server) getProviderURL(ctx context.Context, u string) (*url.URL, error)
 
 // Gets the catalogue based on the query parameters and the authorization header.
 func (s *Server) GetProviderCatalogue(
-	ctx context.Context, req *dspcontrol.GetProviderCatalogueRequest,
-) (*dspcontrol.GetProviderCatalogueResponse, error) {
+	ctx context.Context, req *dsrpc.GetProviderCatalogueRequest,
+) (*dsrpc.GetProviderCatalogueResponse, error) {
 	providerURL, err := s.getProviderURL(ctx, req.ProviderUri)
 	if err != nil {
 		return nil, err
@@ -123,15 +123,15 @@ func (s *Server) GetProviderCatalogue(
 		return nil, err
 	}
 
-	return &dspcontrol.GetProviderCatalogueResponse{
+	return &dsrpc.GetProviderCatalogueResponse{
 		Datasets: processCatalogue(resp.Datasets),
 	}, nil
 }
 
 // Gets information about a single dataset.
 func (s *Server) GetProviderDataset(
-	ctx context.Context, req *dspcontrol.GetProviderDatasetRequest,
-) (*dspcontrol.GetProviderDatasetResponse, error) {
+	ctx context.Context, req *dsrpc.GetProviderDatasetRequest,
+) (*dsrpc.GetProviderDatasetResponse, error) {
 	providerURL, err := s.getProviderURL(ctx, req.ProviderUrl)
 	if err != nil {
 		return nil, err
@@ -153,7 +153,7 @@ func (s *Server) GetProviderDataset(
 		return nil, err
 	}
 
-	return &dspcontrol.GetProviderDatasetResponse{
+	return &dsrpc.GetProviderDatasetResponse{
 		ProviderUrl: req.ProviderUrl,
 		Dataset:     processDataset(resp),
 	}, err
@@ -163,8 +163,8 @@ func (s *Server) GetProviderDataset(
 //
 //nolint:funlen,cyclop
 func (s *Server) GetProviderDatasetDownloadInformation(
-	ctx context.Context, req *dspcontrol.GetProviderDatasetDownloadInformationRequest,
-) (*dspcontrol.GetProviderDatasetDownloadInformationResponse, error) {
+	ctx context.Context, req *dsrpc.GetProviderDatasetDownloadInformationRequest,
+) (*dsrpc.GetProviderDatasetDownloadInformationResponse, error) {
 	providerURL, err := s.getProviderURL(ctx, req.GetProviderUrl())
 	if err != nil {
 		return nil, err
@@ -190,6 +190,9 @@ func (s *Server) GetProviderDatasetDownloadInformation(
 		selfURL,
 		dspconstants.DataspaceConsumer,
 		s.contractService == nil,
+		&dsrpc.RequesterInfo{
+			AuthenticationStatus: dsrpc.AuthenticationStatus_AUTHENTICATION_STATUS_LOCAL_ORIGIN,
+		},
 	)
 	// Store and retrieve contract negotiation so that it's saved and the locking works.
 	if err := s.store.PutContract(ctx, negotiation); err != nil {
@@ -231,6 +234,11 @@ func (s *Server) GetProviderDatasetDownloadInformation(
 		if err != nil {
 			return nil, status.Errorf(codes.Internal, "could not get consumer contract with PID %s: %s", consumerPID, err)
 		}
+
+		if negotiation.GetState() == contract.States.TERMINATED {
+			return nil, status.Errorf(codes.Aborted, "contract negotiation terminated")
+		}
+
 		checks++
 	}
 	logger.Info("Contract finalized, continuing")
@@ -250,6 +258,9 @@ func (s *Server) GetProviderDatasetDownloadInformation(
 		dspconstants.DataspaceConsumer,
 		transfer.States.INITIAL,
 		nil,
+		&dsrpc.RequesterInfo{
+			AuthenticationStatus: dsrpc.AuthenticationStatus_AUTHENTICATION_STATUS_LOCAL_ORIGIN,
+		},
 	)
 	// Save and retrieve the transfer request to get the locks working properly.
 	if err := s.store.PutTransfer(ctx, transferReq); err != nil {
@@ -289,7 +300,7 @@ func (s *Server) GetProviderDatasetDownloadInformation(
 		}
 	}
 
-	return &dspcontrol.GetProviderDatasetDownloadInformationResponse{
+	return &dsrpc.GetProviderDatasetDownloadInformationResponse{
 		PublishInfo: tReq.GetPublishInfo(),
 		TransferId:  tReq.GetConsumerPID().String(),
 	}, nil
@@ -299,8 +310,8 @@ func (s *Server) GetProviderDatasetDownloadInformation(
 //
 //nolint:funlen,cyclop
 func (s *Server) GetProviderDatasetUploadInformation(
-	ctx context.Context, req *dspcontrol.GetProviderDatasetUploadInformationRequest,
-) (*dspcontrol.GetProviderDatasetUploadInformationResponse, error) {
+	ctx context.Context, req *dsrpc.GetProviderDatasetUploadInformationRequest,
+) (*dsrpc.GetProviderDatasetUploadInformationResponse, error) {
 	providerURL, err := s.getProviderURL(ctx, req.GetProviderUrl())
 	if err != nil {
 		return nil, err
@@ -326,6 +337,9 @@ func (s *Server) GetProviderDatasetUploadInformation(
 		selfURL,
 		dspconstants.DataspaceConsumer,
 		s.contractService == nil,
+		&dsrpc.RequesterInfo{
+			AuthenticationStatus: dsrpc.AuthenticationStatus_AUTHENTICATION_STATUS_LOCAL_ORIGIN,
+		},
 	)
 	// Store and retrieve contract negotiation so that it's saved and the locking works.
 	if err := s.store.PutContract(ctx, negotiation); err != nil {
@@ -386,6 +400,9 @@ func (s *Server) GetProviderDatasetUploadInformation(
 		dspconstants.DataspaceConsumer,
 		transfer.States.INITIAL,
 		nil,
+		&dsrpc.RequesterInfo{
+			AuthenticationStatus: dsrpc.AuthenticationStatus_AUTHENTICATION_STATUS_LOCAL_ORIGIN,
+		},
 	)
 	// Save and retrieve the transfer request to get the locks working properly.
 	if err := s.store.PutTransfer(ctx, transferReq); err != nil {
@@ -425,7 +442,7 @@ func (s *Server) GetProviderDatasetUploadInformation(
 		}
 	}
 
-	return &dspcontrol.GetProviderDatasetUploadInformationResponse{
+	return &dsrpc.GetProviderDatasetUploadInformationResponse{
 		PublishInfo: tReq.GetPublishInfo(),
 		TransferId:  tReq.GetConsumerPID().String(),
 	}, nil
@@ -433,8 +450,8 @@ func (s *Server) GetProviderDatasetUploadInformation(
 
 // Tells provider that we have finished our transfer.
 func (s *Server) SignalTransferComplete(
-	ctx context.Context, req *dspcontrol.SignalTransferCompleteRequest,
-) (*dspcontrol.SignalTransferCompleteResponse, error) {
+	ctx context.Context, req *dsrpc.SignalTransferCompleteRequest,
+) (*dsrpc.SignalTransferCompleteResponse, error) {
 	id, err := uuid.Parse(req.GetTransferId())
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "Transfer ID is not a valid UUID.")
@@ -460,39 +477,39 @@ func (s *Server) SignalTransferComplete(
 		}
 	}
 
-	return &dspcontrol.SignalTransferCompleteResponse{}, nil
+	return &dsrpc.SignalTransferCompleteResponse{}, nil
 }
 
 // Tells provider to cancel file transfer.
 func (s *Server) SignalTransferCancelled(
-	_ context.Context, _ *dspcontrol.SignalTransferCancelledRequest,
-) (*dspcontrol.SignalTransferCancelledResponse, error) {
+	_ context.Context, _ *dsrpc.SignalTransferCancelledRequest,
+) (*dsrpc.SignalTransferCancelledResponse, error) {
 	panic("not implemented") // TODO: Implement
 }
 
 // Tells provider to suspend file transfer.
 func (s *Server) SignalTransferSuspend(
-	_ context.Context, _ *dspcontrol.SignalTransferSuspendRequest,
-) (*dspcontrol.SignalTransferSuspendResponse, error) {
+	_ context.Context, _ *dsrpc.SignalTransferSuspendRequest,
+) (*dsrpc.SignalTransferSuspendResponse, error) {
 	panic("not implemented") // TODO: Implement
 }
 
 // Tells provider to resume file transfer.
 func (s *Server) SignalTransferResume(
-	_ context.Context, _ *dspcontrol.SignalTransferResumeRequest,
-) (*dspcontrol.SignalTransferResumeResponse, error) {
+	_ context.Context, _ *dsrpc.SignalTransferResumeRequest,
+) (*dsrpc.SignalTransferResumeResponse, error) {
 	panic("not implemented") // TODO: Implement
 }
 
-func processCatalogue(cat []shared.Dataset) []*dspcontrol.Dataset {
-	rCat := make([]*dspcontrol.Dataset, len(cat))
+func processCatalogue(cat []shared.Dataset) []*dsrpc.Dataset {
+	rCat := make([]*dsrpc.Dataset, len(cat))
 	for i, d := range cat {
 		rCat[i] = processDataset(d)
 	}
 	return rCat
 }
 
-func processDataset(dsp shared.Dataset) *dspcontrol.Dataset {
+func processDataset(dsp shared.Dataset) *dsrpc.Dataset {
 	issued, err := time.Parse(time.RFC3339, dsp.Issued)
 	if err != nil {
 		issued = time.Unix(0, 0).UTC()
@@ -503,14 +520,14 @@ func processDataset(dsp shared.Dataset) *dspcontrol.Dataset {
 	}
 	a := ""
 	mediaType := ""
-	var desc []*dspcontrol.Multilingual
+	var desc []*dsrpc.Multilingual
 	var size int64
-	var checksum *dspcontrol.Checksum
+	var checksum *dsrpc.Checksum
 	if len(dsp.Distribution) > 0 {
 		d := dsp.Distribution[0]
-		desc = make([]*dspcontrol.Multilingual, len(d.Description))
+		desc = make([]*dsrpc.Multilingual, len(d.Description))
 		for i, v := range d.Description {
-			desc[i] = &dspcontrol.Multilingual{
+			desc[i] = &dsrpc.Multilingual{
 				Value:    v.Value,
 				Language: v.Language,
 			}
@@ -519,13 +536,13 @@ func processDataset(dsp shared.Dataset) *dspcontrol.Dataset {
 		mediaType = d.MediaType
 		size = int64(d.ByteSize)
 		if d.Checksum != nil {
-			checksum = &dspcontrol.Checksum{
+			checksum = &dsrpc.Checksum{
 				Algorithm: d.Checksum.Algorithm,
 				Value:     d.Checksum.Value,
 			}
 		}
 	}
-	return &dspcontrol.Dataset{
+	return &dsrpc.Dataset{
 		Id:            strings.TrimPrefix(dsp.ID, "urn:uuid:%s"),
 		Title:         dsp.Title,
 		AccessMethods: a,

@@ -43,6 +43,12 @@ func (sp *StorageProvider) GetTransferR(
 	if err != nil {
 		return nil, err
 	}
+
+	err = checkRequesterInfo(ctx, request.GetRequesterInfo())
+	if err != nil {
+		return nil, err
+	}
+
 	request.SetReadOnly()
 	return request, nil
 }
@@ -61,7 +67,17 @@ func (sp *StorageProvider) GetTransferRW(
 	if err != nil {
 		return nil, err
 	}
-	return transfer.FromBytes(b)
+	request, err := transfer.FromBytes(b)
+	if err != nil {
+		return nil, err
+	}
+
+	err = checkRequesterInfo(ctx, request.GetRequesterInfo())
+	if err != nil {
+		return nil, err
+	}
+
+	return request, nil
 }
 
 // PutTransfer saves a transfer to the database.

@@ -27,6 +27,7 @@ import (
 	"go-dataspace.eu/run-dsp/dsp/shared"
 	"go-dataspace.eu/run-dsp/dsp/statemachine"
 	"go-dataspace.eu/run-dsp/dsp/transfer"
+	"go-dataspace.eu/run-dsp/internal/authforwarder"
 	"go-dataspace.eu/run-dsp/logging"
 )
 
@@ -82,7 +83,7 @@ func (dh *dspHandlers) providerTransferProcessHandler(w http.ResponseWriter, req
 		return transferError("invalid provider ID", http.StatusBadRequest, "400", "Invalid provider PID", nil)
 	}
 
-	contract, err := dh.store.GetTransferRW(req.Context(), providerPID, constants.DataspaceProvider)
+	contract, err := dh.store.GetTransferR(req.Context(), providerPID, constants.DataspaceProvider)
 	if err != nil {
 		return contractError(err.Error(), http.StatusNotFound, "404", "TransferRequest not found", nil)
 	}
@@ -132,6 +133,7 @@ func (dh *dspHandlers) providerTransferRequestHandler(w http.ResponseWriter, req
 		constants.DataspaceProvider,
 		transfer.States.INITIAL,
 		nil,
+		authforwarder.ExtractRequesterInfo(req.Context()),
 	)
 
 	if err := storeRequest(req.Context(), dh.store, request); err != nil {

@@ -26,7 +26,7 @@ import (
 	"go-dataspace.eu/run-dsp/dsp/shared"
 	"go-dataspace.eu/run-dsp/dsp/transfer"
 	"go-dataspace.eu/run-dsp/logging"
-	provider "go-dataspace.eu/run-dsrpc/gen/go/dsp/v1alpha2"
+	dsrpc "go-dataspace.eu/run-dsrpc/gen/go/dsp/v1alpha2"
 )
 
 func makeTransferRequestFunction(
@@ -157,7 +157,7 @@ func sendTransferCompletion(ctx context.Context, tr *TransferRequestNegotiationS
 	), nil
 }
 
-func publishInfoToDataAddress(pi *provider.PublishInfo) shared.DataAddress {
+func publishInfoToDataAddress(pi *dsrpc.PublishInfo) shared.DataAddress {
 	da := shared.DataAddress{
 		Type:               "dspace:DataAddress",
 		Endpoint:           pi.Url,
@@ -170,7 +170,7 @@ func publishInfoToDataAddress(pi *provider.PublishInfo) shared.DataAddress {
 		da.EndpointType = "https://w3id.org/idsa/v4.1/HTTP"
 	}
 	switch pi.AuthenticationType {
-	case provider.AuthenticationType_AUTHENTICATION_TYPE_BASIC:
+	case dsrpc.AuthenticationType_AUTHENTICATION_TYPE_BASIC:
 		da.EndpointProperties = []shared.EndpointProperty{
 			{
 				Type:  "dspace:EndpointProperty",
@@ -188,7 +188,7 @@ func publishInfoToDataAddress(pi *provider.PublishInfo) shared.DataAddress {
 				Value: "basic",
 			},
 		}
-	case provider.AuthenticationType_AUTHENTICATION_TYPE_BEARER:
+	case dsrpc.AuthenticationType_AUTHENTICATION_TYPE_BEARER:
 		da.EndpointProperties = []shared.EndpointProperty{
 			{
 				Type:  "dspace:EndpointProperty",
@@ -201,7 +201,7 @@ func publishInfoToDataAddress(pi *provider.PublishInfo) shared.DataAddress {
 				Value: "bearer",
 			},
 		}
-	case provider.AuthenticationType_AUTHENTICATION_TYPE_UNSPECIFIED:
+	case dsrpc.AuthenticationType_AUTHENTICATION_TYPE_UNSPECIFIED:
 		da.EndpointProperties = []shared.EndpointProperty{}
 	default:
 		panic(fmt.Sprintf("unexpected providerv1.AuthenticationType: %#v", pi.AuthenticationType))
