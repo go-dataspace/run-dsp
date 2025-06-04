@@ -128,7 +128,8 @@ func (dh *dspHandlers) providerContractRequestHandler(w http.ResponseWriter, req
 		cbURL,
 		dh.selfURL,
 		constants.DataspaceProvider,
-		dh.contractService == nil || reflect.ValueOf(dh.contractService).IsNil(), authforwarder.ExtractRequesterInfo(req.Context()),
+		dh.contractService == nil || reflect.ValueOf(dh.contractService).IsNil(),
+		authforwarder.ExtractRequesterInfo(req.Context()),
 	)
 
 	if err := storeNegotiation(ctx, dh.store, negotiation); err != nil {

@@ -121,7 +121,8 @@ func (ch *dspHandlers) datasetRequestHandler(w http.ResponseWriter, req *http.Re
 	}
 	logger.Debug("Got dataset request", "req", datasetReq)
 	resp, err := ch.provider.GetDataset(ctx, &dsrpc.GetDatasetRequest{
-		DatasetId: paramID,
+		DatasetId:     paramID,
+		RequesterInfo: authforwarder.ExtractRequesterInfo(req.Context()),
 	})
 	if err != nil {
 		return grpcErrorHandler(err)

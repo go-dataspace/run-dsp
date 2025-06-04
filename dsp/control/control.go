@@ -298,6 +298,9 @@ func (s *Server) GetProviderDatasetDownloadInformation(
 				codes.Internal, "could not get consumer contract with PID %s: %s", transferConsumerPID, err,
 			)
 		}
+		if tReq.GetState() == transfer.States.TERMINATED {
+			return nil, status.Error(codes.Aborted, "transfer negotiation terminated")
+		}
 	}
 
 	return &dsrpc.GetProviderDatasetDownloadInformationResponse{

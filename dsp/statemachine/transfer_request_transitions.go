@@ -25,6 +25,7 @@ import (
 	"go-dataspace.eu/run-dsp/dsp/constants"
 	"go-dataspace.eu/run-dsp/dsp/shared"
 	"go-dataspace.eu/run-dsp/dsp/transfer"
+	"go-dataspace.eu/run-dsp/internal/authforwarder"
 	dsrpc "go-dataspace.eu/run-dsrpc/gen/go/dsp/v1alpha2"
 )
 
@@ -66,7 +67,8 @@ func (tr *TransferRequestNegotiationInitial) Recv(
 	switch t := message.(type) {
 	case shared.TransferRequestMessage:
 		_, err := tr.GetProvider().GetDataset(ctx, &dsrpc.GetDatasetRequest{
-			DatasetId: tr.GetTarget(),
+			DatasetId:     tr.GetTarget(),
+			RequesterInfo: authforwarder.ExtractRequesterInfo(ctx),
 		})
 		if err != nil {
 			return nil, fmt.Errorf("could not find target: %w", err)
@@ -120,8 +122,9 @@ func (tr *TransferRequestNegotiationRequested) Send(ctx context.Context) (func()
 	switch tr.GetTransferDirection() {
 	case transfer.DirectionPull:
 		resp, err := tr.GetProvider().PublishDataset(ctx, &dsrpc.PublishDatasetRequest{
-			DatasetId: tr.GetTarget(),
-			PublishId: tr.GetProviderPID().String(),
+			DatasetId:     tr.GetTarget(),
+			PublishId:     tr.GetProviderPID().String(),
+			RequesterInfo: authforwarder.ExtractRequesterInfo(ctx),
 		})
 		if err != nil {
 			return func() {}, err
@@ -129,7 +132,8 @@ func (tr *TransferRequestNegotiationRequested) Send(ctx context.Context) (func()
 		tr.SetPublishInfo(resp.PublishInfo)
 	case transfer.DirectionPush:
 		resp, err := tr.GetProvider().ReceiveDataset(ctx, &dsrpc.ReceiveDatasetRequest{
-			DatasetId: tr.GetTarget(),
+			DatasetId:     tr.GetTarget(),
+			RequesterInfo: authforwarder.ExtractRequesterInfo(ctx),
 		})
 		if err != nil {
 			return func() {}, err
@@ -179,7 +183,8 @@ func unpublishTransfer(ctx context.Context, tr TransferRequestNegotiationState) 
 	case transfer.DirectionPull:
 		if tr.GetRole() == constants.DataspaceProvider {
 			_, err := tr.GetProvider().UnpublishDataset(ctx, &dsrpc.UnpublishDatasetRequest{
-				PublishId: tr.GetProviderPID().String(),
+				PublishId:     tr.GetProviderPID().String(),
+				RequesterInfo: authforwarder.ExtractRequesterInfo(ctx),
 			})
 			if err != nil {
 				return err

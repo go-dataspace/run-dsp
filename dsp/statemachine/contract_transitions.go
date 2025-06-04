@@ -26,6 +26,7 @@ import (
 	"go-dataspace.eu/run-dsp/dsp/constants"
 	"go-dataspace.eu/run-dsp/dsp/contract"
 	"go-dataspace.eu/run-dsp/dsp/shared"
+	"go-dataspace.eu/run-dsp/internal/authforwarder"
 	"go-dataspace.eu/run-dsp/logging"
 	"go-dataspace.eu/run-dsp/odrl"
 	dsrpc "go-dataspace.eu/run-dsrpc/gen/go/dsp/v1alpha2"
@@ -152,7 +153,8 @@ func (cn *ContractNegotiationInitial) processContractRequest(
 	}
 	// This is the initial request, we can assume all data is freshly made based on the request.
 	_, err = cn.GetProvider().GetDataset(ctx, &dsrpc.GetDatasetRequest{
-		DatasetId: target,
+		DatasetId:     target,
+		RequesterInfo: authforwarder.ExtractRequesterInfo(ctx),
 	})
 	if err != nil {
 		logger.Error("target dataset not found", "err", err)
@@ -206,7 +208,8 @@ func (cn *ContractNegotiationInitial) Send(ctx context.Context) (applyFunc, erro
 			return func() error { return nil }, fmt.Errorf("invalid URN `%s`: %w", cn.GetOffer().Target, err)
 		}
 		_, err = cn.GetProvider().GetDataset(ctx, &dsrpc.GetDatasetRequest{
-			DatasetId: targetID,
+			DatasetId:     targetID,
+			RequesterInfo: authforwarder.ExtractRequesterInfo(ctx),
 		})
 		if err != nil {
 			logger.Error("Dataset not found", "err", err)
