@@ -124,8 +124,9 @@ func (cn *ContractNegotiationInitial) processContractOffer(
 
 	ntfyFunc := func() error {
 		_, err := cn.c.OfferReceived(ctx, &dsrpc.ContractServiceOfferReceivedRequest{
-			Pid:   cn.GetConsumerPID().String(),
-			Offer: string(offer),
+			Pid:           cn.GetConsumerPID().String(),
+			Offer:         string(offer),
+			RequesterInfo: authforwarder.ExtractRequesterInfo(ctx),
 		})
 		return err
 	}
@@ -174,8 +175,9 @@ func (cn *ContractNegotiationInitial) processContractRequest(
 
 	ntfyFunc := func() error {
 		_, err := cn.c.RequestReceived(ctx, &dsrpc.ContractServiceRequestReceivedRequest{
-			Pid:   cn.GetProviderPID().String(),
-			Offer: string(offer),
+			Pid:           cn.GetProviderPID().String(),
+			Offer:         string(offer),
+			RequesterInfo: authforwarder.ExtractRequesterInfo(ctx),
 		})
 		return err
 	}
@@ -259,8 +261,9 @@ func (cn *ContractNegotiationRequested) Recv(
 
 		af = func() error {
 			_, err := cn.c.OfferReceived(ctx, &dsrpc.ContractServiceOfferReceivedRequest{
-				Pid:   cn.GetConsumerPID().String(),
-				Offer: string(offer),
+				Pid:           cn.GetConsumerPID().String(),
+				Offer:         string(offer),
+				RequesterInfo: authforwarder.ExtractRequesterInfo(ctx),
 			})
 			return err
 		}
@@ -275,7 +278,8 @@ func (cn *ContractNegotiationRequested) Recv(
 		)
 		af = func() error {
 			_, err := cn.c.AgreementReceived(ctx, &dsrpc.ContractServiceAgreementReceivedRequest{
-				Pid: cn.GetConsumerPID().String(),
+				Pid:           cn.GetConsumerPID().String(),
+				RequesterInfo: authforwarder.ExtractRequesterInfo(ctx),
 			})
 			return err
 		}
@@ -341,8 +345,9 @@ func (cn *ContractNegotiationOffered) Recv(
 		}
 		af = func() error {
 			_, err := cn.c.RequestReceived(ctx, &dsrpc.ContractServiceRequestReceivedRequest{
-				Pid:   cn.GetProviderPID().String(),
-				Offer: string(offer),
+				Pid:           cn.GetProviderPID().String(),
+				Offer:         string(offer),
+				RequesterInfo: authforwarder.ExtractRequesterInfo(ctx),
 			})
 			return err
 		}
@@ -367,7 +372,8 @@ func (cn *ContractNegotiationOffered) Recv(
 		logger.Debug("Received message")
 		af = func() error {
 			_, err := cn.c.AcceptedReceived(ctx, &dsrpc.ContractServiceAcceptedReceivedRequest{
-				Pid: cn.GetProviderPID().String(),
+				Pid:           cn.GetProviderPID().String(),
+				RequesterInfo: authforwarder.ExtractRequesterInfo(ctx),
 			})
 			return err
 		}
@@ -414,7 +420,8 @@ func (cn *ContractNegotiationAccepted) Recv(
 		cn.SetAgreement(&t.Agreement)
 		af := func() error {
 			_, err := cn.c.AgreementReceived(ctx, &dsrpc.ContractServiceAgreementReceivedRequest{
-				Pid: cn.GetConsumerPID().String(),
+				Pid:           cn.GetConsumerPID().String(),
+				RequesterInfo: authforwarder.ExtractRequesterInfo(ctx),
 			})
 			return err
 		}
@@ -459,7 +466,8 @@ func (cn *ContractNegotiationAgreed) Recv(
 		)
 		af := func() error {
 			_, err := cn.c.VerificationReceived(ctx, &dsrpc.ContractServiceVerificationReceivedRequest{
-				Pid: cn.GetProviderPID().String(),
+				Pid:           cn.GetProviderPID().String(),
+				RequesterInfo: authforwarder.ExtractRequesterInfo(ctx),
 			})
 			return err
 		}
@@ -515,7 +523,8 @@ func (cn *ContractNegotiationVerified) Recv(
 		logger.Debug("Received message")
 		af := func() error {
 			_, err := cn.c.FinalizationReceived(ctx, &dsrpc.ContractServiceFinalizationReceivedRequest{
-				Pid: cn.GetConsumerPID().String(),
+				Pid:           cn.GetConsumerPID().String(),
+				RequesterInfo: authforwarder.ExtractRequesterInfo(ctx),
 			})
 			return err
 		}

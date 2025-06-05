@@ -23,7 +23,8 @@ import (
 )
 
 func checkRequesterInfo(ctx context.Context, stored *dsrpc.RequesterInfo) error {
-	if stored.AuthenticationStatus == dsrpc.AuthenticationStatus_AUTHENTICATION_STATUS_LOCAL_ORIGIN {
+	if stored.AuthenticationStatus == dsrpc.AuthenticationStatus_AUTHENTICATION_STATUS_UNAUTHENTICATED ||
+		stored.AuthenticationStatus == dsrpc.AuthenticationStatus_AUTHENTICATION_STATUS_LOCAL_ORIGIN {
 		return nil
 	}
 
