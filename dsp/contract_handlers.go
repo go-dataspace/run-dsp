@@ -31,6 +31,7 @@ import (
 	"go-dataspace.eu/run-dsp/internal/authforwarder"
 	"go-dataspace.eu/run-dsp/logging"
 	"go-dataspace.eu/run-dsp/odrl"
+	dsrpc "go-dataspace.eu/run-dsrpc/gen/go/dsp/v1alpha2"
 )
 
 type ContractError struct {
@@ -156,6 +157,13 @@ func progressContractState[T any](
 
 	logger.Debug("Got contract message", "req", msg)
 
+	// Since this is a continuation of negotiation, we add a continuatinon RequestInfo to context
+	requestInfo := &dsrpc.RequesterInfo{
+		AuthenticationStatus: dsrpc.AuthenticationStatus_AUTHENTICATION_STATUS_CONTINUATION,
+	}
+	// Add local origin requester info to context
+	req = req.WithContext(authforwarder.SetRequesterInfo(req.Context(), requestInfo))
+
 	return processMessage(dh, w, req, role, pid, msg)
 }
 
@@ -188,7 +196,7 @@ func processMessage[T any](
 			http.StatusBadRequest, "400", "Invalid request", pState.GetContract())
 	}
 
-	if contract.AutoAccept() || reflect.ValueOf(dh.contractService).IsNil() {
+	if contract.AutoAccept() || (dh.contractService == nil || reflect.ValueOf(dh.contractService).IsNil()) {
 		ctx, transition := statemachine.GetContractNegotiation(
 			ctx,
 			pState.GetContract(),
@@ -320,7 +328,8 @@ func (dh *dspHandlers) consumerContractOfferHandler(w http.ResponseWriter, req *
 		cbURL,
 		selfURL,
 		constants.DataspaceConsumer,
-		reflect.ValueOf(dh.contractService).IsNil(), authforwarder.ExtractRequesterInfo(req.Context()),
+		dh.contractService == nil || reflect.ValueOf(dh.contractService).IsNil(),
+		authforwarder.ExtractRequesterInfo(req.Context()),
 	)
 	if err := storeNegotiation(ctx, dh.store, negotiation); err != nil {
 		return err

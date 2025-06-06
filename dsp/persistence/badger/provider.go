@@ -20,7 +20,9 @@ import (
 	"time"
 
 	"github.com/dgraph-io/badger/v4"
+	"go-dataspace.eu/run-dsp/internal/authforwarder"
 	"go-dataspace.eu/run-dsp/logging"
+	dsrpc "go-dataspace.eu/run-dsrpc/gen/go/dsp/v1alpha2"
 )
 
 const (
@@ -165,4 +167,23 @@ func putUnlock[T writeController](ctx context.Context, sp *StorageProvider, thin
 		}
 	}
 	return sp.ReleaseLock(ctx, newLockKey(key))
+}
+
+func checkRequesterInfo(ctx context.Context, stored *dsrpc.RequesterInfo) error {
+	if stored.AuthenticationStatus == dsrpc.AuthenticationStatus_AUTHENTICATION_STATUS_UNAUTHENTICATED ||
+		stored.AuthenticationStatus == dsrpc.AuthenticationStatus_AUTHENTICATION_STATUS_LOCAL_ORIGIN {
+		return nil
+	}
+
+	requesterInfo := authforwarder.ExtractRequesterInfo(ctx)
+	if requesterInfo.AuthenticationStatus == dsrpc.AuthenticationStatus_AUTHENTICATION_STATUS_LOCAL_ORIGIN ||
+		requesterInfo.AuthenticationStatus == dsrpc.AuthenticationStatus_AUTHENTICATION_STATUS_CONTINUATION {
+		return nil
+	}
+
+	if requesterInfo.Identifier != stored.Identifier {
+		return fmt.Errorf("identifier mismatch in RequesterInfo")
+	}
+
+	return nil
 }

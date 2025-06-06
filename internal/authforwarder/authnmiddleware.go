@@ -24,7 +24,7 @@ import (
 )
 
 const (
-	requesterInfoContextKey contextKeyType = "requesterinfo"
+	RequesterInfoContextKey contextKeyType = "requesterinfo"
 )
 
 func NewAuthNMiddleware(authNService dsrpc.AuthNServiceClient) func(http.Handler) http.Handler {
@@ -47,14 +47,14 @@ func NewAuthNMiddleware(authNService dsrpc.AuthNServiceClient) func(http.Handler
 				requesterInfo = verifyResponse.RequesterInfo
 			}
 
-			req = req.WithContext(context.WithValue(req.Context(), requesterInfoContextKey, requesterInfo))
+			req = req.WithContext(context.WithValue(req.Context(), RequesterInfoContextKey, requesterInfo))
 			next.ServeHTTP(w, req)
 		})
 	}
 }
 
 func ExtractRequesterInfo(ctx context.Context) *dsrpc.RequesterInfo {
-	ctxVal := ctx.Value(requesterInfoContextKey)
+	ctxVal := ctx.Value(RequesterInfoContextKey)
 	if ctxVal == nil {
 		panic("requesterInfo not set in context")
 	}
@@ -63,4 +63,8 @@ func ExtractRequesterInfo(ctx context.Context) *dsrpc.RequesterInfo {
 		panic("requesterInfo from context not of right type")
 	}
 	return val
+}
+
+func SetRequesterInfo(ctx context.Context, requesterInfo *dsrpc.RequesterInfo) context.Context {
+	return context.WithValue(ctx, RequesterInfoContextKey, requesterInfo)
 }

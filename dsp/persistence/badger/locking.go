@@ -69,7 +69,7 @@ func (sp *StorageProvider) ReleaseLock(ctx context.Context, k lockKey) error {
 				// first time saves.
 				return nil
 			}
-			logger.Error("Could not release lock", "err", err)
+			logger.Error("Failed to unlock, will have to depend on TTL", "err", err)
 		}
 		return err
 	})

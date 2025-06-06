@@ -25,12 +25,20 @@ import (
 	"go-dataspace.eu/run-dsp/dsp/contract"
 	"go-dataspace.eu/run-dsp/dsp/shared"
 	"go-dataspace.eu/run-dsp/dsp/statemachine"
+	"go-dataspace.eu/run-dsp/internal/authforwarder"
 	"go-dataspace.eu/run-dsp/logging"
 	"go-dataspace.eu/run-dsp/odrl"
 	dsrpc "go-dataspace.eu/run-dsrpc/gen/go/dsp/v1alpha2"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
+
+func getLocalRequesterOrigin() *dsrpc.RequesterInfo {
+	requestInfo := &dsrpc.RequesterInfo{
+		AuthenticationStatus: dsrpc.AuthenticationStatus_AUTHENTICATION_STATUS_LOCAL_ORIGIN,
+	}
+	return requestInfo
+}
 
 // VerifyConnection takes a token and verifies it's the same token it passed to the contract service.
 func (s *Server) VerifyConnection(
@@ -78,10 +86,7 @@ func (s *Server) ContractRequest(
 			shared.MustParseURL(s.selfURL.String()),
 			constants.DataspaceConsumer,
 			req.GetAutoAccept() || s.contractService == nil,
-			&dsrpc.RequesterInfo{
-				Identifier:           *req.Pid,
-				AuthenticationStatus: dsrpc.AuthenticationStatus_AUTHENTICATION_STATUS_LOCAL_ORIGIN,
-			},
+			getLocalRequesterOrigin(),
 		)
 		rawPID = negotiation.GetConsumerPID().String()
 		if err := s.store.PutContract(ctx, negotiation); err != nil {
@@ -113,6 +118,11 @@ func sendContractMessage[T any](
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, "couldn't parse UUID")
 	}
+
+	// Add local origin requester info to context since all control requests are from
+	// a trusted source.
+	ctx = authforwarder.SetRequesterInfo(ctx, getLocalRequesterOrigin())
+
 	negotiation, err := s.store.GetContractRW(ctx, pid, role)
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "could not find contract with pid %s: %s", pid, err)
@@ -189,11 +199,9 @@ func (s *Server) ContractOffer(
 			shared.MustParseURL(s.selfURL.String()),
 			constants.DataspaceProvider,
 			req.GetAutoAccept() || s.contractService == nil,
-			&dsrpc.RequesterInfo{
-				Identifier:           *req.Pid,
-				AuthenticationStatus: dsrpc.AuthenticationStatus_AUTHENTICATION_STATUS_LOCAL_ORIGIN,
-			},
+			getLocalRequesterOrigin(),
 		)
+
 		rawPID = negotiation.GetProviderPID().String()
 		if err := s.store.PutContract(ctx, negotiation); err != nil {
 			return nil, status.Errorf(codes.Internal, "couldn't store contract negotiation: %s", err)

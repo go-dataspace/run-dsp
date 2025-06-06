@@ -108,13 +108,13 @@ func (cn *ContractNegotiationInitial) processContractOffer(
 		"recv_msg_type", fmt.Sprintf("%T", t),
 		"dataset_target", cn.GetOffer().Target,
 	)
-	// This is the initial offer, we can assuem all data is freshly made based on the offer.
+	// This is the initial offer, we can assume all data is freshly made based on the offer.
 	if err := cn.SetState(contract.States.OFFERED); err != nil {
 		logger.Error("could not transition state", "err", err)
 		return ctx, nil, fmt.Errorf("could not set state: %w", err)
 	}
 	cn.Negotiation.SetConsumerPID(uuid.New())
-	cn.Negotiation.SetInitial()
+	// cn.Negotiation.SetInitial()
 
 	offer, err := json.Marshal(cn.GetOffer())
 	if err != nil {
@@ -152,6 +152,7 @@ func (cn *ContractNegotiationInitial) processContractRequest(
 		logger.Error("can't parse URN", "err", err)
 		return ctx, nil, fmt.Errorf("can't parse URN: %w", err)
 	}
+
 	// This is the initial request, we can assume all data is freshly made based on the request.
 	_, err = cn.GetProvider().GetDataset(ctx, &dsrpc.GetDatasetRequest{
 		DatasetId:     target,
@@ -209,13 +210,17 @@ func (cn *ContractNegotiationInitial) Send(ctx context.Context) (applyFunc, erro
 			logger.Error("invalid URN", "err", err)
 			return func() error { return nil }, fmt.Errorf("invalid URN `%s`: %w", cn.GetOffer().Target, err)
 		}
-		_, err = cn.GetProvider().GetDataset(ctx, &dsrpc.GetDatasetRequest{
-			DatasetId:     targetID,
-			RequesterInfo: authforwarder.ExtractRequesterInfo(ctx),
-		})
-		if err != nil {
-			logger.Error("Dataset not found", "err", err)
-			return nil, ErrNotFound
+
+		permissions := cn.GetOffer().Permission
+		if len(permissions) == 0 || permissions[0].Action != "odrl:copy" {
+			_, err = cn.GetProvider().GetDataset(ctx, &dsrpc.GetDatasetRequest{
+				DatasetId:     targetID,
+				RequesterInfo: authforwarder.ExtractRequesterInfo(ctx),
+			})
+			if err != nil {
+				logger.Error("Dataset not found", "err", err)
+				return nil, ErrNotFound
+			}
 		}
 		return sendContractOffer(ctx, cn.GetReconciler(), cn.GetContract())
 	default:

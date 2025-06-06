@@ -70,11 +70,13 @@ func (sp *StorageProvider) GetContractRW(
 
 	negotiation, err := contract.FromBytes(b)
 	if err != nil {
+		sp.ReleaseLock(ctx, newLockKey(key))
 		return nil, err
 	}
 
 	err = checkRequesterInfo(ctx, negotiation.GetRequesterInfo())
 	if err != nil {
+		sp.ReleaseLock(ctx, newLockKey(key))
 		return nil, err
 	}
 	return negotiation, nil

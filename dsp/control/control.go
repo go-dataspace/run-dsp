@@ -320,17 +320,21 @@ func (s *Server) GetProviderDatasetUploadInformation(
 		return nil, err
 	}
 
-	consumerPID := uuid.New()
+	providerPID := uuid.New()
 	selfURL := shared.MustParseURL(s.selfURL.String())
-	selfURL.Path = path.Join(selfURL.Path, "callback")
 	negotiation := contract.New(
-		uuid.UUID{}, consumerPID,
+		providerPID, uuid.UUID{},
 		contract.States.INITIAL,
 		odrl.Offer{
 			MessageOffer: odrl.MessageOffer{
 				PolicyClass: odrl.PolicyClass{
 					AbstractPolicyRule: odrl.AbstractPolicyRule{},
 					ID:                 uuid.New().URN(),
+					Permission: []odrl.Permission{
+						{
+							Action: "odrl:copy",
+						},
+					},
 				},
 				Type:   "odrl:Offer",
 				Target: shared.IDToURN(req.GetDatasetId()),
@@ -338,7 +342,7 @@ func (s *Server) GetProviderDatasetUploadInformation(
 		},
 		providerURL,
 		selfURL,
-		dspconstants.DataspaceConsumer,
+		dspconstants.DataspaceProvider,
 		s.contractService == nil,
 		&dsrpc.RequesterInfo{
 			AuthenticationStatus: dsrpc.AuthenticationStatus_AUTHENTICATION_STATUS_LOCAL_ORIGIN,
@@ -348,7 +352,7 @@ func (s *Server) GetProviderDatasetUploadInformation(
 	if err := s.store.PutContract(ctx, negotiation); err != nil {
 		return nil, status.Errorf(codes.Internal, "couldn't store contract negotiation: %s", err)
 	}
-	negotiation, err = s.store.GetContractRW(ctx, negotiation.GetConsumerPID(), negotiation.GetRole())
+	negotiation, err = s.store.GetContractRW(ctx, negotiation.GetLocalPID(), negotiation.GetRole())
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "couldn't retrieve contract negotiation: %s", err)
 	}
@@ -367,9 +371,9 @@ func (s *Server) GetProviderDatasetUploadInformation(
 	// These don't really return errors, the err is for uniformity with the recv applyFunc
 	_ = apply()
 
-	negotiation, err = s.store.GetContractR(ctx, consumerPID, dspconstants.DataspaceConsumer)
+	negotiation, err = s.store.GetContractR(ctx, providerPID, dspconstants.DataspaceProvider)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "could not get consumer contract with PID %s: %s", consumerPID, err)
+		return nil, status.Errorf(codes.Internal, "could not get provider contract with PID %s: %s", providerPID, err)
 	}
 
 	logger.Info("Starting to monitor contract")
@@ -380,9 +384,9 @@ func (s *Server) GetProviderDatasetUploadInformation(
 			logger.Info("Contract not finalized", "state", negotiation.GetState().String())
 		}
 		time.Sleep(1 * time.Second)
-		negotiation, err = s.store.GetContractR(ctx, consumerPID, dspconstants.DataspaceConsumer)
+		negotiation, err = s.store.GetContractR(ctx, providerPID, dspconstants.DataspaceProvider)
 		if err != nil {
-			return nil, status.Errorf(codes.Internal, "could not get consumer contract with PID %s: %s", consumerPID, err)
+			return nil, status.Errorf(codes.Internal, "could not get provider contract with PID %s: %s", providerPID, err)
 		}
 		checks++
 	}

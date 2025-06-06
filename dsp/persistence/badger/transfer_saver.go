@@ -69,11 +69,13 @@ func (sp *StorageProvider) GetTransferRW(
 	}
 	request, err := transfer.FromBytes(b)
 	if err != nil {
+		sp.ReleaseLock(ctx, newLockKey(key))
 		return nil, err
 	}
 
 	err = checkRequesterInfo(ctx, request.GetRequesterInfo())
 	if err != nil {
+		sp.ReleaseLock(ctx, newLockKey(key))
 		return nil, err
 	}
 
