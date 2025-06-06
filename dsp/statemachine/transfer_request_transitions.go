@@ -66,12 +66,14 @@ func (tr *TransferRequestNegotiationInitial) Recv(
 ) (TransferRequestNegotiationState, error) {
 	switch t := message.(type) {
 	case shared.TransferRequestMessage:
-		_, err := tr.GetProvider().GetDataset(ctx, &dsrpc.GetDatasetRequest{
-			DatasetId:     tr.GetTarget(),
-			RequesterInfo: authforwarder.ExtractRequesterInfo(ctx),
-		})
-		if err != nil {
-			return nil, fmt.Errorf("could not find target: %w", err)
+		if tr.Request.GetFormat() == "HTTP_PULL" {
+			_, err := tr.GetProvider().GetDataset(ctx, &dsrpc.GetDatasetRequest{
+				DatasetId:     tr.GetTarget(),
+				RequesterInfo: authforwarder.ExtractRequesterInfo(ctx),
+			})
+			if err != nil {
+				return nil, fmt.Errorf("could not find target: %w", err)
+			}
 		}
 		tr.SetProviderPID(uuid.New())
 		return verifyAndTransformTransfer(

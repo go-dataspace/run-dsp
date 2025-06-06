@@ -114,7 +114,7 @@ func (cn *ContractNegotiationInitial) processContractOffer(
 		return ctx, nil, fmt.Errorf("could not set state: %w", err)
 	}
 	cn.Negotiation.SetConsumerPID(uuid.New())
-	// cn.Negotiation.SetInitial()
+	cn.Negotiation.SetInitial()
 
 	offer, err := json.Marshal(cn.GetOffer())
 	if err != nil {
@@ -154,13 +154,16 @@ func (cn *ContractNegotiationInitial) processContractRequest(
 	}
 
 	// This is the initial request, we can assume all data is freshly made based on the request.
-	_, err = cn.GetProvider().GetDataset(ctx, &dsrpc.GetDatasetRequest{
-		DatasetId:     target,
-		RequesterInfo: authforwarder.ExtractRequesterInfo(ctx),
-	})
-	if err != nil {
-		logger.Error("target dataset not found", "err", err)
-		return ctx, nil, fmt.Errorf("dataset %s: %w", cn.GetOffer().Target, ErrNotFound)
+	permissions := cn.GetOffer().Permission
+	if len(permissions) == 0 || permissions[0].Action != "odrl:copy" {
+		_, err = cn.GetProvider().GetDataset(ctx, &dsrpc.GetDatasetRequest{
+			DatasetId:     target,
+			RequesterInfo: authforwarder.ExtractRequesterInfo(ctx),
+		})
+		if err != nil {
+			logger.Error("target dataset not found", "err", err)
+			return ctx, nil, fmt.Errorf("dataset %s: %w", cn.GetOffer().Target, ErrNotFound)
+		}
 	}
 	if err := cn.SetState(contract.States.REQUESTED); err != nil {
 		logger.Error("could not transition state", "err", err)

@@ -8,29 +8,29 @@ logLevel = "debug" # Sets the log level. Valid values: debug/info/warn/error ($L
 ## Dataspace component configuration
 [server.dsp]
 address = "127.0.0.1"                 # IP address of the local machine to listen to for dataspace requests. ($SERVER.DSP.ADDRESS)
-port = 8080                           # TCP port to listen on for dataspace requests. ($SERVER.DSP.PORT)
-externalURL = "http://127.0.0.1:8080" # Address that we are reachable by to other dataspace participants. ($SERVER.DSP.EXTERNALURL)
+port = 18080                           # TCP port to listen on for dataspace requests. ($SERVER.DSP.PORT)
+externalURL = "http://127.0.0.1:18080" # Address that we are reachable by to other dataspace participants. ($SERVER.DSP.EXTERNALURL)
 
 ## Provider gRPC settings
 [server.provider]
-address = "127.0.0.1:9090" # The address of the provider service. ($SERVER.PROVIDER.ADDRESS)
+address = "127.0.0.1:19090" # The address of the provider service. ($SERVER.PROVIDER.ADDRESS)
 insecure = true             # Disable TLS when connecting to the provider. ($SERVER.PROVIDER.INSECURE)
 
 [server.contractService]
-address = "127.0.0.1:9092"            # The address of the contract service. ($SERVER.CONTRACTSERVICE.ADDRESS)
+address = "127.0.0.1:19092"            # The address of the contract service. ($SERVER.CONTRACTSERVICE.ADDRESS)
 insecure = true                      # Disable TLS when connecting to the contract service. ($SERVER.CONTRACTSERVICE.INSECURE)
-enabled = false
+enabled = true
 
 [server.authnService]
-address = "127.0.0.1:9093"            # The address of the contract service. ($SERVER.AUTHNERVICE.ADDRESS)
+address = "127.0.0.1:19093"            # The address of the contract service. ($SERVER.AUTHNERVICE.ADDRESS)
 insecure = true                      # Disable TLS when connecting to the contract service. ($SERVER.AUTHNSERVICE.INSECURE)
-enabled = false
+enabled = true
 
 ## Control service settings
 [server.control]
 enabled = true        # Enable the control service. ($SERVER.CONTROL.ENABLED)
 address = "127.0.0.1" # IP address of the local machine to listen to for the control service. ($SERVER.CONTROL.ADDRESS)
-port = 8081           # TCP port to listen on for the control service. ($SERVER.CONTROL.PORT)
+port = 18081           # TCP port to listen on for the control service. ($SERVER.CONTROL.PORT)
 insecure = true       # Disable TLS for the control service ($SERVER.CONTROL.INSECURE)
 
 ## Persistence settings
