@@ -56,7 +56,7 @@ import (
 
 // Viper keys.
 const (
-	dspAddress     = "sever.dsp.address"
+	dspAddress     = "server.dsp.address"
 	dspPort        = "server.dsp.port"
 	dspExternalURL = "server.dsp.externalURL"
 
