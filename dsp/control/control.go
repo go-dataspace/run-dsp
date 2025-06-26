@@ -28,6 +28,7 @@ import (
 	"go-dataspace.eu/run-dsp/dsp/shared"
 	"go-dataspace.eu/run-dsp/dsp/statemachine"
 	"go-dataspace.eu/run-dsp/dsp/transfer"
+	"go-dataspace.eu/run-dsp/internal/authforwarder"
 	"go-dataspace.eu/run-dsp/internal/constants"
 	"go-dataspace.eu/run-dsp/jsonld"
 	"go-dataspace.eu/run-dsp/logging"
@@ -394,7 +395,42 @@ func (s *Server) GetProviderDatasetUploadInformation(
 	}
 	logger.Info("Contract finalized, continuing")
 
-	return nil, status.Errorf(codes.Unimplemented, "receiving transfer not implemented yet")
+	logger.Info("Starting to monitor transfer request")
+	var tReq *transfer.Request
+	for tReq == nil {
+		transfers, err := s.store.GetTransfers(ctx)
+		if err != nil {
+			return nil, err
+		}
+
+		for _, t := range transfers {
+			logger.Info("checking if transfer has started", "transfer-agreement-id",
+				t.GetAgreementID(), "negotiation-agreement-id", negotiation.GetAgreement().ID)
+
+			// FIXME: For some reason we have two transfers requests in store for this single transfer.
+			// - One in state INITIAL with no providerPID
+			// - One in state STARTED, which is the one we want here.
+			if t.GetState() == transfer.States.STARTED &&
+				t.GetAgreementID().String() == strings.TrimPrefix(negotiation.GetAgreement().ID, "urn:uuid:") {
+				tReq = t
+				break
+			}
+		}
+
+		if tReq != nil {
+			logger.Info("Transfer requested", "state", tReq.GetState().String())
+			break
+		}
+
+		logger.Info("Transfer not yet requested")
+		time.Sleep(1 * time.Second)
+	}
+
+	response := &dsrpc.GetProviderDatasetUploadInformationResponse{
+		PublishInfo: tReq.GetPublishInfo(),
+		TransferId:  tReq.GetProviderPID().String(),
+	}
+	return response, err
 }
 
 // Tells provider that we have finished our transfer.
@@ -405,10 +441,19 @@ func (s *Server) SignalTransferComplete(
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "Transfer ID is not a valid UUID.")
 	}
-	trReq, err := s.store.GetTransferRW(ctx, id, dspconstants.DataspaceConsumer)
-	if err != nil {
+
+	trReq := &transfer.Request{}
+	role := dspconstants.DataspaceConsumer
+	for _, role = range []dspconstants.DataspaceRole{dspconstants.DataspaceConsumer, dspconstants.DataspaceProvider} {
+		trReq, _ = s.store.GetTransferRW(ctx, id, role)
+		if trReq != nil {
+			break
+		}
+	}
+	if trReq == nil {
 		return nil, status.Errorf(codes.NotFound, "no transfer found")
 	}
+
 	transferState := statemachine.GetTransferRequestNegotiation(trReq, s.provider, s.reconciler)
 	apply, err := transferState.Send(ctx)
 	if err != nil {
@@ -420,7 +465,7 @@ func (s *Server) SignalTransferComplete(
 	apply()
 	for trReq.GetState() != transfer.States.COMPLETED {
 		time.Sleep(1 * time.Second)
-		trReq, err = s.store.GetTransferR(ctx, id, dspconstants.DataspaceConsumer)
+		trReq, err = s.store.GetTransferR(ctx, id, role)
 		if err != nil {
 			return nil, status.Errorf(codes.Internal, "could not get consumer contract with PID %s: %s", id, err)
 		}
@@ -448,6 +493,66 @@ func (s *Server) SignalTransferResume(
 	_ context.Context, _ *dsrpc.SignalTransferResumeRequest,
 ) (*dsrpc.SignalTransferResumeResponse, error) {
 	panic("not implemented") // TODO: Implement
+}
+
+func (s *Server) InitiatePushTransfer(ctx context.Context, r *dsrpc.InitiatePushTransferRequest) (
+	*dsrpc.InitiatePushTransferResponse, error,
+) {
+	selfURL := shared.MustParseURL(s.selfURL.String())
+	selfURL.Path = path.Join(selfURL.Path, "callback")
+
+	transferConsumerPID := uuid.New()
+
+	// Add requester info to context
+	ctx = authforwarder.SetRequesterInfo(ctx, r.RequesterInfo)
+
+	contractID := uuid.MustParse(r.Pid)
+	negotiation, err := s.store.GetContractR(ctx, contractID, dspconstants.DataspaceConsumer)
+	if err != nil {
+		return nil, err
+	}
+
+	response, err := s.provider.ReceiveDataset(ctx, &dsrpc.ReceiveDatasetRequest{
+		DatasetId:     negotiation.GetOffer().Target, // FIXME: This could be bad and potentially overwrite things.
+		RequesterInfo: r.RequesterInfo,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	transferReq := transfer.New(
+		transferConsumerPID,
+		negotiation.GetAgreement(),
+		"HTTP_PUSH",
+		negotiation.GetCallback(),
+		selfURL,
+		dspconstants.DataspaceConsumer,
+		transfer.States.INITIAL,
+		response.PublishInfo,
+		&dsrpc.RequesterInfo{
+			AuthenticationStatus: dsrpc.AuthenticationStatus_AUTHENTICATION_STATUS_LOCAL_ORIGIN,
+		},
+	)
+	// Save and retrieve the transfer request to get the locks working properly.
+	if err := s.store.PutTransfer(ctx, transferReq); err != nil {
+		return nil, status.Errorf(codes.Internal, "Couldn't create transfer request: %s", err)
+	}
+	transferReq, err = s.store.GetTransferRW(ctx, transferReq.GetConsumerPID(), dspconstants.DataspaceConsumer)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "could not retrieve transfer request: %s", err)
+	}
+	transferInit := statemachine.GetTransferRequestNegotiation(transferReq, s.provider, s.reconciler)
+
+	tApply, err := transferInit.Send(ctx)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "Couldn't generate inital initial request.")
+	}
+	if err := s.store.PutTransfer(ctx, transferReq); err != nil {
+		return nil, status.Errorf(codes.Internal, "Couldn't create transfer request: %s", err)
+	}
+
+	tApply()
+	return &dsrpc.InitiatePushTransferResponse{}, nil
 }
 
 func processCatalogue(cat []shared.Dataset) []*dsrpc.Dataset {

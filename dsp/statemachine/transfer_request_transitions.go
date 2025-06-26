@@ -26,6 +26,7 @@ import (
 	"go-dataspace.eu/run-dsp/dsp/shared"
 	"go-dataspace.eu/run-dsp/dsp/transfer"
 	"go-dataspace.eu/run-dsp/internal/authforwarder"
+	"go-dataspace.eu/run-dsp/logging"
 	dsrpc "go-dataspace.eu/run-dsrpc/gen/go/dsp/v1alpha2"
 )
 
@@ -106,7 +107,7 @@ func (tr *TransferRequestNegotiationRequested) Recv(
 		}
 		if tr.GetPublishInfo() == nil {
 			var err error
-			pi, err := dataAddressToPublishInfo(t.DataAddress)
+			pi, err := DataAddressToPublishInfo(t.DataAddress)
 			if err != nil {
 				return nil, fmt.Errorf("invalid dataAddress supplied: %w", err)
 			}
@@ -121,8 +122,10 @@ func (tr *TransferRequestNegotiationRequested) Recv(
 }
 
 func (tr *TransferRequestNegotiationRequested) Send(ctx context.Context) (func(), error) {
+	logger := logging.Extract(ctx)
 	switch tr.GetTransferDirection() {
 	case transfer.DirectionPull:
+		logger.Debug("setting publish info for pulling data")
 		resp, err := tr.GetProvider().PublishDataset(ctx, &dsrpc.PublishDatasetRequest{
 			DatasetId:     tr.GetTarget(),
 			PublishId:     tr.GetProviderPID().String(),
@@ -133,14 +136,7 @@ func (tr *TransferRequestNegotiationRequested) Send(ctx context.Context) (func()
 		}
 		tr.SetPublishInfo(resp.PublishInfo)
 	case transfer.DirectionPush:
-		resp, err := tr.GetProvider().ReceiveDataset(ctx, &dsrpc.ReceiveDatasetRequest{
-			DatasetId:     tr.GetTarget(),
-			RequesterInfo: authforwarder.ExtractRequesterInfo(ctx),
-		})
-		if err != nil {
-			return func() {}, err
-		}
-		tr.SetPublishInfo(resp.PublishInfo)
+		logger.Debug("sending transfer start for pushing data")
 	case transfer.DirectionUnknown:
 		return func() {}, fmt.Errorf("unknown transfer direction")
 	default:
@@ -184,7 +180,7 @@ func unpublishTransfer(ctx context.Context, tr TransferRequestNegotiationState) 
 	switch tr.GetTransferDirection() {
 	case transfer.DirectionPull:
 		if tr.GetRole() == constants.DataspaceProvider {
-			_, err := tr.GetProvider().UnpublishDataset(ctx, &dsrpc.UnpublishDatasetRequest{
+			_, err := tr.GetProvider().ShutdownTransfer(ctx, &dsrpc.ShutdownTransferRequest{
 				PublishId:     tr.GetProviderPID().String(),
 				RequesterInfo: authforwarder.ExtractRequesterInfo(ctx),
 			})
@@ -193,7 +189,15 @@ func unpublishTransfer(ctx context.Context, tr TransferRequestNegotiationState) 
 			}
 		}
 	case transfer.DirectionPush:
-		return fmt.Errorf("push flow: %w", ErrNotImplemented)
+		if tr.GetRole() == constants.DataspaceConsumer {
+			_, err := tr.GetProvider().ShutdownTransfer(ctx, &dsrpc.ShutdownTransferRequest{
+				PublishId:     tr.GetConsumerPID().String(),
+				RequesterInfo: authforwarder.ExtractRequesterInfo(ctx),
+			})
+			if err != nil {
+				return err
+			}
+		}
 	case transfer.DirectionUnknown:
 		return fmt.Errorf("unknown transfer direction")
 	default:
@@ -257,7 +261,7 @@ func GetTransferRequestNegotiation(
 	}
 }
 
-func dataAddressToPublishInfo(d shared.DataAddress) (*dsrpc.PublishInfo, error) {
+func DataAddressToPublishInfo(d *shared.DataAddress) (*dsrpc.PublishInfo, error) {
 	p, err := makeEndpointPropertyMap(d.EndpointProperties)
 	if err != nil {
 		return nil, err

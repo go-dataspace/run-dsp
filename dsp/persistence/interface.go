@@ -72,6 +72,8 @@ type AgreementSaver interface {
 // TransferSaver is an interface for storing dataspace transfer request.
 // The read/write semantics are the same as those for contracts.
 type TransferSaver interface {
+	// GetAgreementTransfers returns a read-only list of all transfers.
+	GetTransfers(ctx context.Context) ([]*transfer.Request, error)
 	// GetTransferR gets a read-only version of a transfer request.
 	GetTransferR(
 		ctx context.Context,

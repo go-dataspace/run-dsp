@@ -29,6 +29,7 @@ import (
 	"go-dataspace.eu/run-dsp/dsp/transfer"
 	"go-dataspace.eu/run-dsp/internal/authforwarder"
 	"go-dataspace.eu/run-dsp/logging"
+	dsrpc "go-dataspace.eu/run-dsrpc/gen/go/dsp/v1alpha2"
 )
 
 type TransferError struct {
@@ -124,6 +125,16 @@ func (dh *dspHandlers) providerTransferRequestHandler(w http.ResponseWriter, req
 			http.StatusBadRequest, "400", "Invalid request: Non-valid callback URL.", nil)
 	}
 
+	pi := &dsrpc.PublishInfo{}
+
+	if transferReq.DataAddress != nil {
+		pi, err = statemachine.DataAddressToPublishInfo(transferReq.DataAddress)
+		if err != nil {
+			return transferError(fmt.Sprintf("Invalid callback URL %s: %s", transferReq.CallbackAddress, err.Error()),
+				http.StatusBadRequest, "400", "Invalid request: Invalid dataAddress supplied.", nil)
+		}
+	}
+
 	request := transfer.New(
 		consumerPID,
 		agreement,
@@ -132,7 +143,7 @@ func (dh *dspHandlers) providerTransferRequestHandler(w http.ResponseWriter, req
 		dh.selfURL,
 		constants.DataspaceProvider,
 		transfer.States.INITIAL,
-		nil,
+		pi,
 		authforwarder.ExtractRequesterInfo(req.Context()),
 	)
 

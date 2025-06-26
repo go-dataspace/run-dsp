@@ -70,6 +70,7 @@ func sendTransferRequest(ctx context.Context, tr *TransferRequestNegotiationInit
 		Format:          tr.GetFormat(),
 		CallbackAddress: tr.GetSelf().String(),
 		ConsumerPID:     tr.GetConsumerPID().URN(),
+		DataAddress:     publishInfoToDataAddress(tr.GetPublishInfo()),
 	}
 
 	reqBody, err := shared.ValidateAndMarshal(ctx, transferRequest)
@@ -157,8 +158,8 @@ func sendTransferCompletion(ctx context.Context, tr *TransferRequestNegotiationS
 	), nil
 }
 
-func publishInfoToDataAddress(pi *dsrpc.PublishInfo) shared.DataAddress {
-	da := shared.DataAddress{
+func publishInfoToDataAddress(pi *dsrpc.PublishInfo) *shared.DataAddress {
+	da := &shared.DataAddress{
 		Type:               "dspace:DataAddress",
 		Endpoint:           pi.Url,
 		EndpointProperties: []shared.EndpointProperty{},

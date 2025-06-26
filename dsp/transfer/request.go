@@ -52,6 +52,8 @@ var validTransferTransitions = map[State][]State{
 
 type Direction uint8
 
+const TransferPrefix = "transfer-"
+
 const (
 	DirectionUnknown Direction = iota
 	DirectionPull
@@ -150,7 +152,7 @@ func FromBytes(b []byte) (*Request, error) {
 }
 
 func GenerateKey(id uuid.UUID, role constants.DataspaceRole) []byte {
-	return []byte("transfer-" + id.String() + "-" + strconv.Itoa(int(role)))
+	return []byte(TransferPrefix + id.String() + "-" + strconv.Itoa(int(role)))
 }
 
 // Request getters.

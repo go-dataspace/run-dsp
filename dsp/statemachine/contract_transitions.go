@@ -161,6 +161,8 @@ func (cn *ContractNegotiationInitial) processContractRequest(
 			RequesterInfo: authforwarder.ExtractRequesterInfo(ctx),
 		})
 		if err != nil {
+			// FIXME: Check here if the error is actually "not found".
+			//        Here we also get the permission denied, which should terminate the transfer.
 			logger.Error("target dataset not found", "err", err)
 			return ctx, nil, fmt.Errorf("dataset %s: %w", cn.GetOffer().Target, ErrNotFound)
 		}
@@ -530,9 +532,14 @@ func (cn *ContractNegotiationVerified) Recv(
 		}
 		logger.Debug("Received message")
 		af := func() error {
-			_, err := cn.c.FinalizationReceived(ctx, &dsrpc.ContractServiceFinalizationReceivedRequest{
-				Pid:           cn.GetConsumerPID().String(),
+			offer, err := shared.ValidateAndMarshal(ctx, cn.Negotiation.GetOffer())
+			if err != nil {
+				return err
+			}
+			_, err = cn.c.FinalizationReceived(ctx, &dsrpc.ContractServiceFinalizationReceivedRequest{
+				Pid:           cn.GetLocalPID().String(),
 				RequesterInfo: authforwarder.ExtractRequesterInfo(ctx),
+				Offer:         string(offer),
 			})
 			return err
 		}

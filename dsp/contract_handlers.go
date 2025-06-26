@@ -157,7 +157,7 @@ func progressContractState[T any](
 
 	logger.Debug("Got contract message", "req", msg)
 
-	// Since this is a continuation of negotiation, we add a continuatinon RequestInfo to context
+	// Since this is a continuation of negotiation, we add a continuation RequestInfo to context
 	requestInfo := &dsrpc.RequesterInfo{
 		AuthenticationStatus: dsrpc.AuthenticationStatus_AUTHENTICATION_STATUS_CONTINUATION,
 	}

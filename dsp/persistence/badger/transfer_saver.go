@@ -25,6 +25,26 @@ import (
 	"go-dataspace.eu/run-dsp/logging"
 )
 
+// GetTransfers returns all transfers.
+func (sp *StorageProvider) GetTransfers(ctx context.Context) ([]*transfer.Request, error) {
+	transfers := []*transfer.Request{}
+
+	rawTransfers, err := getAll(sp.db, []byte(transfer.TransferPrefix))
+	if err != nil {
+		return nil, err
+	}
+
+	for _, t := range rawTransfers {
+		request, err := transfer.FromBytes(t)
+		if err != nil {
+			return nil, err
+		}
+		transfers = append(transfers, request)
+	}
+
+	return transfers, nil
+}
+
 // GetTransferR gets a transfer and sets the read-only property.
 // It does not check any locks, as the database transaction already freezes the view.
 func (sp *StorageProvider) GetTransferR(
@@ -63,6 +83,8 @@ func (sp *StorageProvider) GetTransferRW(
 ) (*transfer.Request, error) {
 	key := transfer.GenerateKey(pid, role)
 	ctx, _ = logging.InjectLabels(ctx, "type", "transfer", "pid", pid, "role", role, "key", string(key))
+	logger := logging.Extract(ctx)
+	logger.Debug("Attempting to read transfer from store")
 	b, err := getLocked(ctx, sp, key)
 	if err != nil {
 		return nil, err
