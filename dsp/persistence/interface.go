@@ -57,6 +57,8 @@ type ContractSaver interface {
 	// PutContract saves a contract, and releases the contract specific lock. If the contract
 	// is read-only, it will return an error.
 	PutContract(ctx context.Context, contract *contract.Negotiation) error
+	// ReleaseContract will release any lock the negotiation has
+	ReleaseContract(ctx context.Context, negotiation *contract.Negotiation) error
 }
 
 // AgreementSaver is an interface for storing/retrieving dataspace agreements.
@@ -72,6 +74,8 @@ type AgreementSaver interface {
 // TransferSaver is an interface for storing dataspace transfer request.
 // The read/write semantics are the same as those for contracts.
 type TransferSaver interface {
+	// GetAgreementTransfers returns a read-only list of all transfers.
+	GetTransfers(ctx context.Context) ([]*transfer.Request, error)
 	// GetTransferR gets a read-only version of a transfer request.
 	GetTransferR(
 		ctx context.Context,
@@ -86,6 +90,8 @@ type TransferSaver interface {
 	) (*transfer.Request, error)
 	// PutTransfer saves a transfer.
 	PutTransfer(ctx context.Context, transfer *transfer.Request) error
+	// ReleaseTransfer will release any lock the transferhas
+	ReleaseTransfer(ctx context.Context, transfer *transfer.Request) error
 }
 
 // TokenSaver saves a token to a key, no locking necessary as a token is immutable.

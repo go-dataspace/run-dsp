@@ -26,9 +26,10 @@ import (
 	"go-dataspace.eu/run-dsp/dsp/constants"
 	"go-dataspace.eu/run-dsp/dsp/contract"
 	"go-dataspace.eu/run-dsp/dsp/shared"
+	"go-dataspace.eu/run-dsp/internal/authforwarder"
 	"go-dataspace.eu/run-dsp/logging"
 	"go-dataspace.eu/run-dsp/odrl"
-	provider "go-dataspace.eu/run-dsrpc/gen/go/dsp/v1alpha2"
+	dsrpc "go-dataspace.eu/run-dsrpc/gen/go/dsp/v1alpha2"
 )
 
 var (
@@ -59,20 +60,20 @@ type ContractNegotiationState interface {
 	Contracter
 	Recv(ctx context.Context, message any) (context.Context, applyFunc, error)
 	Send(ctx context.Context) (applyFunc, error)
-	GetProvider() provider.ProviderServiceClient
+	GetProvider() dsrpc.ProviderServiceClient
 	GetReconciler() Reconciler
-	GetContractService() provider.ContractServiceClient
+	GetContractService() dsrpc.ContractServiceClient
 }
 
 type stateMachineDeps struct {
-	p provider.ProviderServiceClient
-	c provider.ContractServiceClient
+	p dsrpc.ProviderServiceClient
+	c dsrpc.ContractServiceClient
 	r Reconciler
 }
 
-func (cd *stateMachineDeps) GetProvider() provider.ProviderServiceClient        { return cd.p }
-func (cd *stateMachineDeps) GetReconciler() Reconciler                          { return cd.r }
-func (cd *stateMachineDeps) GetContractService() provider.ContractServiceClient { return cd.c }
+func (cd *stateMachineDeps) GetProvider() dsrpc.ProviderServiceClient        { return cd.p }
+func (cd *stateMachineDeps) GetReconciler() Reconciler                       { return cd.r }
+func (cd *stateMachineDeps) GetContractService() dsrpc.ContractServiceClient { return cd.c }
 
 // ContractNegotiationInitial is an initial state for a contract that hasn't been actually
 // been submitted yet.
@@ -107,7 +108,7 @@ func (cn *ContractNegotiationInitial) processContractOffer(
 		"recv_msg_type", fmt.Sprintf("%T", t),
 		"dataset_target", cn.GetOffer().Target,
 	)
-	// This is the initial offer, we can assuem all data is freshly made based on the offer.
+	// This is the initial offer, we can assume all data is freshly made based on the offer.
 	if err := cn.SetState(contract.States.OFFERED); err != nil {
 		logger.Error("could not transition state", "err", err)
 		return ctx, nil, fmt.Errorf("could not set state: %w", err)
@@ -122,9 +123,10 @@ func (cn *ContractNegotiationInitial) processContractOffer(
 	}
 
 	ntfyFunc := func() error {
-		_, err := cn.c.OfferReceived(ctx, &provider.ContractServiceOfferReceivedRequest{
-			Pid:   cn.GetConsumerPID().String(),
-			Offer: string(offer),
+		_, err := cn.c.OfferReceived(ctx, &dsrpc.ContractServiceOfferReceivedRequest{
+			Pid:           cn.GetConsumerPID().String(),
+			Offer:         string(offer),
+			RequesterInfo: authforwarder.ExtractRequesterInfo(ctx),
 		})
 		return err
 	}
@@ -150,13 +152,20 @@ func (cn *ContractNegotiationInitial) processContractRequest(
 		logger.Error("can't parse URN", "err", err)
 		return ctx, nil, fmt.Errorf("can't parse URN: %w", err)
 	}
+
 	// This is the initial request, we can assume all data is freshly made based on the request.
-	_, err = cn.GetProvider().GetDataset(ctx, &provider.GetDatasetRequest{
-		DatasetId: target,
-	})
-	if err != nil {
-		logger.Error("target dataset not found", "err", err)
-		return ctx, nil, fmt.Errorf("dataset %s: %w", cn.GetOffer().Target, ErrNotFound)
+	permissions := cn.GetOffer().Permission
+	if len(permissions) == 0 || permissions[0].Action != "odrl:copy" {
+		_, err = cn.GetProvider().GetDataset(ctx, &dsrpc.GetDatasetRequest{
+			DatasetId:     target,
+			RequesterInfo: authforwarder.ExtractRequesterInfo(ctx),
+		})
+		if err != nil {
+			// FIXME: Check here if the error is actually "not found".
+			//        Here we also get the permission denied, which should terminate the transfer.
+			logger.Error("target dataset not found", "err", err)
+			return ctx, nil, fmt.Errorf("dataset %s: %w", cn.GetOffer().Target, ErrNotFound)
+		}
 	}
 	if err := cn.SetState(contract.States.REQUESTED); err != nil {
 		logger.Error("could not transition state", "err", err)
@@ -171,9 +180,10 @@ func (cn *ContractNegotiationInitial) processContractRequest(
 	}
 
 	ntfyFunc := func() error {
-		_, err := cn.c.RequestReceived(ctx, &provider.ContractServiceRequestReceivedRequest{
-			Pid:   cn.GetProviderPID().String(),
-			Offer: string(offer),
+		_, err := cn.c.RequestReceived(ctx, &dsrpc.ContractServiceRequestReceivedRequest{
+			Pid:           cn.GetProviderPID().String(),
+			Offer:         string(offer),
+			RequesterInfo: authforwarder.ExtractRequesterInfo(ctx),
 		})
 		return err
 	}
@@ -188,7 +198,7 @@ func (cn *ContractNegotiationInitial) processContractRequest(
 // This needs either the contract's consumer or provider PID set, but not both.
 // If the provider PID is set, it will send out a contract offer to the callback.
 // If the consumer PID is set, it will send out a contract request to the callback.
-func (cn *ContractNegotiationInitial) Send(ctx context.Context) (applyFunc, error) {
+func (cn *ContractNegotiationInitial) Send(ctx context.Context) (applyFunc, error) { //nolint:cyclop
 	ctx, logger := logging.InjectLabels(ctx, "send_type", fmt.Sprintf("%T", cn))
 	if (cn.GetConsumerPID() == emptyUUID && cn.GetProviderPID() == emptyUUID) ||
 		(cn.GetConsumerPID() != emptyUUID && cn.GetProviderPID() != emptyUUID) {
@@ -205,12 +215,17 @@ func (cn *ContractNegotiationInitial) Send(ctx context.Context) (applyFunc, erro
 			logger.Error("invalid URN", "err", err)
 			return func() error { return nil }, fmt.Errorf("invalid URN `%s`: %w", cn.GetOffer().Target, err)
 		}
-		_, err = cn.GetProvider().GetDataset(ctx, &provider.GetDatasetRequest{
-			DatasetId: targetID,
-		})
-		if err != nil {
-			logger.Error("Dataset not found", "err", err)
-			return nil, ErrNotFound
+
+		permissions := cn.GetOffer().Permission
+		if len(permissions) == 0 || permissions[0].Action != "odrl:copy" {
+			_, err = cn.GetProvider().GetDataset(ctx, &dsrpc.GetDatasetRequest{
+				DatasetId:     targetID,
+				RequesterInfo: authforwarder.ExtractRequesterInfo(ctx),
+			})
+			if err != nil {
+				logger.Error("Dataset not found", "err", err)
+				return nil, ErrNotFound
+			}
 		}
 		return sendContractOffer(ctx, cn.GetReconciler(), cn.GetContract())
 	default:
@@ -255,9 +270,10 @@ func (cn *ContractNegotiationRequested) Recv(
 		}
 
 		af = func() error {
-			_, err := cn.c.OfferReceived(ctx, &provider.ContractServiceOfferReceivedRequest{
-				Pid:   cn.GetConsumerPID().String(),
-				Offer: string(offer),
+			_, err := cn.c.OfferReceived(ctx, &dsrpc.ContractServiceOfferReceivedRequest{
+				Pid:           cn.GetConsumerPID().String(),
+				Offer:         string(offer),
+				RequesterInfo: authforwarder.ExtractRequesterInfo(ctx),
 			})
 			return err
 		}
@@ -271,8 +287,9 @@ func (cn *ContractNegotiationRequested) Recv(
 			"recv_msg_type", fmt.Sprintf("%T", t),
 		)
 		af = func() error {
-			_, err := cn.c.AgreementReceived(ctx, &provider.ContractServiceAgreementReceivedRequest{
-				Pid: cn.GetConsumerPID().String(),
+			_, err := cn.c.AgreementReceived(ctx, &dsrpc.ContractServiceAgreementReceivedRequest{
+				Pid:           cn.GetConsumerPID().String(),
+				RequesterInfo: authforwarder.ExtractRequesterInfo(ctx),
 			})
 			return err
 		}
@@ -337,9 +354,10 @@ func (cn *ContractNegotiationOffered) Recv(
 			return ctx, nil, err
 		}
 		af = func() error {
-			_, err := cn.c.RequestReceived(ctx, &provider.ContractServiceRequestReceivedRequest{
-				Pid:   cn.GetProviderPID().String(),
-				Offer: string(offer),
+			_, err := cn.c.RequestReceived(ctx, &dsrpc.ContractServiceRequestReceivedRequest{
+				Pid:           cn.GetProviderPID().String(),
+				Offer:         string(offer),
+				RequesterInfo: authforwarder.ExtractRequesterInfo(ctx),
 			})
 			return err
 		}
@@ -363,8 +381,9 @@ func (cn *ContractNegotiationOffered) Recv(
 		targetState = receivedStatus
 		logger.Debug("Received message")
 		af = func() error {
-			_, err := cn.c.AcceptedReceived(ctx, &provider.ContractServiceAcceptedReceivedRequest{
-				Pid: cn.GetProviderPID().String(),
+			_, err := cn.c.AcceptedReceived(ctx, &dsrpc.ContractServiceAcceptedReceivedRequest{
+				Pid:           cn.GetProviderPID().String(),
+				RequesterInfo: authforwarder.ExtractRequesterInfo(ctx),
 			})
 			return err
 		}
@@ -410,8 +429,9 @@ func (cn *ContractNegotiationAccepted) Recv(
 		logger.Debug("Received message")
 		cn.SetAgreement(&t.Agreement)
 		af := func() error {
-			_, err := cn.c.AgreementReceived(ctx, &provider.ContractServiceAgreementReceivedRequest{
-				Pid: cn.GetConsumerPID().String(),
+			_, err := cn.c.AgreementReceived(ctx, &dsrpc.ContractServiceAgreementReceivedRequest{
+				Pid:           cn.GetConsumerPID().String(),
+				RequesterInfo: authforwarder.ExtractRequesterInfo(ctx),
 			})
 			return err
 		}
@@ -455,8 +475,9 @@ func (cn *ContractNegotiationAgreed) Recv(
 			"recv_msg_type", fmt.Sprintf("%T", t),
 		)
 		af := func() error {
-			_, err := cn.c.VerificationReceived(ctx, &provider.ContractServiceVerificationReceivedRequest{
-				Pid: cn.GetProviderPID().String(),
+			_, err := cn.c.VerificationReceived(ctx, &dsrpc.ContractServiceVerificationReceivedRequest{
+				Pid:           cn.GetProviderPID().String(),
+				RequesterInfo: authforwarder.ExtractRequesterInfo(ctx),
 			})
 			return err
 		}
@@ -511,8 +532,14 @@ func (cn *ContractNegotiationVerified) Recv(
 		}
 		logger.Debug("Received message")
 		af := func() error {
-			_, err := cn.c.FinalizationReceived(ctx, &provider.ContractServiceFinalizationReceivedRequest{
-				Pid: cn.GetConsumerPID().String(),
+			offer, err := shared.ValidateAndMarshal(ctx, cn.Negotiation.GetOffer())
+			if err != nil {
+				return err
+			}
+			_, err = cn.c.FinalizationReceived(ctx, &dsrpc.ContractServiceFinalizationReceivedRequest{
+				Pid:           cn.GetLocalPID().String(),
+				RequesterInfo: authforwarder.ExtractRequesterInfo(ctx),
+				Offer:         string(offer),
 			})
 			return err
 		}
@@ -575,8 +602,8 @@ func (cn *ContractNegotiationTerminated) Send(ctx context.Context) (applyFunc, e
 func GetContractNegotiation(
 	ctx context.Context,
 	c *contract.Negotiation,
-	p provider.ProviderServiceClient,
-	cs provider.ContractServiceClient,
+	p dsrpc.ProviderServiceClient,
+	cs dsrpc.ContractServiceClient,
 	r Reconciler,
 ) (context.Context, ContractNegotiationState) {
 	var cns ContractNegotiationState
@@ -675,7 +702,7 @@ func processTermination(
 		if len(t.Reason) > 0 {
 			reason = t.Reason[0].Value
 		}
-		_, err := cn.GetContractService().TerminationReceived(ctx, &provider.ContractServiceTerminationReceivedRequest{
+		_, err := cn.GetContractService().TerminationReceived(ctx, &dsrpc.ContractServiceTerminationReceivedRequest{
 			Pid:    pid,
 			Code:   t.Code,
 			Reason: []string{reason},

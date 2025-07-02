@@ -19,8 +19,9 @@ import (
 	"time"
 
 	"go-dataspace.eu/run-dsp/dsp/shared"
+	"go-dataspace.eu/run-dsp/internal/authforwarder"
 	"go-dataspace.eu/run-dsp/logging"
-	provider "go-dataspace.eu/run-dsrpc/gen/go/dsp/v1alpha2"
+	dsrpc "go-dataspace.eu/run-dsrpc/gen/go/dsp/v1alpha2"
 )
 
 // CatalogError implements HTTPError for catalog requests.
@@ -80,7 +81,9 @@ func (ch *dspHandlers) catalogRequestHandler(w http.ResponseWriter, req *http.Re
 	}
 	logger.Debug("Got catalog request", "req", catalogReq)
 	// As the filter option is undefined, we will not fill anything
-	resp, err := ch.provider.GetCatalogue(req.Context(), &provider.GetCatalogueRequest{})
+	resp, err := ch.provider.GetCatalogue(req.Context(), &dsrpc.GetCatalogueRequest{
+		RequesterInfo: authforwarder.ExtractRequesterInfo(req.Context()),
+	})
 	if err != nil {
 		return grpcErrorHandler(err)
 	}
@@ -117,8 +120,9 @@ func (ch *dspHandlers) datasetRequestHandler(w http.ResponseWriter, req *http.Re
 		return catalogError(err.Error(), http.StatusBadRequest, "400", "Invalid dataset request")
 	}
 	logger.Debug("Got dataset request", "req", datasetReq)
-	resp, err := ch.provider.GetDataset(ctx, &provider.GetDatasetRequest{
-		DatasetId: paramID,
+	resp, err := ch.provider.GetDataset(ctx, &dsrpc.GetDatasetRequest{
+		DatasetId:     paramID,
+		RequesterInfo: authforwarder.ExtractRequesterInfo(req.Context()),
 	})
 	if err != nil {
 		return grpcErrorHandler(err)
@@ -131,7 +135,7 @@ func (ch *dspHandlers) datasetRequestHandler(w http.ResponseWriter, req *http.Re
 	return nil
 }
 
-func processProviderDataset(pds *provider.Dataset, service shared.DataService) shared.Dataset {
+func processProviderDataset(pds *dsrpc.Dataset, service shared.DataService) shared.Dataset {
 	var checksum *shared.Checksum
 	cs := pds.GetChecksum()
 	if cs != nil {
@@ -180,7 +184,7 @@ func processProviderDataset(pds *provider.Dataset, service shared.DataService) s
 	return ds
 }
 
-func processProviderCatalogue(gdc []*provider.Dataset, service shared.DataService) []shared.Dataset {
+func processProviderCatalogue(gdc []*dsrpc.Dataset, service shared.DataService) []shared.Dataset {
 	datasets := make([]shared.Dataset, len(gdc))
 	for i, f := range gdc {
 		datasets[i] = processProviderDataset(f, service)

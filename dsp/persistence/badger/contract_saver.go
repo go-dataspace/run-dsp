@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//nolint:dupl // Bare minimum of duplicated code
 package badger
 
 import (
@@ -43,6 +42,7 @@ func (sp *StorageProvider) GetContractR(
 	if err != nil {
 		return nil, err
 	}
+
 	negotiation.SetReadOnly()
 	return negotiation, nil
 }
@@ -61,7 +61,14 @@ func (sp *StorageProvider) GetContractRW(
 	if err != nil {
 		return nil, err
 	}
-	return contract.FromBytes(b)
+
+	negotiation, err := contract.FromBytes(b)
+	if err != nil {
+		_ = sp.ReleaseLock(ctx, newLockKey(key))
+		return nil, err
+	}
+
+	return negotiation, nil
 }
 
 // PutContract saves a contract to the database.
@@ -75,4 +82,16 @@ func (sp *StorageProvider) PutContract(ctx context.Context, negotiation *contrac
 		"role", negotiation.GetRole(),
 	)
 	return putUnlock(ctx, sp, negotiation)
+}
+
+func (sp *StorageProvider) ReleaseContract(
+	ctx context.Context,
+	negotiation *contract.Negotiation,
+) error {
+	key := contract.GenerateStorageKey(negotiation.GetLocalPID(), negotiation.GetRole())
+	ctx, _ = logging.InjectLabels(
+		ctx, "type", "contract", "pid", negotiation.GetLocalPID(), "role", negotiation.GetRole(), "key", string(key))
+
+	negotiation.SetReadOnly()
+	return sp.ReleaseLock(ctx, newLockKey(key))
 }

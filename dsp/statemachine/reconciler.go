@@ -190,7 +190,7 @@ func (r *HTTPReconciler) worker() {
 			// As the dataspace standard doesn't care if we parse this, we won't.
 			_, err := r.r.SendHTTPRequest(ctx, entry.Method, entry.URL, entry.Body)
 			if err != nil {
-				r.handleError(ctx, op, fmt.Errorf("Could not send HTTP request: %w", err))
+				r.handleError(ctx, op, err)
 				continue
 			}
 

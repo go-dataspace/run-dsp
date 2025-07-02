@@ -34,9 +34,9 @@ import (
 	"go-dataspace.eu/run-dsp/dsp/persistence/badger"
 	"go-dataspace.eu/run-dsp/dsp/shared"
 	"go-dataspace.eu/run-dsp/dsp/statemachine"
-	mockprovider "go-dataspace.eu/run-dsp/mocks/go-dataspace.eu/run-dsrpc/gen/go/dsp/v1alpha2"
+	mockdsrpc "go-dataspace.eu/run-dsp/mocks/go-dataspace.eu/run-dsrpc/gen/go/dsp/v1alpha2"
 	"go-dataspace.eu/run-dsp/odrl"
-	provider "go-dataspace.eu/run-dsrpc/gen/go/dsp/v1alpha2"
+	dsrpc "go-dataspace.eu/run-dsrpc/gen/go/dsp/v1alpha2"
 )
 
 var (
@@ -95,8 +95,8 @@ func (mr *mockRequester) SendHTTPRequest(
 
 type environment struct {
 	server          *control.Server
-	provider        *mockprovider.MockProviderServiceClient
-	contractService *mockprovider.MockContractServiceClient
+	provider        *mockdsrpc.MockProviderServiceClient
+	contractService *mockdsrpc.MockContractServiceClient
 	store           *badger.StorageProvider
 	reconciler      *mockReconciler
 	requester       *mockRequester
@@ -111,8 +111,8 @@ func setupEnvironment(t *testing.T) (
 	ctx, cancel := context.WithCancel(t.Context())
 	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
 	slog.SetDefault(logger)
-	prov := mockprovider.NewMockProviderServiceClient(t)
-	cService := mockprovider.NewMockContractServiceClient(t)
+	prov := mockdsrpc.NewMockProviderServiceClient(t)
+	cService := mockdsrpc.NewMockContractServiceClient(t)
 	store, err := badger.New(ctx, true, "")
 	reconciler := &mockReconciler{}
 	requester := &mockRequester{}
@@ -148,6 +148,10 @@ func createNegotiation(
 		selfURL,
 		role,
 		false,
+		&dsrpc.RequesterInfo{
+			AuthenticationStatus: dsrpc.AuthenticationStatus_AUTHENTICATION_STATUS_LOCAL_ORIGIN,
+			Identifier:           staticProviderPID.String(),
+		},
 	)
 	err := store.PutContract(ctx, neg)
 	assert.Nil(t, err)
@@ -158,11 +162,11 @@ func TestVerifyConnection(t *testing.T) {
 	defer cancel()
 	err := env.store.PutToken(ctx, "contract-token", "test")
 	assert.Nil(t, err)
-	_, err = env.server.VerifyConnection(ctx, &provider.VerifyConnectionRequest{
+	_, err = env.server.VerifyConnection(ctx, &dsrpc.VerifyConnectionRequest{
 		VerificationToken: "test",
 	})
 	assert.Nil(t, err)
-	_, err = env.server.VerifyConnection(ctx, &provider.VerifyConnectionRequest{
+	_, err = env.server.VerifyConnection(ctx, &dsrpc.VerifyConnectionRequest{
 		VerificationToken: "nothere",
 	})
 	assert.NotNil(t, err)
@@ -183,7 +187,7 @@ func TestContractRequest_Initial(t *testing.T) {
 	offer, err := json.Marshal(odrlOffer)
 	assert.Nil(t, err)
 	pa := callBack.String()
-	_, err = env.server.ContractRequest(ctx, &provider.ContractRequestRequest{
+	_, err = env.server.ContractRequest(ctx, &dsrpc.ContractRequestRequest{
 		Offer:              string(offer),
 		ParticipantAddress: &pa,
 	})
@@ -219,7 +223,7 @@ func TestContractRequest(t *testing.T) {
 	createNegotiation(ctx, t, env.store, contract.States.OFFERED, constants.DataspaceConsumer)
 
 	strPID := staticConsumerPID.String()
-	_, err := env.server.ContractRequest(ctx, &provider.ContractRequestRequest{
+	_, err := env.server.ContractRequest(ctx, &dsrpc.ContractRequestRequest{
 		Pid: &strPID,
 	})
 
@@ -251,16 +255,19 @@ func TestContractOffer_Initial(t *testing.T) {
 	ctx, cancel, env := setupEnvironment(t)
 	defer cancel()
 
-	env.provider.On("GetDataset", mock.Anything, &provider.GetDatasetRequest{
+	env.provider.On("GetDataset", mock.Anything, &dsrpc.GetDatasetRequest{
 		DatasetId: targetID.String(),
-	}).Return(&provider.GetDatasetResponse{
-		Dataset: &provider.Dataset{},
+		RequesterInfo: &dsrpc.RequesterInfo{
+			AuthenticationStatus: dsrpc.AuthenticationStatus_AUTHENTICATION_STATUS_LOCAL_ORIGIN,
+		},
+	}).Return(&dsrpc.GetDatasetResponse{
+		Dataset: &dsrpc.Dataset{},
 	}, nil)
 
 	offer, err := json.Marshal(odrlOffer)
 	assert.Nil(t, err)
 	pa := callBack.String()
-	_, err = env.server.ContractOffer(ctx, &provider.ContractOfferRequest{
+	_, err = env.server.ContractOffer(ctx, &dsrpc.ContractOfferRequest{
 		Offer:              string(offer),
 		ParticipantAddress: &pa,
 	})
@@ -296,7 +303,7 @@ func TestContractOffer(t *testing.T) {
 	createNegotiation(ctx, t, env.store, contract.States.REQUESTED, constants.DataspaceProvider)
 
 	strPID := staticProviderPID.String()
-	_, err := env.server.ContractOffer(ctx, &provider.ContractOfferRequest{
+	_, err := env.server.ContractOffer(ctx, &dsrpc.ContractOfferRequest{
 		Pid: &strPID,
 	})
 
@@ -332,7 +339,7 @@ func TestContractAccept(t *testing.T) {
 	createNegotiation(ctx, t, env.store, contract.States.OFFERED, constants.DataspaceConsumer)
 
 	strPID := staticConsumerPID.String()
-	_, err := env.server.ContractAccept(ctx, &provider.ContractAcceptRequest{
+	_, err := env.server.ContractAccept(ctx, &dsrpc.ContractAcceptRequest{
 		Pid: strPID,
 	})
 
@@ -367,7 +374,7 @@ func TestContractAgree(t *testing.T) {
 	createNegotiation(ctx, t, env.store, contract.States.ACCEPTED, constants.DataspaceProvider)
 
 	strPID := staticProviderPID.String()
-	_, err := env.server.ContractAgree(ctx, &provider.ContractAgreeRequest{
+	_, err := env.server.ContractAgree(ctx, &dsrpc.ContractAgreeRequest{
 		Pid: strPID,
 	})
 
@@ -401,7 +408,7 @@ func TestContractVerify(t *testing.T) {
 	createNegotiation(ctx, t, env.store, contract.States.AGREED, constants.DataspaceConsumer)
 
 	strPID := staticConsumerPID.String()
-	_, err := env.server.ContractVerify(ctx, &provider.ContractVerifyRequest{
+	_, err := env.server.ContractVerify(ctx, &dsrpc.ContractVerifyRequest{
 		Pid: strPID,
 	})
 
@@ -436,7 +443,7 @@ func TestContractFinalize(t *testing.T) {
 	createNegotiation(ctx, t, env.store, contract.States.VERIFIED, constants.DataspaceProvider)
 
 	strPID := staticProviderPID.String()
-	_, err := env.server.ContractFinalize(ctx, &provider.ContractFinalizeRequest{
+	_, err := env.server.ContractFinalize(ctx, &dsrpc.ContractFinalizeRequest{
 		Pid: strPID,
 	})
 
@@ -483,7 +490,7 @@ func TestContractTerminate(t *testing.T) {
 				curPID = staticConsumerPID
 				remPID = staticProviderPID
 			}
-			_, err := env.server.ContractTerminate(ctx, &provider.ContractTerminateRequest{
+			_, err := env.server.ContractTerminate(ctx, &dsrpc.ContractTerminateRequest{
 				Pid:    curPID.String(),
 				Code:   "test",
 				Reason: []string{"test"},

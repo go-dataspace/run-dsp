@@ -97,6 +97,31 @@ func (sp StorageProvider) maintenance() {
 	}
 }
 
+// getAll returns all values that match a prefix.
+func getAll(db *badger.DB, prefix []byte) ([][]byte, error) {
+	var values [][]byte
+	err := db.View(func(txn *badger.Txn) error {
+		it := txn.NewIterator(badger.DefaultIteratorOptions)
+		defer it.Close()
+		for it.Seek(prefix); it.ValidForPrefix(prefix); it.Next() {
+			item := it.Item()
+			err := item.Value(func(v []byte) error {
+				values = append(values, v)
+				return nil
+			})
+			if err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return values, nil
+}
+
 // get is a generic function that gets the bytes from the database, decodes and returns it.
 func get(db *badger.DB, key []byte) ([]byte, error) {
 	var b []byte
@@ -148,17 +173,18 @@ func put(db *badger.DB, key []byte, value []byte) error {
 
 func putUnlock[T writeController](ctx context.Context, sp *StorageProvider, thing T) error {
 	tType := fmt.Sprintf("%T", thing)
-	logger := logging.Extract(ctx).With("type", tType)
+	key := thing.StorageKey()
+	logger := logging.Extract(ctx).With("type", tType, "key", string(key))
 	if thing.ReadOnly() {
-		logger.Error("Trying to write a read only entry", "type", tType)
+		logger.Error("Trying to write a read only entry")
 		panic("Trying to write a read only entry")
 	}
-	key := thing.StorageKey()
 	if thing.Modified() {
 		b, err := thing.ToBytes()
 		if err != nil {
 			return err
 		}
+		logger.Debug("Writing to store")
 		if err := put(sp.db, key, b); err != nil {
 			logger.Error("Could not save entry, not releasing lock", "err", err)
 			return err

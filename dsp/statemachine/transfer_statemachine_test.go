@@ -27,13 +27,14 @@ import (
 	"go-dataspace.eu/run-dsp/dsp/statemachine"
 	"go-dataspace.eu/run-dsp/dsp/transfer"
 	"go-dataspace.eu/run-dsp/logging"
-	mockprovider "go-dataspace.eu/run-dsp/mocks/go-dataspace.eu/run-dsrpc/gen/go/dsp/v1alpha2"
+	dsrpcmock "go-dataspace.eu/run-dsp/mocks/go-dataspace.eu/run-dsrpc/gen/go/dsp/v1alpha2"
 	"go-dataspace.eu/run-dsp/odrl"
+	dsrpc "go-dataspace.eu/run-dsrpc/gen/go/dsp/v1alpha2"
 )
 
 var agreementID = uuid.MustParse("e1c68180-de68-428d-9853-7d4dd3c66904")
 
-func TestTransferTermination(t *testing.T) {
+func TestTransferTermination(t *testing.T) { //nolint:funlen
 	t.Parallel()
 
 	agreement := odrl.Agreement{
@@ -50,7 +51,7 @@ func TestTransferTermination(t *testing.T) {
 	assert.Nil(t, err)
 	requester := &MockRequester{}
 
-	mockProvider := mockprovider.NewMockProviderServiceClient(t)
+	mockProvider := dsrpcmock.NewMockProviderServiceClient(t)
 	err = store.PutAgreement(ctx, &agreement)
 	assert.Nil(t, err)
 
@@ -72,6 +73,9 @@ func TestTransferTermination(t *testing.T) {
 				role,
 				state,
 				nil,
+				&dsrpc.RequesterInfo{
+					AuthenticationStatus: dsrpc.AuthenticationStatus_AUTHENTICATION_STATUS_LOCAL_ORIGIN,
+				},
 			)
 			pState := statemachine.GetTransferRequestNegotiation(transReq, mockProvider, reconciler)
 			pState.GetTransferRequest().SetProviderPID(providerPID)

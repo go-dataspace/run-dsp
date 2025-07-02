@@ -1,6 +1,6 @@
 module go-dataspace.eu/run-dsp
 
-go 1.24.3
+go 1.24.4
 
 require (
 	github.com/dgraph-io/badger/v4 v4.4.0
@@ -15,7 +15,7 @@ require (
 	github.com/spf13/cobra v1.9.1
 	github.com/spf13/viper v1.20.0
 	github.com/stretchr/testify v1.10.0
-	go-dataspace.eu/run-dsrpc v0.0.8-alpha2
+	go-dataspace.eu/run-dsrpc v0.0.18-alpha2
 	google.golang.org/grpc v1.70.0
 	google.golang.org/protobuf v1.36.4
 )
@@ -209,7 +209,7 @@ require (
 	go.uber.org/zap v1.24.0 // indirect
 	golang.org/x/crypto v0.38.0 // indirect
 	golang.org/x/exp/typeparams v0.0.0-20250210185358-939b2ce775ac // indirect
-	golang.org/x/mod v0.23.0 // indirect
+	golang.org/x/mod v0.24.0 // indirect
 	golang.org/x/net v0.40.0 // indirect
 	golang.org/x/sync v0.14.0 // indirect
 	golang.org/x/sys v0.33.0 // indirect

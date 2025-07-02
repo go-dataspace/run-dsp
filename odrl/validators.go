@@ -73,6 +73,7 @@ func action(fl validator.FieldLevel) bool {
 		"cc:CommericalUse",
 		"odrl:present",
 		"odrl:use",
+		"odrl:copy",
 	}
 	return slices.Contains(states, fl.Field().String())
 }

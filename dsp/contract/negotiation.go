@@ -26,6 +26,7 @@ import (
 	"go-dataspace.eu/run-dsp/dsp/constants"
 	"go-dataspace.eu/run-dsp/dsp/shared"
 	"go-dataspace.eu/run-dsp/odrl"
+	dsrpc "go-dataspace.eu/run-dsrpc/gen/go/dsp/v1alpha2"
 )
 
 var validTransitions = map[State][]State{
@@ -75,18 +76,21 @@ type Negotiation struct {
 	initial  bool
 	ro       bool
 	modified bool
+
+	requesterInfo *dsrpc.RequesterInfo
 }
 
 type storableNegotiation struct {
-	ProviderPID uuid.UUID
-	ConsumerPID uuid.UUID
-	State       State
-	Offer       odrl.Offer
-	Agreement   *odrl.Agreement
-	Callback    *url.URL
-	Self        *url.URL
-	Role        constants.DataspaceRole
-	AutoAccept  bool
+	ProviderPID   uuid.UUID
+	ConsumerPID   uuid.UUID
+	State         State
+	Offer         odrl.Offer
+	Agreement     *odrl.Agreement
+	Callback      *url.URL
+	Self          *url.URL
+	Role          constants.DataspaceRole
+	AutoAccept    bool
+	RequesterInfo *dsrpc.RequesterInfo
 }
 
 func New(
@@ -96,17 +100,19 @@ func New(
 	callback, self *url.URL,
 	role constants.DataspaceRole,
 	autoAccept bool,
+	requesterInfo *dsrpc.RequesterInfo,
 ) *Negotiation {
 	return &Negotiation{
-		providerPID: providerPID,
-		consumerPID: consumerPID,
-		state:       state,
-		offer:       offer,
-		callback:    callback,
-		self:        self,
-		role:        role,
-		autoAccept:  autoAccept,
-		modified:    true,
+		providerPID:   providerPID,
+		consumerPID:   consumerPID,
+		state:         state,
+		offer:         offer,
+		callback:      callback,
+		self:          self,
+		role:          role,
+		autoAccept:    autoAccept,
+		modified:      true,
+		requesterInfo: requesterInfo,
 	}
 }
 
@@ -118,15 +124,16 @@ func FromBytes(b []byte) (*Negotiation, error) {
 		return nil, fmt.Errorf("Could not decode bytes into storableNegotiation: %w", err)
 	}
 	return &Negotiation{
-		providerPID: sn.ProviderPID,
-		consumerPID: sn.ConsumerPID,
-		state:       sn.State,
-		offer:       sn.Offer,
-		agreement:   sn.Agreement,
-		callback:    sn.Callback,
-		self:        sn.Self,
-		role:        sn.Role,
-		autoAccept:  sn.AutoAccept,
+		providerPID:   sn.ProviderPID,
+		consumerPID:   sn.ConsumerPID,
+		state:         sn.State,
+		offer:         sn.Offer,
+		agreement:     sn.Agreement,
+		callback:      sn.Callback,
+		self:          sn.Self,
+		role:          sn.Role,
+		autoAccept:    sn.AutoAccept,
+		requesterInfo: sn.RequesterInfo,
 	}, nil
 }
 
@@ -136,15 +143,16 @@ func GenerateStorageKey(id uuid.UUID, role constants.DataspaceRole) []byte {
 }
 
 // Negotiation getters.
-func (cn *Negotiation) GetProviderPID() uuid.UUID        { return cn.providerPID }
-func (cn *Negotiation) GetConsumerPID() uuid.UUID        { return cn.consumerPID }
-func (cn *Negotiation) GetState() State                  { return cn.state }
-func (cn *Negotiation) GetOffer() odrl.Offer             { return cn.offer }
-func (cn *Negotiation) GetAgreement() *odrl.Agreement    { return cn.agreement }
-func (cn *Negotiation) GetRole() constants.DataspaceRole { return cn.role }
-func (cn *Negotiation) GetCallback() *url.URL            { return cn.callback }
-func (cn *Negotiation) GetSelf() *url.URL                { return cn.self }
-func (cn *Negotiation) GetContract() *Negotiation        { return cn }
+func (cn *Negotiation) GetProviderPID() uuid.UUID              { return cn.providerPID }
+func (cn *Negotiation) GetConsumerPID() uuid.UUID              { return cn.consumerPID }
+func (cn *Negotiation) GetState() State                        { return cn.state }
+func (cn *Negotiation) GetOffer() odrl.Offer                   { return cn.offer }
+func (cn *Negotiation) GetAgreement() *odrl.Agreement          { return cn.agreement }
+func (cn *Negotiation) GetRole() constants.DataspaceRole       { return cn.role }
+func (cn *Negotiation) GetCallback() *url.URL                  { return cn.callback }
+func (cn *Negotiation) GetSelf() *url.URL                      { return cn.self }
+func (cn *Negotiation) GetContract() *Negotiation              { return cn }
+func (cn *Negotiation) GetRequesterInfo() *dsrpc.RequesterInfo { return cn.requesterInfo }
 
 func (cn *Negotiation) GetLocalPID() uuid.UUID {
 	switch cn.role {
@@ -234,15 +242,16 @@ func (cn *Negotiation) UnsetInitial() { cn.initial = false }
 // function.
 func (cn *Negotiation) ToBytes() ([]byte, error) {
 	s := storableNegotiation{
-		ProviderPID: cn.providerPID,
-		ConsumerPID: cn.consumerPID,
-		State:       cn.state,
-		Offer:       cn.offer,
-		Agreement:   cn.agreement,
-		Callback:    cn.callback,
-		Self:        cn.self,
-		Role:        cn.role,
-		AutoAccept:  cn.autoAccept,
+		ProviderPID:   cn.providerPID,
+		ConsumerPID:   cn.consumerPID,
+		State:         cn.state,
+		Offer:         cn.offer,
+		Agreement:     cn.agreement,
+		Callback:      cn.callback,
+		Self:          cn.self,
+		Role:          cn.role,
+		AutoAccept:    cn.autoAccept,
+		RequesterInfo: cn.requesterInfo,
 	}
 	var buf bytes.Buffer
 	enc := gob.NewEncoder(&buf)

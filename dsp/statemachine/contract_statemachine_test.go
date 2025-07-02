@@ -28,9 +28,9 @@ import (
 	"go-dataspace.eu/run-dsp/dsp/shared"
 	"go-dataspace.eu/run-dsp/dsp/statemachine"
 	"go-dataspace.eu/run-dsp/logging"
-	mockprovider "go-dataspace.eu/run-dsp/mocks/go-dataspace.eu/run-dsrpc/gen/go/dsp/v1alpha2"
+	mockdsrpc "go-dataspace.eu/run-dsp/mocks/go-dataspace.eu/run-dsrpc/gen/go/dsp/v1alpha2"
 	"go-dataspace.eu/run-dsp/odrl"
-	provider "go-dataspace.eu/run-dsrpc/gen/go/dsp/v1alpha2"
+	dsrpc "go-dataspace.eu/run-dsrpc/gen/go/dsp/v1alpha2"
 )
 
 type MockRequester struct {
@@ -90,8 +90,8 @@ func TestTermination(t *testing.T) {
 
 	requester := &MockRequester{}
 
-	mockProvider := mockprovider.NewMockProviderServiceClient(t)
-	mockCService := mockprovider.NewMockContractServiceClient(t)
+	mockProvider := mockdsrpc.NewMockProviderServiceClient(t)
+	mockCService := mockdsrpc.NewMockContractServiceClient(t)
 
 	reconciler := statemachine.NewReconciler(ctx, requester, store)
 	reconciler.Run()
@@ -111,16 +111,18 @@ func TestTermination(t *testing.T) {
 			providerPID := uuid.New()
 			negotiation := contract.New(
 				providerPID, consumerPID,
-				state, offer, providerCallback, consumerCallback, role, false)
+				state, offer, providerCallback, consumerCallback, role, false, &dsrpc.RequesterInfo{
+					AuthenticationStatus: dsrpc.AuthenticationStatus_AUTHENTICATION_STATUS_LOCAL_ORIGIN,
+				})
 			pid := consumerPID
 			if role == constants.DataspaceProvider {
 				pid = providerPID
 			}
-			mockCService.On("TerminationReceived", mock.Anything, &provider.ContractServiceTerminationReceivedRequest{
+			mockCService.On("TerminationReceived", mock.Anything, &dsrpc.ContractServiceTerminationReceivedRequest{
 				Pid:    pid.String(),
 				Code:   "meh",
 				Reason: []string{"test"},
-			}).Return(&provider.ContractServiceTerminationReceivedResponse{}, nil)
+			}).Return(&dsrpc.ContractServiceTerminationReceivedResponse{}, nil)
 			ctx, consumerInit := statemachine.GetContractNegotiation(ctx, negotiation, mockProvider, mockCService, reconciler)
 			msg := shared.ContractNegotiationTerminationMessage{
 				Context:     shared.GetDSPContext(),

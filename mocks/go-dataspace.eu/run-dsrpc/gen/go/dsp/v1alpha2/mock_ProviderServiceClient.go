@@ -320,6 +320,228 @@ func (_c *MockProviderServiceClient_PublishDataset_Call) RunAndReturn(run func(c
 	return _c
 }
 
+// PushDataset provides a mock function with given fields: ctx, in, opts
+func (_m *MockProviderServiceClient) PushDataset(ctx context.Context, in *dspv1alpha2.PushDatasetRequest, opts ...grpc.CallOption) (*dspv1alpha2.PushDatasetResponse, error) {
+	_va := make([]interface{}, len(opts))
+	for _i := range opts {
+		_va[_i] = opts[_i]
+	}
+	var _ca []interface{}
+	_ca = append(_ca, ctx, in)
+	_ca = append(_ca, _va...)
+	ret := _m.Called(_ca...)
+
+	if len(ret) == 0 {
+		panic("no return value specified for PushDataset")
+	}
+
+	var r0 *dspv1alpha2.PushDatasetResponse
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, *dspv1alpha2.PushDatasetRequest, ...grpc.CallOption) (*dspv1alpha2.PushDatasetResponse, error)); ok {
+		return rf(ctx, in, opts...)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, *dspv1alpha2.PushDatasetRequest, ...grpc.CallOption) *dspv1alpha2.PushDatasetResponse); ok {
+		r0 = rf(ctx, in, opts...)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*dspv1alpha2.PushDatasetResponse)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, *dspv1alpha2.PushDatasetRequest, ...grpc.CallOption) error); ok {
+		r1 = rf(ctx, in, opts...)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockProviderServiceClient_PushDataset_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'PushDataset'
+type MockProviderServiceClient_PushDataset_Call struct {
+	*mock.Call
+}
+
+// PushDataset is a helper method to define mock.On call
+//   - ctx context.Context
+//   - in *dspv1alpha2.PushDatasetRequest
+//   - opts ...grpc.CallOption
+func (_e *MockProviderServiceClient_Expecter) PushDataset(ctx interface{}, in interface{}, opts ...interface{}) *MockProviderServiceClient_PushDataset_Call {
+	return &MockProviderServiceClient_PushDataset_Call{Call: _e.mock.On("PushDataset",
+		append([]interface{}{ctx, in}, opts...)...)}
+}
+
+func (_c *MockProviderServiceClient_PushDataset_Call) Run(run func(ctx context.Context, in *dspv1alpha2.PushDatasetRequest, opts ...grpc.CallOption)) *MockProviderServiceClient_PushDataset_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		variadicArgs := make([]grpc.CallOption, len(args)-2)
+		for i, a := range args[2:] {
+			if a != nil {
+				variadicArgs[i] = a.(grpc.CallOption)
+			}
+		}
+		run(args[0].(context.Context), args[1].(*dspv1alpha2.PushDatasetRequest), variadicArgs...)
+	})
+	return _c
+}
+
+func (_c *MockProviderServiceClient_PushDataset_Call) Return(_a0 *dspv1alpha2.PushDatasetResponse, _a1 error) *MockProviderServiceClient_PushDataset_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockProviderServiceClient_PushDataset_Call) RunAndReturn(run func(context.Context, *dspv1alpha2.PushDatasetRequest, ...grpc.CallOption) (*dspv1alpha2.PushDatasetResponse, error)) *MockProviderServiceClient_PushDataset_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// ReceiveDataset provides a mock function with given fields: ctx, in, opts
+func (_m *MockProviderServiceClient) ReceiveDataset(ctx context.Context, in *dspv1alpha2.ReceiveDatasetRequest, opts ...grpc.CallOption) (*dspv1alpha2.ReceiveDatasetResponse, error) {
+	_va := make([]interface{}, len(opts))
+	for _i := range opts {
+		_va[_i] = opts[_i]
+	}
+	var _ca []interface{}
+	_ca = append(_ca, ctx, in)
+	_ca = append(_ca, _va...)
+	ret := _m.Called(_ca...)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ReceiveDataset")
+	}
+
+	var r0 *dspv1alpha2.ReceiveDatasetResponse
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, *dspv1alpha2.ReceiveDatasetRequest, ...grpc.CallOption) (*dspv1alpha2.ReceiveDatasetResponse, error)); ok {
+		return rf(ctx, in, opts...)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, *dspv1alpha2.ReceiveDatasetRequest, ...grpc.CallOption) *dspv1alpha2.ReceiveDatasetResponse); ok {
+		r0 = rf(ctx, in, opts...)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*dspv1alpha2.ReceiveDatasetResponse)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, *dspv1alpha2.ReceiveDatasetRequest, ...grpc.CallOption) error); ok {
+		r1 = rf(ctx, in, opts...)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockProviderServiceClient_ReceiveDataset_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ReceiveDataset'
+type MockProviderServiceClient_ReceiveDataset_Call struct {
+	*mock.Call
+}
+
+// ReceiveDataset is a helper method to define mock.On call
+//   - ctx context.Context
+//   - in *dspv1alpha2.ReceiveDatasetRequest
+//   - opts ...grpc.CallOption
+func (_e *MockProviderServiceClient_Expecter) ReceiveDataset(ctx interface{}, in interface{}, opts ...interface{}) *MockProviderServiceClient_ReceiveDataset_Call {
+	return &MockProviderServiceClient_ReceiveDataset_Call{Call: _e.mock.On("ReceiveDataset",
+		append([]interface{}{ctx, in}, opts...)...)}
+}
+
+func (_c *MockProviderServiceClient_ReceiveDataset_Call) Run(run func(ctx context.Context, in *dspv1alpha2.ReceiveDatasetRequest, opts ...grpc.CallOption)) *MockProviderServiceClient_ReceiveDataset_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		variadicArgs := make([]grpc.CallOption, len(args)-2)
+		for i, a := range args[2:] {
+			if a != nil {
+				variadicArgs[i] = a.(grpc.CallOption)
+			}
+		}
+		run(args[0].(context.Context), args[1].(*dspv1alpha2.ReceiveDatasetRequest), variadicArgs...)
+	})
+	return _c
+}
+
+func (_c *MockProviderServiceClient_ReceiveDataset_Call) Return(_a0 *dspv1alpha2.ReceiveDatasetResponse, _a1 error) *MockProviderServiceClient_ReceiveDataset_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockProviderServiceClient_ReceiveDataset_Call) RunAndReturn(run func(context.Context, *dspv1alpha2.ReceiveDatasetRequest, ...grpc.CallOption) (*dspv1alpha2.ReceiveDatasetResponse, error)) *MockProviderServiceClient_ReceiveDataset_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// ShutdownTransfer provides a mock function with given fields: ctx, in, opts
+func (_m *MockProviderServiceClient) ShutdownTransfer(ctx context.Context, in *dspv1alpha2.ShutdownTransferRequest, opts ...grpc.CallOption) (*dspv1alpha2.ShutdownTransferResponse, error) {
+	_va := make([]interface{}, len(opts))
+	for _i := range opts {
+		_va[_i] = opts[_i]
+	}
+	var _ca []interface{}
+	_ca = append(_ca, ctx, in)
+	_ca = append(_ca, _va...)
+	ret := _m.Called(_ca...)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ShutdownTransfer")
+	}
+
+	var r0 *dspv1alpha2.ShutdownTransferResponse
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, *dspv1alpha2.ShutdownTransferRequest, ...grpc.CallOption) (*dspv1alpha2.ShutdownTransferResponse, error)); ok {
+		return rf(ctx, in, opts...)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, *dspv1alpha2.ShutdownTransferRequest, ...grpc.CallOption) *dspv1alpha2.ShutdownTransferResponse); ok {
+		r0 = rf(ctx, in, opts...)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*dspv1alpha2.ShutdownTransferResponse)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, *dspv1alpha2.ShutdownTransferRequest, ...grpc.CallOption) error); ok {
+		r1 = rf(ctx, in, opts...)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockProviderServiceClient_ShutdownTransfer_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ShutdownTransfer'
+type MockProviderServiceClient_ShutdownTransfer_Call struct {
+	*mock.Call
+}
+
+// ShutdownTransfer is a helper method to define mock.On call
+//   - ctx context.Context
+//   - in *dspv1alpha2.ShutdownTransferRequest
+//   - opts ...grpc.CallOption
+func (_e *MockProviderServiceClient_Expecter) ShutdownTransfer(ctx interface{}, in interface{}, opts ...interface{}) *MockProviderServiceClient_ShutdownTransfer_Call {
+	return &MockProviderServiceClient_ShutdownTransfer_Call{Call: _e.mock.On("ShutdownTransfer",
+		append([]interface{}{ctx, in}, opts...)...)}
+}
+
+func (_c *MockProviderServiceClient_ShutdownTransfer_Call) Run(run func(ctx context.Context, in *dspv1alpha2.ShutdownTransferRequest, opts ...grpc.CallOption)) *MockProviderServiceClient_ShutdownTransfer_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		variadicArgs := make([]grpc.CallOption, len(args)-2)
+		for i, a := range args[2:] {
+			if a != nil {
+				variadicArgs[i] = a.(grpc.CallOption)
+			}
+		}
+		run(args[0].(context.Context), args[1].(*dspv1alpha2.ShutdownTransferRequest), variadicArgs...)
+	})
+	return _c
+}
+
+func (_c *MockProviderServiceClient_ShutdownTransfer_Call) Return(_a0 *dspv1alpha2.ShutdownTransferResponse, _a1 error) *MockProviderServiceClient_ShutdownTransfer_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockProviderServiceClient_ShutdownTransfer_Call) RunAndReturn(run func(context.Context, *dspv1alpha2.ShutdownTransferRequest, ...grpc.CallOption) (*dspv1alpha2.ShutdownTransferResponse, error)) *MockProviderServiceClient_ShutdownTransfer_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // SuspendPublishedDataset provides a mock function with given fields: ctx, in, opts
 func (_m *MockProviderServiceClient) SuspendPublishedDataset(ctx context.Context, in *dspv1alpha2.SuspendPublishedDatasetRequest, opts ...grpc.CallOption) (*dspv1alpha2.SuspendPublishedDatasetResponse, error) {
 	_va := make([]interface{}, len(opts))
@@ -390,80 +612,6 @@ func (_c *MockProviderServiceClient_SuspendPublishedDataset_Call) Return(_a0 *ds
 }
 
 func (_c *MockProviderServiceClient_SuspendPublishedDataset_Call) RunAndReturn(run func(context.Context, *dspv1alpha2.SuspendPublishedDatasetRequest, ...grpc.CallOption) (*dspv1alpha2.SuspendPublishedDatasetResponse, error)) *MockProviderServiceClient_SuspendPublishedDataset_Call {
-	_c.Call.Return(run)
-	return _c
-}
-
-// UnpublishDataset provides a mock function with given fields: ctx, in, opts
-func (_m *MockProviderServiceClient) UnpublishDataset(ctx context.Context, in *dspv1alpha2.UnpublishDatasetRequest, opts ...grpc.CallOption) (*dspv1alpha2.UnpublishDatasetResponse, error) {
-	_va := make([]interface{}, len(opts))
-	for _i := range opts {
-		_va[_i] = opts[_i]
-	}
-	var _ca []interface{}
-	_ca = append(_ca, ctx, in)
-	_ca = append(_ca, _va...)
-	ret := _m.Called(_ca...)
-
-	if len(ret) == 0 {
-		panic("no return value specified for UnpublishDataset")
-	}
-
-	var r0 *dspv1alpha2.UnpublishDatasetResponse
-	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, *dspv1alpha2.UnpublishDatasetRequest, ...grpc.CallOption) (*dspv1alpha2.UnpublishDatasetResponse, error)); ok {
-		return rf(ctx, in, opts...)
-	}
-	if rf, ok := ret.Get(0).(func(context.Context, *dspv1alpha2.UnpublishDatasetRequest, ...grpc.CallOption) *dspv1alpha2.UnpublishDatasetResponse); ok {
-		r0 = rf(ctx, in, opts...)
-	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*dspv1alpha2.UnpublishDatasetResponse)
-		}
-	}
-
-	if rf, ok := ret.Get(1).(func(context.Context, *dspv1alpha2.UnpublishDatasetRequest, ...grpc.CallOption) error); ok {
-		r1 = rf(ctx, in, opts...)
-	} else {
-		r1 = ret.Error(1)
-	}
-
-	return r0, r1
-}
-
-// MockProviderServiceClient_UnpublishDataset_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'UnpublishDataset'
-type MockProviderServiceClient_UnpublishDataset_Call struct {
-	*mock.Call
-}
-
-// UnpublishDataset is a helper method to define mock.On call
-//   - ctx context.Context
-//   - in *dspv1alpha2.UnpublishDatasetRequest
-//   - opts ...grpc.CallOption
-func (_e *MockProviderServiceClient_Expecter) UnpublishDataset(ctx interface{}, in interface{}, opts ...interface{}) *MockProviderServiceClient_UnpublishDataset_Call {
-	return &MockProviderServiceClient_UnpublishDataset_Call{Call: _e.mock.On("UnpublishDataset",
-		append([]interface{}{ctx, in}, opts...)...)}
-}
-
-func (_c *MockProviderServiceClient_UnpublishDataset_Call) Run(run func(ctx context.Context, in *dspv1alpha2.UnpublishDatasetRequest, opts ...grpc.CallOption)) *MockProviderServiceClient_UnpublishDataset_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		variadicArgs := make([]grpc.CallOption, len(args)-2)
-		for i, a := range args[2:] {
-			if a != nil {
-				variadicArgs[i] = a.(grpc.CallOption)
-			}
-		}
-		run(args[0].(context.Context), args[1].(*dspv1alpha2.UnpublishDatasetRequest), variadicArgs...)
-	})
-	return _c
-}
-
-func (_c *MockProviderServiceClient_UnpublishDataset_Call) Return(_a0 *dspv1alpha2.UnpublishDatasetResponse, _a1 error) *MockProviderServiceClient_UnpublishDataset_Call {
-	_c.Call.Return(_a0, _a1)
-	return _c
-}
-
-func (_c *MockProviderServiceClient_UnpublishDataset_Call) RunAndReturn(run func(context.Context, *dspv1alpha2.UnpublishDatasetRequest, ...grpc.CallOption) (*dspv1alpha2.UnpublishDatasetResponse, error)) *MockProviderServiceClient_UnpublishDataset_Call {
 	_c.Call.Return(run)
 	return _c
 }

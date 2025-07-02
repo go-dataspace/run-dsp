@@ -46,7 +46,7 @@ import (
 	"go-dataspace.eu/run-dsp/internal/cfg"
 	"go-dataspace.eu/run-dsp/internal/constants"
 	"go-dataspace.eu/run-dsp/logging"
-	providerv1 "go-dataspace.eu/run-dsrpc/gen/go/dsp/v1alpha2"
+	dsrpc "go-dataspace.eu/run-dsrpc/gen/go/dsp/v1alpha2"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
@@ -56,7 +56,7 @@ import (
 
 // Viper keys.
 const (
-	dspAddress     = "sever.dsp.address"
+	dspAddress     = "server.dsp.address"
 	dspPort        = "server.dsp.port"
 	dspExternalURL = "server.dsp.externalURL"
 
@@ -66,12 +66,19 @@ const (
 	providerClientCert    = "server.provider.clientCert"
 	providerClientCertKey = "server.provider.clientCertKey"
 
-	contractServiceEnabled       = "server.contrctService.enabled"
+	contractServiceEnabled       = "server.contractService.enabled"
 	contractServiceAddress       = "server.contractService.address"
 	contractServiceInsecure      = "server.contractService.insecure"
 	contractServiceCACert        = "server.contractService.caCert"
 	contractServiceClientCert    = "server.contractService.clientCert"
 	contractServiceClientCertKey = "server.contractService.clientCertKey"
+
+	authnServiceEnabled       = "server.authnService.enabled"
+	authnServiceAddress       = "server.authnService.address"
+	authnServiceInsecure      = "server.authnService.insecure"
+	authnServiceCACert        = "server.authnService.caCert"
+	authnServiceClientCert    = "server.authnService.clientCert"
+	authnServiceClientCertKey = "server.authnService.clientCertKey"
 
 	controlAddr                     = "server.control.address"
 	controlPort                     = "server.control.port"
@@ -127,13 +134,31 @@ func init() {
 	cfg.AddPersistentFlag(
 		Command, contractServiceAddress, "contract-service-address", "Address of the contract service gRPC endpoint", "")
 	cfg.AddPersistentFlag(
-		Command, contractServiceInsecure, "contract-service-insecure", "Disable TLS when connecting to provider", false)
+		Command, contractServiceInsecure, "contract-service-insecure", "Disable TLS for contract service", false)
 	cfg.AddPersistentFlag(
-		Command, contractServiceCACert, "contract-service-ca-cert", "CA certificate of provider cert issuer", "")
+		Command, contractServiceCACert, "contract-service-ca-cert", "CA certificate of cert issuer", "")
 	cfg.AddPersistentFlag(
-		Command, contractServiceClientCert, "contract-service-client-cert", "Client certificate to use with provider", "")
+		Command, contractServiceClientCert, "contract-service-client-cert", "Client certificate for contract service", "")
 	cfg.AddPersistentFlag(
 		Command, contractServiceClientCertKey, "contract-service-client-cert-key", "Key for client certificate", "")
+
+	cfg.AddPersistentFlag(
+		Command,
+		authnServiceEnabled,
+		"authn-service-enabled",
+		"Connect to a authn service to coordinate authn negotiation.",
+		false,
+	)
+	cfg.AddPersistentFlag(
+		Command, authnServiceAddress, "authn-service-address", "Address of the authn service gRPC endpoint", "")
+	cfg.AddPersistentFlag(
+		Command, authnServiceInsecure, "authn-service-insecure", "Disable TLS when connecting to authn service", false)
+	cfg.AddPersistentFlag(
+		Command, authnServiceCACert, "authn-service-ca-cert", "CA certificate of cert issuer", "")
+	cfg.AddPersistentFlag(
+		Command, authnServiceClientCert, "authn-service-client-cert", "Client certificate to use with authn service", "")
+	cfg.AddPersistentFlag(
+		Command, authnServiceClientCertKey, "authn-service-client-cert-key", "Key for client certificate", "")
 
 	cfg.AddPersistentFlag(
 		Command, controlAddr, "control-address", "address for the control service to listen on", "0.0.0.0")
@@ -285,6 +310,14 @@ var Command = &cobra.Command{
 				ClientCert:    viper.GetString(contractServiceClientCert),
 				ClientCertKey: viper.GetString(contractServiceClientCertKey),
 			},
+			AuthNServiceEnabled: viper.GetBool(authnServiceEnabled),
+			AuthNServiceAddress: viper.GetString(authnServiceAddress),
+			AuthNServiceTLSConfig: tlsConfig{
+				Insecure:      viper.GetBool(authnServiceInsecure),
+				CACert:        viper.GetString(authnServiceCACert),
+				ClientCert:    viper.GetString(authnServiceClientCert),
+				ClientCertKey: viper.GetString(authnServiceClientCertKey),
+			},
 			ControlListenAddr:               viper.GetString(controlAddr),
 			ControlPort:                     viper.GetInt(controlPort),
 			ControlInsecure:                 viper.GetBool(controlInsecure),
@@ -325,6 +358,11 @@ type command struct {
 	ContractServiceAddress   string
 	ContractServiceTLSConfig tlsConfig
 
+	// GRPC settings for the authn service.
+	AuthNServiceEnabled   bool
+	AuthNServiceAddress   string
+	AuthNServiceTLSConfig tlsConfig
+
 	// GRPC control interface settings.
 	ControlListenAddr               string
 	ControlPort                     int
@@ -343,7 +381,7 @@ type command struct {
 }
 
 // Run starts the server.
-func (c *command) Run(ctx context.Context) error {
+func (c *command) Run(ctx context.Context) error { //nolint:funlen
 	wg := &sync.WaitGroup{}
 	logger := logging.Extract(ctx)
 	ctx, cancel := signal.NotifyContext(ctx, os.Interrupt, os.Kill)
@@ -374,11 +412,20 @@ func (c *command) Run(ctx context.Context) error {
 	if csConn != nil {
 		defer csConn.Close()
 	}
+	authnService, authnConn, err := c.getAuthNService(ctx)
+	if err != nil {
+		return err
+	}
+	if authnConn != nil {
+		defer authnConn.Close()
+	}
+
 	ctlSVC := control.New(httpClient, store, reconciler, provider, contractService, selfURL)
 	err = c.startControl(ctx, wg, ctlSVC)
 	if err != nil {
 		return err
 	}
+
 	if contractService != nil {
 		err = c.configureContractService(ctx, store, contractService)
 		if err != nil {
@@ -394,8 +441,11 @@ func (c *command) Run(ctx context.Context) error {
 	))
 	mux.Handle(constants.APIPath+"/", http.StripPrefix(
 		constants.APIPath,
-		baseMW.Append(jsonHeaderMiddleware, authforwarder.HTTPMiddleware).Then(
-			dsp.GetDSPRoutes(provider, contractService, store, reconciler, selfURL, pingResponse)),
+		baseMW.Append(
+			jsonHeaderMiddleware,
+			authforwarder.HTTPMiddleware,
+			authforwarder.NewAuthNMiddleware(authnService)).Then(
+			dsp.GetDSPRoutes(authnService, provider, contractService, store, reconciler, selfURL, pingResponse)),
 	))
 	srv := &http.Server{
 		Addr:              fmt.Sprintf("%s:%d", c.ListenAddr, c.Port),
@@ -409,13 +459,13 @@ func (c *command) Run(ctx context.Context) error {
 func (c *command) configureContractService(
 	ctx context.Context,
 	store persistence.StorageProvider,
-	contractService providerv1.ContractServiceClient,
+	contractService dsrpc.ContractServiceClient,
 ) error {
 	token, err := createToken(ctx, store)
 	if err != nil {
 		return err
 	}
-	_, err = contractService.Configure(ctx, &providerv1.ContractServiceConfigureRequest{
+	_, err = contractService.Configure(ctx, &dsrpc.ContractServiceConfigureRequest{
 		ConnectorAddress:  fmt.Sprintf("%s:%d", c.ControlListenAddr, c.ControlPort),
 		VerificationToken: token,
 	})
@@ -472,7 +522,7 @@ func (c *command) startControl(
 			authforwarder.StreamInterceptor,
 		),
 	)
-	providerv1.RegisterControlServiceServer(grpcServer, controlSVC)
+	dsrpc.RegisterControlServiceServer(grpcServer, controlSVC)
 
 	go func() {
 		logger.Info("Starting GRPC service")
@@ -525,25 +575,32 @@ func (c *command) loadControlTLSCredentials() (credentials.TransportCredentials,
 }
 
 func (c *command) getProvider(ctx context.Context) (
-	providerv1.ProviderServiceClient,
+	dsrpc.ProviderServiceClient,
 	*grpc.ClientConn,
-	*providerv1.PingResponse,
+	*dsrpc.PingResponse,
 	error,
 ) {
-	client, conn, err := getGRPCClient(ctx, c.ProviderAddress, c.ProviderTLSConfig, providerv1.NewProviderServiceClient)
+	client, conn, err := getGRPCClient(ctx, c.ProviderAddress, c.ProviderTLSConfig, dsrpc.NewProviderServiceClient)
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	ping, err := client.Ping(ctx, &providerv1.PingRequest{})
+	ping, err := client.Ping(ctx, &dsrpc.PingRequest{})
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("could not ping provider: %w", err)
 	}
 	return client, conn, ping, nil
 }
 
-func (c *command) getContractService(ctx context.Context) (providerv1.ContractServiceClient, *grpc.ClientConn, error) {
+func (c *command) getContractService(ctx context.Context) (dsrpc.ContractServiceClient, *grpc.ClientConn, error) {
 	if c.ContractServiceEnabled {
-		return getGRPCClient(ctx, c.ContractServiceAddress, c.ContractServiceTLSConfig, providerv1.NewContractServiceClient)
+		return getGRPCClient(ctx, c.ContractServiceAddress, c.ContractServiceTLSConfig, dsrpc.NewContractServiceClient)
+	}
+	return nil, nil, nil
+}
+
+func (c *command) getAuthNService(ctx context.Context) (dsrpc.AuthNServiceClient, *grpc.ClientConn, error) {
+	if c.AuthNServiceEnabled {
+		return getGRPCClient(ctx, c.AuthNServiceAddress, c.AuthNServiceTLSConfig, dsrpc.NewAuthNServiceClient)
 	}
 	return nil, nil, nil
 }

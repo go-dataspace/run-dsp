@@ -26,7 +26,7 @@ import (
 	"go-dataspace.eu/run-dsp/dsp/constants"
 	"go-dataspace.eu/run-dsp/dsp/shared"
 	"go-dataspace.eu/run-dsp/odrl"
-	providerv1 "go-dataspace.eu/run-dsrpc/gen/go/dsp/v1alpha2"
+	dsrpc "go-dataspace.eu/run-dsrpc/gen/go/dsp/v1alpha2"
 )
 
 var validTransferTransitions = map[State][]State{
@@ -52,6 +52,8 @@ var validTransferTransitions = map[State][]State{
 
 type Direction uint8
 
+const TransferPrefix = "transfer-"
+
 const (
 	DirectionUnknown Direction = iota
 	DirectionPull
@@ -69,7 +71,8 @@ type Request struct {
 	callback          *url.URL
 	self              *url.URL
 	role              constants.DataspaceRole
-	publishInfo       *providerv1.PublishInfo
+	publishInfo       *dsrpc.PublishInfo
+	requesterInfo     *dsrpc.RequesterInfo
 	transferDirection Direction
 
 	ro       bool
@@ -86,7 +89,8 @@ type storableRequest struct {
 	Callback          *url.URL
 	Self              *url.URL
 	Role              constants.DataspaceRole
-	PublishInfo       *providerv1.PublishInfo
+	PublishInfo       *dsrpc.PublishInfo
+	RequesterInfo     *dsrpc.RequesterInfo
 	TransferDirection Direction
 }
 
@@ -97,7 +101,8 @@ func New(
 	callback, self *url.URL,
 	role constants.DataspaceRole,
 	state State,
-	publishInfo *providerv1.PublishInfo,
+	publishInfo *dsrpc.PublishInfo,
+	requesterInfo *dsrpc.RequesterInfo,
 ) *Request {
 	targetID, err := shared.URNtoRawID(agreement.Target)
 	if err != nil {
@@ -113,6 +118,7 @@ func New(
 		self:              self,
 		role:              role,
 		publishInfo:       publishInfo,
+		requesterInfo:     requesterInfo,
 		transferDirection: DirectionPush,
 		modified:          true,
 	}
@@ -140,32 +146,45 @@ func FromBytes(b []byte) (*Request, error) {
 		self:              sr.Self,
 		role:              sr.Role,
 		publishInfo:       sr.PublishInfo,
+		requesterInfo:     sr.RequesterInfo,
 		transferDirection: sr.TransferDirection,
 	}, nil
 }
 
 func GenerateKey(id uuid.UUID, role constants.DataspaceRole) []byte {
-	return []byte("transfer-" + id.String() + "-" + strconv.Itoa(int(role)))
+	return []byte(TransferPrefix + id.String() + "-" + strconv.Itoa(int(role)))
 }
 
 // Request getters.
-func (tr *Request) GetProviderPID() uuid.UUID               { return tr.providerPID }
-func (tr *Request) GetConsumerPID() uuid.UUID               { return tr.consumerPID }
-func (tr *Request) GetAgreementID() uuid.UUID               { return tr.agreementID }
-func (tr *Request) GetTarget() string                       { return tr.target }
-func (tr *Request) GetFormat() string                       { return tr.format }
-func (tr *Request) GetCallback() *url.URL                   { return tr.callback }
-func (tr *Request) GetSelf() *url.URL                       { return tr.self }
-func (tr *Request) GetState() State                         { return tr.state }
-func (tr *Request) GetRole() constants.DataspaceRole        { return tr.role }
-func (tr *Request) GetTransferRequest() *Request            { return tr }
-func (tr *Request) GetPublishInfo() *providerv1.PublishInfo { return tr.publishInfo }
+func (tr *Request) GetProviderPID() uuid.UUID              { return tr.providerPID }
+func (tr *Request) GetConsumerPID() uuid.UUID              { return tr.consumerPID }
+func (tr *Request) GetAgreementID() uuid.UUID              { return tr.agreementID }
+func (tr *Request) GetTarget() string                      { return tr.target }
+func (tr *Request) GetFormat() string                      { return tr.format }
+func (tr *Request) GetCallback() *url.URL                  { return tr.callback }
+func (tr *Request) GetSelf() *url.URL                      { return tr.self }
+func (tr *Request) GetState() State                        { return tr.state }
+func (tr *Request) GetRole() constants.DataspaceRole       { return tr.role }
+func (tr *Request) GetTransferRequest() *Request           { return tr }
+func (tr *Request) GetRequesterInfo() *dsrpc.RequesterInfo { return tr.requesterInfo }
+func (tr *Request) GetPublishInfo() *dsrpc.PublishInfo     { return tr.publishInfo }
 func (tr *Request) GetTransferDirection() Direction {
 	return tr.transferDirection
 }
 
+func (tr *Request) GetLocalPID() uuid.UUID {
+	switch tr.role {
+	case constants.DataspaceConsumer:
+		return tr.GetConsumerPID()
+	case constants.DataspaceProvider:
+		return tr.GetProviderPID()
+	default:
+		panic("not a valid role")
+	}
+}
+
 // Request setters, these will panic when the transfer is RO.
-func (tr *Request) SetPublishInfo(pi *providerv1.PublishInfo) {
+func (tr *Request) SetPublishInfo(pi *dsrpc.PublishInfo) {
 	tr.panicRO()
 	tr.publishInfo = pi
 	tr.modify()
@@ -213,6 +232,7 @@ func (tr *Request) ToBytes() ([]byte, error) {
 		Self:              tr.self,
 		Role:              tr.role,
 		PublishInfo:       tr.publishInfo,
+		RequesterInfo:     tr.requesterInfo,
 		TransferDirection: tr.transferDirection,
 	}
 	var buf bytes.Buffer

@@ -30,7 +30,7 @@
                 "${workspaceFolder}/conf/devcontainer.toml",
                 "server",
             ]
-        }
+        },
         {
             "name": "Dev Dataspace: Attach to consumer",
             "type": "go",
