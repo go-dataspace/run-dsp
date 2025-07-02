@@ -82,6 +82,7 @@ const (
 
 	controlAddr                     = "server.control.address"
 	controlPort                     = "server.control.port"
+	controlExternalAddr             = "server.control.externalAddress"
 	controlInsecure                 = "server.control.insecure"
 	controlCert                     = "server.control.cert"
 	controlCertKey                  = "server.control.certKey"
@@ -164,6 +165,9 @@ func init() {
 		Command, controlAddr, "control-address", "address for the control service to listen on", "0.0.0.0")
 	cfg.AddPersistentFlag(
 		Command, controlPort, "control-port", "port for the control service to listen on", 8081)
+	cfg.AddPersistentFlag(
+		Command, controlExternalAddr,
+		"control-external-address", "ip address / DNS name that the control service is reachable by", "0.0.0.0:8081")
 	cfg.AddPersistentFlag(
 		Command, controlInsecure, "control-insecure", "disable TLS for the control service", false)
 	cfg.AddPersistentFlag(
@@ -320,6 +324,7 @@ var Command = &cobra.Command{
 			},
 			ControlListenAddr:               viper.GetString(controlAddr),
 			ControlPort:                     viper.GetInt(controlPort),
+			ControlExternalAddr:             viper.GetString(controlExternalAddr),
 			ControlInsecure:                 viper.GetBool(controlInsecure),
 			ControlCert:                     viper.GetString(controlCert),
 			ControlCertKey:                  viper.GetString(controlCertKey),
@@ -366,6 +371,7 @@ type command struct {
 	// GRPC control interface settings.
 	ControlListenAddr               string
 	ControlPort                     int
+	ControlExternalAddr             string
 	ControlInsecure                 bool
 	ControlCert                     string
 	ControlCertKey                  string
@@ -466,7 +472,7 @@ func (c *command) configureContractService(
 		return err
 	}
 	_, err = contractService.Configure(ctx, &dsrpc.ContractServiceConfigureRequest{
-		ConnectorAddress:  fmt.Sprintf("%s:%d", c.ControlListenAddr, c.ControlPort),
+		ConnectorAddress:  c.ControlExternalAddr,
 		VerificationToken: token,
 	})
 	if err != nil {
@@ -492,6 +498,7 @@ func (c *command) startControl(
 	ctx, logger := logging.InjectLabels(ctx,
 		"control_addr", c.ControlListenAddr,
 		"control_port", c.ControlPort,
+		"control_external", c.ControlExternalAddr,
 	)
 
 	lis, err := net.Listen("tcp", fmt.Sprintf("%s:%d",
