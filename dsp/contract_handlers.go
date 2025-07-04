@@ -323,7 +323,7 @@ func (dh *dspHandlers) consumerContractOfferHandler(w http.ResponseWriter, req *
 
 	negotiation := contract.New(
 		providerPID,
-		uuid.UUID{},
+		uuid.New(),
 		contract.States.INITIAL,
 		odrl.Offer{MessageOffer: contractOffer.Offer},
 		cbURL,
