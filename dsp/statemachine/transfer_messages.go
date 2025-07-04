@@ -70,7 +70,10 @@ func sendTransferRequest(ctx context.Context, tr *TransferRequestNegotiationInit
 		Format:          tr.GetFormat(),
 		CallbackAddress: tr.GetSelf().String(),
 		ConsumerPID:     tr.GetConsumerPID().URN(),
-		DataAddress:     publishInfoToDataAddress(tr.GetPublishInfo()),
+	}
+
+	if pi := tr.GetPublishInfo(); pi != nil {
+		transferRequest.DataAddress = publishInfoToDataAddress(pi)
 	}
 
 	reqBody, err := shared.ValidateAndMarshal(ctx, transferRequest)
@@ -99,7 +102,10 @@ func sendTransferStart(ctx context.Context, tr *TransferRequestNegotiationReques
 		Type:        "dspace:TransferStartMessage",
 		ProviderPID: tr.GetProviderPID().URN(),
 		ConsumerPID: tr.GetConsumerPID().URN(),
-		DataAddress: publishInfoToDataAddress(tr.GetPublishInfo()),
+	}
+
+	if pi := tr.GetPublishInfo(); pi != nil {
+		startRequest.DataAddress = publishInfoToDataAddress(pi)
 	}
 
 	reqBody, err := shared.ValidateAndMarshal(ctx, startRequest)

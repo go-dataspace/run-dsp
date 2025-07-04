@@ -125,8 +125,7 @@ func (dh *dspHandlers) providerTransferRequestHandler(w http.ResponseWriter, req
 			http.StatusBadRequest, "400", "Invalid request: Non-valid callback URL.", nil)
 	}
 
-	pi := &dsrpc.PublishInfo{}
-
+	var pi *dsrpc.PublishInfo
 	if transferReq.DataAddress != nil {
 		pi, err = statemachine.DataAddressToPublishInfo(transferReq.DataAddress)
 		if err != nil {
