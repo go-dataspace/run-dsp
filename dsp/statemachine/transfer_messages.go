@@ -16,6 +16,7 @@ package statemachine
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/url"
 	"path"
@@ -70,7 +71,13 @@ func sendTransferRequest(ctx context.Context, tr *TransferRequestNegotiationInit
 		Format:          tr.GetFormat(),
 		CallbackAddress: tr.GetSelf().String(),
 		ConsumerPID:     tr.GetConsumerPID().URN(),
-		DataAddress:     publishInfoToDataAddress(tr.GetPublishInfo()),
+	}
+	if tr.GetTransferDirection() == transfer.DirectionPush {
+		logger.Debug("Push transfer request, trying to add dataddress")
+		if tr.GetPublishInfo() == nil {
+			return func() {}, errors.New("Push transfer request without publishinfo attempted")
+		}
+		transferRequest.DataAddress = publishInfoToDataAddress(tr.GetPublishInfo())
 	}
 
 	reqBody, err := shared.ValidateAndMarshal(ctx, transferRequest)
@@ -100,6 +107,13 @@ func sendTransferStart(ctx context.Context, tr *TransferRequestNegotiationReques
 		ProviderPID: tr.GetProviderPID().URN(),
 		ConsumerPID: tr.GetConsumerPID().URN(),
 		DataAddress: publishInfoToDataAddress(tr.GetPublishInfo()),
+	}
+	if tr.GetTransferDirection() == transfer.DirectionPull {
+		logger.Debug("Pull transfer start, trying to add dataddress")
+		if tr.GetPublishInfo() == nil {
+			return func() {}, errors.New("Pull transfer start without publishinfo attempted")
+		}
+		startRequest.DataAddress = publishInfoToDataAddress(tr.GetPublishInfo())
 	}
 
 	reqBody, err := shared.ValidateAndMarshal(ctx, startRequest)

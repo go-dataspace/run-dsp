@@ -35,7 +35,7 @@ type TransferStartMessage struct {
 	Type        string         `json:"@type,omitempty" validate:"required,eq=dspace:TransferStartMessage"`
 	ProviderPID string         `json:"dspace:providerPid" validate:"required"`
 	ConsumerPID string         `json:"dspace:consumerPid" validate:"required"`
-	DataAddress *DataAddress   `json:"dspace:dataAddress"`
+	DataAddress *DataAddress   `json:"dspace:dataAddress,omitempty"`
 }
 
 // TransferSuspensionMessage signals the suspension of a datatransfer.
