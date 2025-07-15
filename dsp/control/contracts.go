@@ -125,7 +125,7 @@ func sendContractMessage[T any](
 		if releaseErr != nil {
 			ctxslog.Err(ctx, "problem when trying to release lock", releaseErr)
 		}
-		return nil, status.Errorf(codes.Unauthenticated, "couldn't get requestor info: %s", err)
+		return nil, status.Error(codes.Unauthenticated, err.Error())
 	}
 	if initial {
 		negotiation.SetInitial()

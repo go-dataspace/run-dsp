@@ -281,7 +281,7 @@ func (s *Server) GetProviderDatasetDownloadInformation(
 		if releaseErr != nil {
 			ctxslog.Error(ctx, "problem when trying to release lock", "err", releaseErr)
 		}
-		return nil, status.Errorf(codes.Unauthenticated, "unauthenticated transfer: %s", err)
+		return nil, status.Error(codes.Unauthenticated, err.Error())
 	}
 
 	transferInit := statemachine.GetTransferRequestNegotiation(transferReq, s.provider, s.reconciler)
