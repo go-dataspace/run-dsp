@@ -17,11 +17,10 @@ package badger
 import (
 	"context"
 	"errors"
-	"fmt"
 	"time"
 
 	"github.com/dgraph-io/badger/v4"
-	"go-dataspace.eu/run-dsp/logging"
+	"go-dataspace.eu/ctxslog"
 )
 
 const (
@@ -59,9 +58,9 @@ func (sp *StorageProvider) AcquireLock(ctx context.Context, k lockKey) error {
 }
 
 func (sp *StorageProvider) ReleaseLock(ctx context.Context, k lockKey) error {
-	logger := logging.Extract(ctx).With(logKey, k.String())
+	ctx = ctxslog.With(ctx, logKey, k.String())
 	return sp.db.Update(func(txn *badger.Txn) error {
-		logger.Debug("Attempting to release lock")
+		ctxslog.Debug(ctx, "Attempting to release lock")
 		err := txn.Delete(k.key())
 		if err != nil {
 			if errors.Is(err, badger.ErrKeyNotFound) {
@@ -69,14 +68,13 @@ func (sp *StorageProvider) ReleaseLock(ctx context.Context, k lockKey) error {
 				// first time saves.
 				return nil
 			}
-			logger.Error("Failed to unlock, will have to depend on TTL", "err", err)
+			ctxslog.Err(ctx, "Failed to unlock, will have to depend on TTL", err)
 		}
 		return err
 	})
 }
 
 func (sp *StorageProvider) isLocked(ctx context.Context, k lockKey) bool {
-	logger := logging.Extract(ctx).With(logKey, k.String())
 	err := sp.db.View(func(txn *badger.Txn) error {
 		_, err := txn.Get(k.key())
 		return err
@@ -85,34 +83,31 @@ func (sp *StorageProvider) isLocked(ctx context.Context, k lockKey) bool {
 		if errors.Is(err, badger.ErrKeyNotFound) {
 			return false
 		}
-		logger.Error("Got an error, reporting locked", "err", err)
+		ctxslog.Error(ctx, "Got an error, reporting locked", err)
 		return true
 	}
 	return true
 }
 
 func (sp *StorageProvider) setLock(ctx context.Context, k lockKey) error {
-	logger := logging.Extract(ctx).With("key", k.String())
 	err := sp.db.Update(func(txn *badger.Txn) error {
-		logger.Debug("Setting lock")
+		ctxslog.Debug(ctx, "Setting lock")
 		entry := badger.NewEntry(k.key(), []byte{1}).WithTTL(lockTTL)
 		return txn.SetEntry(entry)
 	})
 	if err != nil {
-		logger.Error("Couldn't set lock", "err", err)
-		return err
+		return ctxslog.ReturnError(ctx, "Couldn't set lock", err)
 	}
-	logger.Debug("Lock set")
+	ctxslog.Debug(ctx, "Lock set")
 	return nil
 }
 
 func (sp *StorageProvider) waitLock(ctx context.Context, k lockKey) error {
-	logger := logging.Extract(ctx).With("key", k.String())
 	ticker := time.NewTicker(lockCheckTime)
 	defer ticker.Stop()
 	timer := time.NewTicker(maxWaitTime)
 	defer timer.Stop()
-	logger.Debug("Starting to wait for lock")
+	ctxslog.Debug(ctx, "Starting to wait for lock")
 	for {
 		select {
 		case <-ticker.C:
@@ -121,11 +116,9 @@ func (sp *StorageProvider) waitLock(ctx context.Context, k lockKey) error {
 			}
 			return nil
 		case <-timer.C:
-			logger.Error("Timeout reached, exiting with error")
-			return fmt.Errorf("timed out waiting for lock")
+			return ctxslog.ReturnError(ctx, "Lock timeout reached", errors.New("timed out waiting for lock"))
 		case <-ctx.Done():
-			logger.Info("Shutting down waiting for lock")
-			return fmt.Errorf("context cancelled")
+			return ctxslog.ReturnError(ctx, "Shutting down waiting for lock", errors.New("context cancelled"))
 		}
 	}
 }

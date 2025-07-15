@@ -23,13 +23,13 @@ import (
 	"reflect"
 
 	"github.com/google/uuid"
+	"go-dataspace.eu/ctxslog"
 	"go-dataspace.eu/run-dsp/dsp/constants"
 	"go-dataspace.eu/run-dsp/dsp/contract"
 	"go-dataspace.eu/run-dsp/dsp/persistence"
 	"go-dataspace.eu/run-dsp/dsp/shared"
 	"go-dataspace.eu/run-dsp/dsp/statemachine"
 	"go-dataspace.eu/run-dsp/internal/authforwarder"
-	"go-dataspace.eu/run-dsp/logging"
 	"go-dataspace.eu/run-dsp/odrl"
 	dsrpc "go-dataspace.eu/run-dsrpc/gen/go/dsp/v1alpha2"
 )
@@ -70,8 +70,17 @@ func (ce ContractError) ConsumerPID() string {
 }
 
 func contractError(
-	err string, statusCode int, dspCode string, reason string, contract *contract.Negotiation,
+	ctx context.Context, err string, statusCode int, dspCode string, reason string, contract *contract.Negotiation,
 ) ContractError {
+	ctxslog.Error(
+		ctx, "contract error",
+		"statusCode", statusCode,
+		"dspCode", dspCode,
+		"reason", reason,
+		"negotiationRole", contract.GetRole(),
+		"localPID", contract.GetLocalPID(),
+		"err", err,
+	)
 	return ContractError{
 		status:   statusCode,
 		contract: contract,
@@ -82,46 +91,45 @@ func contractError(
 }
 
 func (dh *dspHandlers) providerContractStateHandler(w http.ResponseWriter, req *http.Request) error {
-	logger := logging.Extract(req.Context())
 	providerPID, err := uuid.Parse(req.PathValue("providerPID"))
 	if err != nil {
-		return contractError("invalid provider ID", http.StatusBadRequest, "400", "Invalid provider PID", nil)
+		return contractError(req.Context(), "invalid provider ID", http.StatusBadRequest, "400", "Invalid provider PID", nil)
 	}
 
 	contract, err := dh.store.GetContractR(req.Context(), providerPID, constants.DataspaceProvider)
 	if err != nil {
-		return contractError(err.Error(), http.StatusNotFound, "404", "Contract not found", nil)
+		return contractError(req.Context(), err.Error(), http.StatusNotFound, "404", "Contract not found", nil)
 	}
 
 	if err := shared.EncodeValid(w, req, http.StatusOK, contract.GetContractNegotiation()); err != nil {
-		logger.Error("couldn't serve contract state", "err", err)
+		ctxslog.Err(req.Context(), "couldn't serve contract state", err)
 	}
 	return nil
 }
 
 func (dh *dspHandlers) providerContractRequestHandler(w http.ResponseWriter, req *http.Request) error {
-	ctx, logger := logging.InjectLabels(req.Context(), "handler", "providerContractRequestHandler")
-	req = req.WithContext(ctx)
+	ctx := ctxslog.With(req.Context(), "providerContractRequestHandler")
 	contractReq, err := shared.DecodeValid[shared.ContractRequestMessage](req)
 	if err != nil {
-		return contractError(fmt.Sprintf("invalid request message: %s", err.Error()),
+		return contractError(req.Context(), fmt.Sprintf("invalid request message: %s", err.Error()),
 			http.StatusBadRequest, "400", "Invalid request", nil)
 	}
-	logger.Debug("Got contract request", "req", contractReq)
+	ctxslog.Debug(ctx, "Got contract request", contractReq)
 
 	consumerPID, err := uuid.Parse(contractReq.ConsumerPID)
 	if err != nil {
-		return contractError(fmt.Sprintf("Invalid consumer ID %s: %s", contractReq.ConsumerPID, err.Error()),
+		return contractError(ctx, fmt.Sprintf("Invalid consumer ID %s: %s", contractReq.ConsumerPID, err.Error()),
 			http.StatusBadRequest, "400", "Invalid request: ConsumerPID is not a UUID", nil)
 	}
 
 	// TODO: Check if callback URL is reachable?
 	cbURL, err := url.Parse(contractReq.CallbackAddress)
 	if err != nil {
-		return contractError(fmt.Sprintf("Invalid callback URL %s: %s", contractReq.CallbackAddress, err.Error()),
+		return contractError(ctx, fmt.Sprintf("Invalid callback URL %s: %s", contractReq.CallbackAddress, err.Error()),
 			http.StatusBadRequest, "400", "Invalid request: Non-valid callback URL.", nil)
 	}
 	negotiation := contract.New(
+		ctx,
 		uuid.UUID{},
 		consumerPID,
 		contract.States.INITIAL,
@@ -143,25 +151,25 @@ func (dh *dspHandlers) providerContractRequestHandler(w http.ResponseWriter, req
 func progressContractState[T any](
 	dh *dspHandlers, w http.ResponseWriter, req *http.Request, role constants.DataspaceRole, rawPID string,
 ) error {
-	logger := logging.Extract(req.Context())
 	pid, err := uuid.Parse(rawPID)
 	if err != nil {
-		return contractError(fmt.Sprintf("Invalid PID %s: %s", rawPID, err.Error()),
+		return contractError(req.Context(), fmt.Sprintf("Invalid PID %s: %s", rawPID, err.Error()),
 			http.StatusBadRequest, "400", "Invalid request: PID is not a UUID", nil)
 	}
 	msg, err := shared.DecodeValid[T](req)
 	if err != nil {
-		return contractError(fmt.Sprintf("could not decode message: %s", err),
+		return contractError(req.Context(), fmt.Sprintf("could not decode message: %s", err),
 			http.StatusBadRequest, "400", "Invalid request", nil)
 	}
 
-	logger.Debug("Got contract message", "req", msg)
+	ctxslog.Debug(req.Context(), "Got contract message", "req", msg)
 
 	// Since this is a continuation of negotiation, we add a continuation RequestInfo to context
 	// FIXME: This probably has to be reconsidered regarding security.
 	requestInfo := &dsrpc.RequesterInfo{
 		AuthenticationStatus: dsrpc.AuthenticationStatus_AUTHENTICATION_STATUS_CONTINUATION,
 	}
+
 	// Add local origin requester info to context
 	req = req.WithContext(authforwarder.SetRequesterInfo(req.Context(), requestInfo))
 
@@ -176,15 +184,15 @@ func processMessage[T any](
 	pid uuid.UUID,
 	msg T,
 ) error {
-	logger := logging.Extract(req.Context())
 	contract, err := dh.store.GetContractRW(req.Context(), pid, role)
 	if err != nil {
-		return contractError(fmt.Sprintf("%d contract %s not found: %s", role, pid, err),
+		return contractError(req.Context(), fmt.Sprintf("%d contract %s not found: %s", role, pid, err),
 			http.StatusNotFound, "404", "Contract not found", nil)
 	}
-
-	ctx, pState := statemachine.GetContractNegotiation(
-		req.Context(),
+	ctx := ctxslog.With(req.Context(), contract.GetLogFields("_recv")...)
+	ctx = ctxslog.With(ctx, "messageType", fmt.Sprintf("%T", msg))
+	ctxslog.Info(ctx, "processing contract negotiation")
+	pState := statemachine.GetContractNegotiation(
 		contract,
 		dh.provider,
 		dh.contractService,
@@ -193,13 +201,13 @@ func processMessage[T any](
 
 	ctx, apply, err := pState.Recv(ctx, msg)
 	if err != nil {
-		return contractError(fmt.Sprintf("invalid request: %s", err),
+		return contractError(ctx, fmt.Sprintf("invalid request: %s", err),
 			http.StatusBadRequest, "400", "Invalid request", pState.GetContract())
 	}
 
 	if contract.AutoAccept() || (dh.contractService == nil || reflect.ValueOf(dh.contractService).IsNil()) {
-		ctx, transition := statemachine.GetContractNegotiation(
-			ctx,
+		ctx = ctxslog.With(ctx, pState.GetContract().GetLogFields("_send")...)
+		transition := statemachine.GetContractNegotiation(
 			pState.GetContract(),
 			dh.provider,
 			dh.contractService,
@@ -207,7 +215,7 @@ func processMessage[T any](
 		)
 		apply, err = transition.Send(ctx)
 		if err != nil {
-			return contractError(fmt.Sprintf("failed to send: %s", err),
+			return contractError(ctx, fmt.Sprintf("failed to send: %s", err),
 				http.StatusInternalServerError, "500", "Internal error", pState.GetContract(),
 			)
 		}
@@ -219,13 +227,13 @@ func processMessage[T any](
 	}
 
 	if err := apply(); err != nil {
-		return contractError(fmt.Sprintf("failed to propagate: %s", err),
+		return contractError(ctx, fmt.Sprintf("failed to propagate: %s", err),
 			http.StatusInternalServerError, "500", "Internal error", pState.GetContract(),
 		)
 	}
 
 	if err := shared.EncodeValid(w, req, http.StatusOK, pState.GetContractNegotiation()); err != nil {
-		logger.Error("Couldn't serve response", "err", err)
+		ctxslog.Err(ctx, "Couldn't serve response", err)
 	}
 
 	return nil
@@ -237,13 +245,13 @@ func storeNegotiation(
 	negotiation *contract.Negotiation,
 ) error {
 	if err := store.PutContract(ctx, negotiation); err != nil {
-		return contractError(fmt.Sprintf("couldn't store negotiation: %s", err),
+		return contractError(ctx, fmt.Sprintf("couldn't store negotiation: %s", err),
 			http.StatusInternalServerError, "500", "Not able to store negotiation", negotiation)
 	}
 
 	if negotiation.Modified() && negotiation.GetAgreement() != nil {
 		if err := store.PutAgreement(ctx, negotiation.GetAgreement()); err != nil {
-			return contractError(fmt.Sprintf("couldn't store agreement: %s", err),
+			return contractError(ctx, fmt.Sprintf("couldn't store agreement: %s", err),
 				http.StatusInternalServerError, "500", "Not able to store agreement", negotiation)
 		}
 	}
@@ -251,7 +259,7 @@ func storeNegotiation(
 }
 
 func (dh *dspHandlers) providerContractSpecificRequestHandler(w http.ResponseWriter, req *http.Request) error {
-	ctx, _ := logging.InjectLabels(req.Context(), "handler", "providerContractSpecificRequestHandler")
+	ctx := ctxslog.With(req.Context(), "handler", "providerContractSpecificRequestHandler")
 	req = req.WithContext(ctx)
 	return progressContractState[shared.ContractRequestMessage](
 		dh, w, req, constants.DataspaceProvider, req.PathValue("providerPID"),
@@ -259,7 +267,7 @@ func (dh *dspHandlers) providerContractSpecificRequestHandler(w http.ResponseWri
 }
 
 func (dh *dspHandlers) providerContractEventHandler(w http.ResponseWriter, req *http.Request) error {
-	ctx, _ := logging.InjectLabels(req.Context(), "handler", "providerContractEventHandler")
+	ctx := ctxslog.With(req.Context(), "handler", "providerContractEventHandler")
 	req = req.WithContext(ctx)
 	return progressContractState[shared.ContractNegotiationEventMessage](
 		dh, w, req, constants.DataspaceProvider, req.PathValue("providerPID"),
@@ -267,7 +275,7 @@ func (dh *dspHandlers) providerContractEventHandler(w http.ResponseWriter, req *
 }
 
 func (dh *dspHandlers) providerContractVerificationHandler(w http.ResponseWriter, req *http.Request) error {
-	ctx, _ := logging.InjectLabels(req.Context(), "handler", "providerContractVerificationHandler")
+	ctx := ctxslog.With(req.Context(), "handler", "providerContractVerificationHandler")
 	req = req.WithContext(ctx)
 	return progressContractState[shared.ContractAgreementVerificationMessage](
 		dh, w, req, constants.DataspaceProvider, req.PathValue("providerPID"),
@@ -275,12 +283,12 @@ func (dh *dspHandlers) providerContractVerificationHandler(w http.ResponseWriter
 }
 
 func (dh *dspHandlers) contractTerminationHandler(w http.ResponseWriter, req *http.Request) error {
-	ctx, _ := logging.InjectLabels(req.Context(), "handler", "providerContractVerificationHandler")
+	ctx := ctxslog.With(req.Context(), "handler", "providerContractVerificationHandler")
 	req = req.WithContext(ctx)
 	pid := req.PathValue("PID")
 	id, err := uuid.Parse(pid)
 	if err != nil {
-		return contractError(fmt.Sprintf("Invalid PID: %s", pid),
+		return contractError(ctx, fmt.Sprintf("Invalid PID: %s", pid),
 			http.StatusBadRequest, "400", "Invalid request: PID is not a UUID", nil)
 	}
 	if _, err := dh.store.GetContractR(ctx, id, constants.DataspaceProvider); err == nil {
@@ -294,24 +302,24 @@ func (dh *dspHandlers) contractTerminationHandler(w http.ResponseWriter, req *ht
 }
 
 func (dh *dspHandlers) consumerContractOfferHandler(w http.ResponseWriter, req *http.Request) error {
-	ctx, logger := logging.InjectLabels(req.Context(), "handler", "consumerContractOfferHandler")
+	ctx := ctxslog.With(req.Context(), "handler", "consumerContractOfferHandler")
 	req = req.WithContext(ctx)
 	contractOffer, err := shared.DecodeValid[shared.ContractOfferMessage](req)
 	if err != nil {
-		return contractError(fmt.Sprintf("invalid request message: %s", err.Error()),
+		return contractError(ctx, fmt.Sprintf("invalid request message: %s", err.Error()),
 			http.StatusBadRequest, "400", "Invalid request", nil)
 	}
-	logger.Debug("Got contract offer", "offer", contractOffer)
+	ctxslog.Debug(ctx, "Got contract offer", "offer", contractOffer)
 
 	providerPID, err := uuid.Parse(contractOffer.ProviderPID)
 	if err != nil {
-		return contractError(fmt.Sprintf("Invalid providerPID ID %s: %s", contractOffer.ProviderPID, err.Error()),
+		return contractError(ctx, fmt.Sprintf("Invalid providerPID ID %s: %s", contractOffer.ProviderPID, err.Error()),
 			http.StatusBadRequest, "400", "Invalid request: ProviderPID is not a UUID", nil)
 	}
 
 	cbURL, err := url.Parse(contractOffer.CallbackAddress)
 	if err != nil {
-		return contractError(fmt.Sprintf("Invalid callback URL %s: %s", contractOffer.CallbackAddress, err.Error()),
+		return contractError(ctx, fmt.Sprintf("Invalid callback URL %s: %s", contractOffer.CallbackAddress, err.Error()),
 			http.StatusBadRequest, "400", "Invalid request: Non-valid callback URL.", nil)
 	}
 
@@ -322,6 +330,7 @@ func (dh *dspHandlers) consumerContractOfferHandler(w http.ResponseWriter, req *
 	selfURL.Path = path.Join(selfURL.Path, "callback")
 
 	negotiation := contract.New(
+		ctx,
 		providerPID,
 		uuid.New(),
 		contract.States.INITIAL,
@@ -340,7 +349,7 @@ func (dh *dspHandlers) consumerContractOfferHandler(w http.ResponseWriter, req *
 }
 
 func (dh *dspHandlers) consumerContractSpecificOfferHandler(w http.ResponseWriter, req *http.Request) error {
-	ctx, _ := logging.InjectLabels(req.Context(), "handler", "consumerContractSpecificOfferHandler")
+	ctx := ctxslog.With(req.Context(), "handler", "consumerContractSpecificOfferHandler")
 	req = req.WithContext(ctx)
 	return progressContractState[shared.ContractOfferMessage](
 		dh, w, req, constants.DataspaceConsumer, req.PathValue("consumerPID"),
@@ -348,7 +357,7 @@ func (dh *dspHandlers) consumerContractSpecificOfferHandler(w http.ResponseWrite
 }
 
 func (dh *dspHandlers) consumerContractAgreementHandler(w http.ResponseWriter, req *http.Request) error {
-	ctx, _ := logging.InjectLabels(req.Context(), "handler", "consumerContractAgreementHandler")
+	ctx := ctxslog.With(req.Context(), "handler", "consumerContractAgreementHandler")
 	req = req.WithContext(ctx)
 	return progressContractState[shared.ContractAgreementMessage](
 		dh, w, req, constants.DataspaceConsumer, req.PathValue("consumerPID"),
@@ -356,7 +365,7 @@ func (dh *dspHandlers) consumerContractAgreementHandler(w http.ResponseWriter, r
 }
 
 func (dh *dspHandlers) consumerContractEventHandler(w http.ResponseWriter, req *http.Request) error {
-	ctx, _ := logging.InjectLabels(req.Context(), "handler", "consumerContractEventHandler")
+	ctx := ctxslog.With(req.Context(), "handler", "consumerContractEventHandler")
 	req = req.WithContext(ctx)
 	return progressContractState[shared.ContractNegotiationEventMessage](
 		dh, w, req, constants.DataspaceConsumer, req.PathValue("consumerPID"),

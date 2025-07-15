@@ -23,10 +23,10 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
+	"go-dataspace.eu/ctxslog"
 	"go-dataspace.eu/run-dsp/dsp/constants"
 	"go-dataspace.eu/run-dsp/dsp/shared"
 	"go-dataspace.eu/run-dsp/dsp/transfer"
-	"go-dataspace.eu/run-dsp/logging"
 	dsrpc "go-dataspace.eu/run-dsrpc/gen/go/dsp/v1alpha2"
 )
 
@@ -63,7 +63,7 @@ func makeTransferRequestFunction(
 }
 
 func sendTransferRequest(ctx context.Context, tr *TransferRequestNegotiationInitial) (func(), error) {
-	ctx, logger := logging.InjectLabels(ctx, "operation", "sendTransferRequest")
+	ctx = ctxslog.With(ctx, "operation", "sendTransferRequest")
 	transferRequest := shared.TransferRequestMessage{
 		Context:         shared.GetDSPContext(),
 		Type:            "dspace:TransferRequestMessage",
@@ -73,7 +73,7 @@ func sendTransferRequest(ctx context.Context, tr *TransferRequestNegotiationInit
 		ConsumerPID:     tr.GetConsumerPID().URN(),
 	}
 	if tr.GetTransferDirection() == transfer.DirectionPush {
-		logger.Debug("Push transfer request, trying to add dataddress")
+		ctxslog.Debug(ctx, "Push transfer request, trying to add dataddress")
 		if tr.GetPublishInfo() == nil {
 			return func() {}, errors.New("Push transfer request without publishinfo attempted")
 		}
@@ -82,8 +82,7 @@ func sendTransferRequest(ctx context.Context, tr *TransferRequestNegotiationInit
 
 	reqBody, err := shared.ValidateAndMarshal(ctx, transferRequest)
 	if err != nil {
-		logger.Error("Could not validate contract request", "err", err)
-		return func() {}, fmt.Errorf("could not process request: %w", err)
+		return func() {}, ctxslog.ReturnError(ctx, "could not process request", err)
 	}
 
 	cu := cloneURL(tr.GetCallback())
@@ -100,7 +99,7 @@ func sendTransferRequest(ctx context.Context, tr *TransferRequestNegotiationInit
 }
 
 func sendTransferStart(ctx context.Context, tr *TransferRequestNegotiationRequested) (func(), error) {
-	ctx, logger := logging.InjectLabels(ctx, "operation", "sendTransferStarted")
+	ctx = ctxslog.With(ctx, "operation", "sendTransferStarted")
 	startRequest := shared.TransferStartMessage{
 		Context:     shared.GetDSPContext(),
 		Type:        "dspace:TransferStartMessage",
@@ -109,7 +108,7 @@ func sendTransferStart(ctx context.Context, tr *TransferRequestNegotiationReques
 		DataAddress: publishInfoToDataAddress(tr.GetPublishInfo()),
 	}
 	if tr.GetTransferDirection() == transfer.DirectionPull {
-		logger.Debug("Pull transfer start, trying to add dataddress")
+		ctxslog.Debug(ctx, "Pull transfer start, trying to add dataddress")
 		if tr.GetPublishInfo() == nil {
 			return func() {}, errors.New("Pull transfer start without publishinfo attempted")
 		}
@@ -118,8 +117,7 @@ func sendTransferStart(ctx context.Context, tr *TransferRequestNegotiationReques
 
 	reqBody, err := shared.ValidateAndMarshal(ctx, startRequest)
 	if err != nil {
-		logger.Error("Could not validate start request", "err", err)
-		return func() {}, fmt.Errorf("could not process request: %w", err)
+		return func() {}, ctxslog.ReturnError(ctx, "could not process request", err)
 	}
 
 	pid := tr.GetConsumerPID().String()
@@ -140,7 +138,7 @@ func sendTransferStart(ctx context.Context, tr *TransferRequestNegotiationReques
 }
 
 func sendTransferCompletion(ctx context.Context, tr *TransferRequestNegotiationStarted) (func(), error) {
-	ctx, logger := logging.InjectLabels(ctx, "operation", "sendTransferCompletion")
+	ctx = ctxslog.With(ctx, "operation", "sendTransferCompletion")
 	startRequest := shared.TransferCompletionMessage{
 		Context:     shared.GetDSPContext(),
 		Type:        "dspace:TransferCompletionMessage",
@@ -150,8 +148,7 @@ func sendTransferCompletion(ctx context.Context, tr *TransferRequestNegotiationS
 
 	reqBody, err := shared.ValidateAndMarshal(ctx, startRequest)
 	if err != nil {
-		logger.Error("Could not validate start request", "err", err)
-		return func() {}, fmt.Errorf("could not process request: %w", err)
+		return func() {}, ctxslog.ReturnError(ctx, "could not process request", err)
 	}
 
 	pid := tr.GetConsumerPID().String()

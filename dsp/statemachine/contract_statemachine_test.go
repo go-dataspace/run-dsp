@@ -22,6 +22,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"go-dataspace.eu/ctxslog"
 	"go-dataspace.eu/run-dsp/dsp/constants"
 	"go-dataspace.eu/run-dsp/dsp/contract"
 	"go-dataspace.eu/run-dsp/dsp/persistence/badger"
@@ -80,8 +81,8 @@ func TestTermination(t *testing.T) {
 		},
 	}
 
-	logger := logging.NewJSON("error", true)
-	ctx := logging.Inject(t.Context(), logger)
+	logger := logging.New("error", true)
+	ctx := ctxslog.Inject(t.Context(), logger)
 	ctx, done := context.WithCancel(ctx)
 	defer done()
 
@@ -110,6 +111,7 @@ func TestTermination(t *testing.T) {
 			consumerPID := uuid.New()
 			providerPID := uuid.New()
 			negotiation := contract.New(
+				ctx,
 				providerPID, consumerPID,
 				state, offer, providerCallback, consumerCallback, role, false, &dsrpc.RequesterInfo{
 					AuthenticationStatus: dsrpc.AuthenticationStatus_AUTHENTICATION_STATUS_LOCAL_ORIGIN,
@@ -123,7 +125,7 @@ func TestTermination(t *testing.T) {
 				Code:   "meh",
 				Reason: []string{"test"},
 			}).Return(&dsrpc.ContractServiceTerminationReceivedResponse{}, nil)
-			ctx, consumerInit := statemachine.GetContractNegotiation(ctx, negotiation, mockProvider, mockCService, reconciler)
+			consumerInit := statemachine.GetContractNegotiation(negotiation, mockProvider, mockCService, reconciler)
 			msg := shared.ContractNegotiationTerminationMessage{
 				Context:     shared.GetDSPContext(),
 				Type:        "dspace:ContractNegotiationTerminationMessage",

@@ -25,12 +25,12 @@ import (
 
 	"github.com/gammazero/deque"
 	"github.com/google/uuid"
+	"go-dataspace.eu/ctxslog"
 	"go-dataspace.eu/run-dsp/dsp/constants"
 	"go-dataspace.eu/run-dsp/dsp/contract"
 	"go-dataspace.eu/run-dsp/dsp/persistence"
 	"go-dataspace.eu/run-dsp/dsp/shared"
 	"go-dataspace.eu/run-dsp/dsp/transfer"
-	"go-dataspace.eu/run-dsp/logging"
 )
 
 var (
@@ -140,7 +140,6 @@ func (r *HTTPReconciler) Add(entry ReconciliationEntry) {
 func (r *HTTPReconciler) manager() {
 	// We use a ticker to trigger iterations, this is to not hammer the queue in a tight loop.
 	ticker := time.NewTicker(reconciliationMillis * time.Millisecond)
-	logger := logging.Extract(r.ctx)
 	for {
 		select {
 		case <-ticker.C:
@@ -152,7 +151,7 @@ func (r *HTTPReconciler) manager() {
 			op := r.q.PopFront()
 			r.Unlock()
 			if time.Now().After(op.NextAttempt) {
-				logger.Info("Reconciling...", "contract_id", op.Entry.EntityID)
+				ctxslog.Debug(r.ctx, "Reconciling...", "contract_id", op.Entry.EntityID)
 				op.Attempts++
 				r.c <- op
 				continue
@@ -171,21 +170,21 @@ func (r *HTTPReconciler) manager() {
 
 func (r *HTTPReconciler) worker() {
 	// rLogger is the non-entry specific logger for the reconciler
-	rLogger := logging.Extract(r.ctx)
+	rLogger := ctxslog.Extract(r.ctx)
 	rLogger.Info("Starting reconciliation loop")
 	for {
 		select {
 		case op := <-r.c:
 			entry := op.Entry
 			ctx := context.WithoutCancel(entry.Context)
-			ctx, logger := logging.InjectLabels(ctx,
+			ctx = ctxslog.With(ctx,
 				"entityType", entry.Type,
 				"entityRole", entry.Role,
 				"entityID", entry.EntityID.String(),
 				"method", entry.Method,
 				"url", entry.URL.String(),
 			)
-			logger.Info("Attempting to reconcile entry")
+			ctxslog.Info(ctx, "Attempting to reconcile entry")
 
 			// As the dataspace standard doesn't care if we parse this, we won't.
 			_, err := r.r.SendHTTPRequest(ctx, entry.Method, entry.URL, entry.Body)
@@ -208,7 +207,7 @@ func (r *HTTPReconciler) worker() {
 }
 
 func (r *HTTPReconciler) handleError(ctx context.Context, op reconciliationOperation, err error) {
-	logger := logging.Extract(ctx).With(
+	ctx = ctxslog.With(ctx,
 		"err", err, "submitted", op.Submitted, "attempts", op.Attempts, "orig_next_attempt", op.NextAttempt)
 	// If the error is fatal, just immediately terminate the operation.
 	if errors.Is(err, ErrFatal) || op.Attempts >= maxAttempts {
@@ -216,20 +215,19 @@ func (r *HTTPReconciler) handleError(ctx context.Context, op reconciliationOpera
 		return
 	}
 	op.NextAttempt, op.CurrentInterval = calculateNextAttempt(op.CurrentInterval, op.Attempts)
-	logger = logger.With("next_attempt", op.NextAttempt)
+	ctx = ctxslog.With(ctx, "next_attempt", op.NextAttempt)
 	if op.NextAttempt.Sub(op.Submitted) > maxDuration {
 		r.terminate(ctx, op.Entry)
 		return
 	}
-	logger.Error("Requeuing operation")
+	ctxslog.Error(ctx, "Requeuing operation")
 	r.Lock()
 	r.q.PushBack(op)
 	r.Unlock()
 }
 
 func (r *HTTPReconciler) terminate(ctx context.Context, entry ReconciliationEntry) {
-	logger := logging.Extract(ctx)
-	logger.Error("Terminating entry")
+	ctxslog.Error(ctx, "Terminating entry")
 
 	// For now, try 10 times to update the state to terminated, if it doesn't succeed, panic.
 	// We will handle this cleaner in the future, but this is to make any bugs obvious.
@@ -237,10 +235,10 @@ func (r *HTTPReconciler) terminate(ctx context.Context, entry ReconciliationEntr
 	for range 10 {
 		err = r.updateState(ctx, entry, "dspace:TERMINATED")
 		if err == nil {
-			logger.Debug("Entry terminated")
+			ctxslog.Debug(ctx, "Entry terminated")
 			return
 		}
-		logger.Debug("Could not update state", "err", err)
+		ctxslog.Debug(ctx, "Could not update state", "err", err)
 	}
 	panic(fmt.Sprintf("Could not set state to terminated, %s", err))
 }
@@ -266,18 +264,15 @@ func calculateNextAttempt(currentInterval time.Duration, attempts int) (time.Tim
 func (r *HTTPReconciler) updateState(
 	ctx context.Context, entry ReconciliationEntry, state string,
 ) error {
-	logger := logging.Extract(ctx)
 	switch entry.Type {
 	case ReconciliationContract:
 		return r.setContractState(ctx, state, entry.Role, entry.EntityID)
 	case ReconciliationTransferRequest:
 		return r.setTransferState(ctx, state, entry.Role, entry.EntityID)
 	case ReconciliationUndefined:
-		logger.Error("Undefined type")
-		return fmt.Errorf("Undefined type")
+		return ctxslog.ReturnError(ctx, "Undefined type", errors.New("undefined type"))
 	default:
-		logger.Error("Undefined type")
-		return fmt.Errorf("Undefined type")
+		return ctxslog.ReturnError(ctx, "Undefined type", errors.New("undefined type"))
 	}
 }
 

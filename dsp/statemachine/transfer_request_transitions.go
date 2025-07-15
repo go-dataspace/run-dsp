@@ -22,11 +22,11 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
+	"go-dataspace.eu/ctxslog"
 	"go-dataspace.eu/run-dsp/dsp/constants"
 	"go-dataspace.eu/run-dsp/dsp/shared"
 	"go-dataspace.eu/run-dsp/dsp/transfer"
 	"go-dataspace.eu/run-dsp/internal/authforwarder"
-	"go-dataspace.eu/run-dsp/logging"
 	dsrpc "go-dataspace.eu/run-dsrpc/gen/go/dsp/v1alpha2"
 )
 
@@ -47,6 +47,7 @@ type TransferRequester interface {
 	GetPublishInfo() *dsrpc.PublishInfo
 	GetTransferDirection() transfer.Direction
 	GetTransferProcess() shared.TransferProcess
+	GetLogFields(suffix string) []any
 }
 
 type TransferRequestNegotiationState interface {
@@ -122,10 +123,9 @@ func (tr *TransferRequestNegotiationRequested) Recv(
 }
 
 func (tr *TransferRequestNegotiationRequested) Send(ctx context.Context) (func(), error) {
-	logger := logging.Extract(ctx)
 	switch tr.GetTransferDirection() {
 	case transfer.DirectionPull:
-		logger.Debug("setting publish info for pulling data")
+		ctxslog.Debug(ctx, "setting publish info for pulling data")
 		resp, err := tr.GetProvider().PublishDataset(ctx, &dsrpc.PublishDatasetRequest{
 			DatasetId:     tr.GetTarget(),
 			PublishId:     tr.GetProviderPID().String(),
@@ -136,7 +136,7 @@ func (tr *TransferRequestNegotiationRequested) Send(ctx context.Context) (func()
 		}
 		tr.SetPublishInfo(resp.PublishInfo)
 	case transfer.DirectionPush:
-		logger.Debug("sending transfer start for pushing data")
+		ctxslog.Debug(ctx, "sending transfer start for pushing data")
 	case transfer.DirectionUnknown:
 		return func() {}, fmt.Errorf("unknown transfer direction")
 	default:

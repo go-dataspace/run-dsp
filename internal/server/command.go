@@ -37,6 +37,7 @@ import (
 	"github.com/justinas/alice"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"go-dataspace.eu/ctxslog"
 	"go-dataspace.eu/run-dsp/dsp"
 	"go-dataspace.eu/run-dsp/dsp/control"
 	"go-dataspace.eu/run-dsp/dsp/persistence"
@@ -45,7 +46,6 @@ import (
 	"go-dataspace.eu/run-dsp/internal/authforwarder"
 	"go-dataspace.eu/run-dsp/internal/cfg"
 	"go-dataspace.eu/run-dsp/internal/constants"
-	"go-dataspace.eu/run-dsp/logging"
 	dsrpc "go-dataspace.eu/run-dsrpc/gen/go/dsp/v1alpha2"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -389,10 +389,9 @@ type command struct {
 // Run starts the server.
 func (c *command) Run(ctx context.Context) error { //nolint:funlen
 	wg := &sync.WaitGroup{}
-	logger := logging.Extract(ctx)
 	ctx, cancel := signal.NotifyContext(ctx, os.Interrupt, os.Kill)
 	defer cancel()
-	logger.Info("Starting server",
+	ctxslog.Info(ctx, "Starting server",
 		"listenAddr", c.ListenAddr,
 		"port", c.Port,
 		"externalURL", c.ExternalURL,
@@ -440,7 +439,11 @@ func (c *command) Run(ctx context.Context) error { //nolint:funlen
 	}
 
 	mux := http.NewServeMux()
-	baseMW := alice.New(sloghttp.Recovery, sloghttp.New(logger), logging.NewMiddleware(logger))
+	baseMW := alice.New(
+		sloghttp.Recovery,
+		sloghttp.New(ctxslog.Extract(ctx).With("component", "dspRequests")),
+		ctxslog.NewMiddleware(ctxslog.Extract(ctx).With("component", "dspContext"), true),
+	)
 	mux.Handle("/.well-known/", http.StripPrefix(
 		"/.well-known",
 		baseMW.Append(jsonHeaderMiddleware).Then(dsp.GetWellKnownRoutes()),
@@ -495,17 +498,11 @@ func (c *command) startControl(
 	controlSVC *control.Server,
 ) error {
 	wg.Add(1)
-	ctx, logger := logging.InjectLabels(ctx,
-		"control_addr", c.ControlListenAddr,
-		"control_port", c.ControlPort,
-		"control_external", c.ControlExternalAddr,
-	)
-
 	lis, err := net.Listen("tcp", fmt.Sprintf("%s:%d",
 		c.ControlListenAddr, c.ControlPort),
 	)
 	if err != nil {
-		return fmt.Errorf("couldn't listen on port")
+		return fmt.Errorf("control: couldn't listen on port: %s:%d", c.ControlListenAddr, c.ControlPort)
 	}
 
 	tlsCredentials, err := c.loadControlTLSCredentials()
@@ -519,31 +516,35 @@ func (c *command) startControl(
 	grpcServer := grpc.NewServer(
 		grpc.Creds(tlsCredentials),
 		grpc.ChainUnaryInterceptor(
-			grpclog.UnaryServerInterceptor(interceptorLogger(logger), logOpts...),
-			logging.UnaryServerInterceptor(logger),
+			grpclog.UnaryServerInterceptor(
+				interceptorLogger(ctxslog.Extract(ctx).With("component", "controlRequests")),
+				logOpts...),
+			ctxslog.UnaryServerInterceptor(ctxslog.Extract(ctx).With("component", "controlContext"), true),
 			authforwarder.UnaryInterceptor,
 		),
 		grpc.ChainStreamInterceptor(
-			grpclog.StreamServerInterceptor(interceptorLogger(logger), logOpts...),
-			logging.StreamServerInterceptor(logger),
+			grpclog.StreamServerInterceptor(
+				interceptorLogger(ctxslog.Extract(ctx).With("component", "controlRequests")),
+				logOpts...),
+			ctxslog.StreamServerInterceptor(ctxslog.Extract(ctx).With("component", "controlContext"), true),
 			authforwarder.StreamInterceptor,
 		),
 	)
 	dsrpc.RegisterControlServiceServer(grpcServer, controlSVC)
 
 	go func() {
-		logger.Info("Starting GRPC service")
+		ctxslog.Info(ctx, "Starting control service", "address", c.ControlListenAddr, "port", c.ControlPort)
 		if err := grpcServer.Serve(lis); err != nil {
-			logger.Error("GRPC service exited with error", "error", err)
+			_ = ctxslog.ReturnError(ctx, "Control service exited with error", err)
 		}
-		logger.Info("GRPC service shutdown.")
+		ctxslog.Info(ctx, "Control service sutdown")
 	}()
 
 	// Wait until we get the done signal and then shut down the grpc service.
 	go func() {
 		defer wg.Done()
 		<-ctx.Done()
-		logger.Info("Shutting down GRPC service.")
+		ctxslog.Info(ctx, "Shutting down GRPC service.")
 		grpcServer.GracefulStop()
 	}()
 	return nil
@@ -619,7 +620,6 @@ func getGRPCClient[T any](
 	clientFunc func(cc grpc.ClientConnInterface) T,
 ) (T, *grpc.ClientConn, error) {
 	var client T
-	logger := logging.Extract(ctx)
 	tlsCredentials, err := loadTLSCredentials(tlsc)
 	if err != nil {
 		return client, nil, err
@@ -632,11 +632,15 @@ func getGRPCClient[T any](
 		address,
 		grpc.WithTransportCredentials(tlsCredentials),
 		grpc.WithChainUnaryInterceptor(
-			grpclog.UnaryClientInterceptor(interceptorLogger(logger), logOpts...),
+			grpclog.UnaryClientInterceptor(
+				interceptorLogger(ctxslog.Extract(ctx).With("component", fmt.Sprintf("%TClient", client))),
+				logOpts...),
 			authforwarder.UnaryClientInterceptor,
 		),
 		grpc.WithChainStreamInterceptor(
-			grpclog.StreamClientInterceptor(interceptorLogger(logger), logOpts...),
+			grpclog.StreamClientInterceptor(
+				interceptorLogger(ctxslog.Extract(ctx).With("component", fmt.Sprintf("%TClient", client))),
+				logOpts...),
 			authforwarder.StreamClientInterceptor,
 		),
 	)

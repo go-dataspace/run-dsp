@@ -18,8 +18,8 @@ import (
 	"errors"
 	"net/http"
 
+	"go-dataspace.eu/ctxslog"
 	"go-dataspace.eu/run-dsp/dsp/shared"
-	"go-dataspace.eu/run-dsp/logging"
 )
 
 // HTTPReturnError is an interface for a dataspace protocol error, containing all the information
@@ -43,8 +43,7 @@ func WrapHandlerWithError(h func(w http.ResponseWriter, r *http.Request) error) 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		err := h(w, r)
 		if err != nil {
-			logger := logging.Extract(r.Context())
-			logger.Error("HTTP handler returned error", "err", err.Error())
+			ctxslog.Err(r.Context(), "HTTP handler returned error", err)
 
 			var httpError HTTPReturnError
 			if errors.As(err, &httpError) {
@@ -64,7 +63,7 @@ func WrapHandlerWithError(h func(w http.ResponseWriter, r *http.Request) error) 
 					},
 				},
 			}); err != nil {
-				logger.Error("Error while encoding generic error", "err", err)
+				ctxslog.Err(r.Context(), "Error while encoding generic error", err)
 			}
 		}
 	})
@@ -81,6 +80,6 @@ func handleHTTPError(w http.ResponseWriter, r *http.Request, err HTTPReturnError
 		Description: err.Description(),
 	}
 	if err := shared.EncodeValid(w, r, err.StatusCode(), dErr); err != nil {
-		logging.Extract(r.Context()).Error("Error while encoding HTTP Error", "err", err)
+		ctxslog.Err(r.Context(), "Error while encoding HTTP Error", err)
 	}
 }

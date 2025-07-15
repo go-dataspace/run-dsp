@@ -16,22 +16,17 @@
 package logging
 
 import (
-	"context"
 	"log/slog"
 	"os"
 
-	"github.com/lmittmann/tint"
+	"github.com/charmbracelet/log"
 )
 
-// create a new type for the context key, as context doesn't allow string as the key for
-// collision reasons.
-type contextKeyType string
-
-const contextKey contextKeyType = "logger"
-
-// New will initialise a new structured logger with JSON output, logging at the desired level.
+// New will initialise a new structured logger, logging at the desired level.
 // If the requested level doesn't exist, it panics.
-func NewJSON(requestedLevel string, humanReadable bool) *slog.Logger {
+// If humanReadable is set, it will use the coloured logger from charmbracelet,
+// if not, it will use JSON.
+func New(requestedLevel string, humanReadable bool) *slog.Logger {
 	var level slog.Level
 	switch requestedLevel {
 	case "debug":
@@ -52,39 +47,12 @@ func NewJSON(requestedLevel string, humanReadable bool) *slog.Logger {
 	var handler slog.Handler
 	handler = slog.NewJSONHandler(os.Stdout, &opts)
 	if humanReadable {
-		handler = tint.NewHandler(os.Stdout, &tint.Options{
-			AddSource: true,
-			Level:     level,
+		handler = log.NewWithOptions(os.Stderr, log.Options{
+			Level:           log.Level(level),
+			ReportTimestamp: true,
+			ReportCaller:    true,
 		})
 	}
+
 	return slog.New(handler)
-}
-
-// Inject will inject a logger into the context.
-func Inject(ctx context.Context, logger *slog.Logger) context.Context {
-	return context.WithValue(ctx, contextKey, logger)
-}
-
-// Extract will extract a logger from the context. If no logger is found, a default logger
-// with level info is returned.
-func Extract(ctx context.Context) *slog.Logger {
-	ctxVal := ctx.Value(contextKey)
-	if ctxVal == nil {
-		logger := slog.Default()
-		logger.Debug("logger not found in context, using default logger")
-		return logger
-	}
-	logger, ok := ctxVal.(*slog.Logger)
-	if !ok {
-		panic("logger in context is not of type *slog.Logger")
-	}
-	return logger
-}
-
-// InjectLabels injects labels to the logger living in the context, it will return both the context
-// and the logger.
-func InjectLabels(ctx context.Context, labels ...any) (context.Context, *slog.Logger) {
-	logger := Extract(ctx).With(labels...)
-	ctx = Inject(ctx, logger)
-	return ctx, logger
 }

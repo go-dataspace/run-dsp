@@ -18,14 +18,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log/slog"
 	"net/http"
 	"slices"
 
 	"github.com/go-playground/validator/v10"
+	"go-dataspace.eu/ctxslog"
 	"go-dataspace.eu/run-dsp/internal/constants"
 	"go-dataspace.eu/run-dsp/jsonld"
-	"go-dataspace.eu/run-dsp/logging"
 	"go-dataspace.eu/run-dsp/odrl"
 )
 
@@ -67,7 +66,7 @@ func EncodeValid[T any](w http.ResponseWriter, r *http.Request, status int, v T)
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	if err := validate.Struct(v); err != nil {
-		return handleValidationError(err, logging.Extract(r.Context()))
+		return handleValidationError(r.Context(), err)
 	}
 	if err := json.NewEncoder(w).Encode(v); err != nil {
 		return fmt.Errorf("encode json: %w", err)
@@ -83,45 +82,41 @@ func DecodeValid[T any](r *http.Request) (T, error) {
 	}
 
 	if err := validate.Struct(v); err != nil {
-		return v, handleValidationError(err, logging.Extract(r.Context()))
+		return v, handleValidationError(r.Context(), err)
 	}
 
 	return v, nil
 }
 
 func ValidateAndMarshal[T any](ctx context.Context, s T) ([]byte, error) {
-	logger := logging.Extract(ctx)
 	if err := validate.Struct(s); err != nil {
-		err := handleValidationError(err, logger)
+		err := handleValidationError(ctx, err)
 		return nil, err
 	}
 	return json.Marshal(s)
 }
 
 func UnmarshalAndValidate[T any](ctx context.Context, b []byte, s T) (T, error) {
-	logger := logging.Extract(ctx)
 	err := json.Unmarshal(b, &s)
 	if err != nil {
-		logger.Error("Couldn't unmarshal JSON", "err", err)
-		return s, fmt.Errorf("Couldn't unmarshal JSON")
+		return s, ctxslog.ReturnError(ctx, "Couldn't unmarhal JSON", err)
 	}
 
 	if err := validate.Struct(s); err != nil {
-		err := handleValidationError(err, logger)
+		err := handleValidationError(ctx, err)
 		return s, err
 	}
 	return s, nil
 }
 
-func handleValidationError(err error, logger *slog.Logger) error {
+func handleValidationError(ctx context.Context, err error) error {
 	// This should rarely if ever happen, but guard for it anyway.
 	if _, ok := err.(*validator.InvalidValidationError); ok { //nolint:errorlint
-		logger.Error("Invalid validation", "err", err)
-		return fmt.Errorf("Invalid Validation")
+		return ctxslog.ReturnError(ctx, "Invalid validation", err)
 	}
 
 	for _, err := range err.(validator.ValidationErrors) { //nolint:errorlint,forcetypeassert
-		logger.Error(
+		ctxslog.Error(ctx,
 			"Validation error",
 			"Namespace", err.Namespace(),
 			"Field", err.Field(),
@@ -133,10 +128,9 @@ func handleValidationError(err error, logger *slog.Logger) error {
 			"Value", err.Value(),
 			"Param", err.Param(),
 		)
-		return fmt.Errorf("Validation Error")
+		return fmt.Errorf("Validation Error: %w", err)
 	}
-	logger.Error("Unknown error", "err", err)
-	return err
+	return ctxslog.ReturnError(ctx, "Unknown error", err)
 }
 
 // This registers all the validators of this package, and also calls the odrl register function

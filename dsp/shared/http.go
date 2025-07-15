@@ -17,13 +17,13 @@ package shared
 import (
 	"bytes"
 	"context"
-	"fmt"
+	"errors"
 	"io"
 	"net/http"
 	"net/url"
 
+	"go-dataspace.eu/ctxslog"
 	"go-dataspace.eu/run-dsp/internal/authforwarder"
-	"go-dataspace.eu/run-dsp/logging"
 )
 
 type Requester interface {
@@ -46,35 +46,34 @@ func (hr *HTTPRequester) SendHTTPRequest(
 	if hr.Client == nil {
 		hr.setDefaultClient()
 	}
-	logger := logging.Extract(ctx).With("method", method, "target_url", url)
-	logger.Debug("Doing HTTP request")
+	ctx = ctxslog.With(ctx, "method", method, "target_url", url)
+	ctxslog.Debug(ctx, "Doing HTTP request")
 	var payload io.Reader
 	if reqBody != nil {
 		payload = bytes.NewReader(reqBody)
 	}
 	req, err := http.NewRequestWithContext(ctx, method, url.String(), payload)
 	if err != nil {
-		logger.Error("Failed to create request", "err", err)
-		return nil, err
+		return nil, ctxslog.ReturnError(ctx, "Failed to create request", err)
 	}
 	req.Header.Add("Content-Type", "application/json")
 	req.Header.Add("Accept", "application/json")
 	resp, err := hr.Client.Do(req)
 	if err != nil {
-		logger.Error("Failed to send request", "err", err)
-		return nil, err
+		return nil, ctxslog.ReturnError(ctx, "Failed to send request", err)
 	}
 	defer resp.Body.Close()
 	// In the future we might want to return the reader to handle big bodies.
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
-		logger.Error("Failed to read body", "err", err)
-		return nil, err
+		return nil, ctxslog.ReturnError(ctx, "Failed to read body", err)
 	}
 
 	if resp.StatusCode < 200 || resp.StatusCode > 299 {
-		logger.Error("Received non-200 status code", "status_code", resp.StatusCode, "body", string(respBody))
-		return nil, fmt.Errorf("non-200 status code: %d", resp.StatusCode)
+		return nil, ctxslog.ReturnError(
+			ctx, "Received non-200 status code",
+			errors.New("received a non-200 status code"),
+			"status_code", resp.StatusCode, "body", string(respBody))
 	}
 
 	return respBody, nil

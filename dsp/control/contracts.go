@@ -21,12 +21,12 @@ import (
 	"slices"
 
 	"github.com/google/uuid"
+	"go-dataspace.eu/ctxslog"
 	"go-dataspace.eu/run-dsp/dsp/constants"
 	"go-dataspace.eu/run-dsp/dsp/contract"
 	"go-dataspace.eu/run-dsp/dsp/shared"
 	"go-dataspace.eu/run-dsp/dsp/statemachine"
 	"go-dataspace.eu/run-dsp/internal/authforwarder"
-	"go-dataspace.eu/run-dsp/logging"
 	"go-dataspace.eu/run-dsp/odrl"
 	dsrpc "go-dataspace.eu/run-dsrpc/gen/go/dsp/v1alpha2"
 	"google.golang.org/grpc/codes"
@@ -54,9 +54,6 @@ func (s *Server) ContractRequest(
 	ctx context.Context,
 	req *dsrpc.ContractRequestRequest,
 ) (*dsrpc.ContractRequestResponse, error) {
-	ctx, logger := logging.InjectLabels(ctx, "method", "ContactRequest")
-	logger.Info("Called")
-
 	rawOffer := req.GetOffer()
 	rawPID := req.GetPid()
 	participantAddress := req.GetParticipantAddress()
@@ -76,6 +73,7 @@ func (s *Server) ContractRequest(
 			return nil, status.Errorf(codes.InvalidArgument, "could not reach provider: %s", err)
 		}
 		negotiation := contract.New(
+			ctx,
 			uuid.UUID{}, uuid.New(),
 			contract.States.INITIAL,
 			offer,
@@ -110,7 +108,6 @@ func sendContractMessage[T any](
 	role constants.DataspaceRole,
 	initial, autoAccept bool,
 ) (*T, error) {
-	logger := logging.Extract(ctx)
 	var thing T
 	pid, err := uuid.Parse(rawPid)
 	if err != nil {
@@ -126,9 +123,9 @@ func sendContractMessage[T any](
 	if err := authforwarder.CheckRequesterInfo(ctx, negotiation.GetRequesterInfo()); err != nil {
 		releaseErr := s.store.ReleaseContract(ctx, negotiation)
 		if releaseErr != nil {
-			logger.Error("problem when trying to release lock", "err", releaseErr)
+			ctxslog.Err(ctx, "problem when trying to release lock", releaseErr)
 		}
-		return nil, err
+		return nil, status.Errorf(codes.Unauthenticated, "couldn't get requestor info: %s", err)
 	}
 	if initial {
 		negotiation.SetInitial()
@@ -136,19 +133,13 @@ func sendContractMessage[T any](
 	if autoAccept {
 		negotiation.SetAutoAccept()
 	}
-	ctx, logger = logging.InjectLabels(ctx,
-		"negotiation_consumer_pid", negotiation.GetConsumerPID(),
-		"negotiation_provider_pid", negotiation.GetProviderPID(),
-		"state", negotiation.GetState(),
-		"role", negotiation.GetRole(),
-	)
-	logger.Info("Processing negotiation")
+	ctx = ctxslog.With(ctx, negotiation.GetLogFields("")...)
+	ctxslog.Info(ctx, "Processing negotiation")
 	if !slices.Contains(validFromStates, negotiation.GetState()) {
 		return nil, status.Errorf(codes.InvalidArgument, "invalid initial state: %s", negotiation.GetState())
 	}
 
-	ctx, contractTransition := statemachine.GetContractNegotiation(
-		ctx,
+	contractTransition := statemachine.GetContractNegotiation(
 		negotiation,
 		s.provider,
 		s.contractService,
@@ -173,9 +164,6 @@ func (s *Server) ContractOffer(
 	ctx context.Context,
 	req *dsrpc.ContractOfferRequest,
 ) (*dsrpc.ContractOfferResponse, error) {
-	ctx, logger := logging.InjectLabels(ctx, "method", "ContractOffer")
-	logger.Info("Called")
-
 	rawOffer := req.GetOffer()
 	rawPID := req.GetPid()
 	participantAddress := req.GetParticipantAddress()
@@ -195,6 +183,7 @@ func (s *Server) ContractOffer(
 			return nil, status.Errorf(codes.InvalidArgument, "could not reach provider: %s", err)
 		}
 		negotiation := contract.New(
+			ctx,
 			uuid.New(), uuid.UUID{},
 			contract.States.INITIAL,
 			offer,
@@ -291,9 +280,6 @@ func (s *Server) ContractTerminate(
 	ctx context.Context,
 	req *dsrpc.ContractTerminateRequest,
 ) (*dsrpc.ContractTerminateResponse, error) {
-	ctx, logger := logging.InjectLabels(ctx, "method", "ContractTerminate")
-	logger.Info("Called")
-
 	pid, err := uuid.Parse(req.GetPid())
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "could not parse PID: %s", err)
@@ -303,7 +289,7 @@ func (s *Server) ContractTerminate(
 	for _, role := range []constants.DataspaceRole{constants.DataspaceConsumer, constants.DataspaceProvider} {
 		negotiation, err = s.store.GetContractR(ctx, pid, role)
 		if err == nil {
-			logger.Info("Contract found", "pid", negotiation.GetLocalPID().String(), "role", role)
+			ctxslog.Debug(ctx, "Contract found", "pid", negotiation.GetLocalPID().String(), "role", role)
 			break
 		}
 	}

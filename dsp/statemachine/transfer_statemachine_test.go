@@ -21,6 +21,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
+	"go-dataspace.eu/ctxslog"
 	"go-dataspace.eu/run-dsp/dsp/constants"
 	"go-dataspace.eu/run-dsp/dsp/persistence/badger"
 	"go-dataspace.eu/run-dsp/dsp/shared"
@@ -42,8 +43,8 @@ func TestTransferTermination(t *testing.T) { //nolint:funlen
 		ID:          agreementID.URN(),
 		Timestamp:   time.Time{},
 	}
-	logger := logging.NewJSON("error", true)
-	ctx := logging.Inject(t.Context(), logger)
+	logger := logging.New("error", true)
+	ctx := ctxslog.Inject(t.Context(), logger)
 	ctx, done := context.WithCancel(ctx)
 	defer done()
 
@@ -67,6 +68,7 @@ func TestTransferTermination(t *testing.T) { //nolint:funlen
 			transfer.States.STARTED,
 		} {
 			transReq := transfer.New(
+				ctx,
 				consumerPID, &agreement,
 				"HTTP_PULL",
 				providerCallback, consumerCallback,

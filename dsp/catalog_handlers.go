@@ -18,9 +18,9 @@ import (
 	"net/http"
 	"time"
 
+	"go-dataspace.eu/ctxslog"
 	"go-dataspace.eu/run-dsp/dsp/shared"
 	"go-dataspace.eu/run-dsp/internal/authforwarder"
-	"go-dataspace.eu/run-dsp/logging"
 	dsrpc "go-dataspace.eu/run-dsrpc/gen/go/dsp/v1alpha2"
 )
 
@@ -74,12 +74,11 @@ func (dh *dspHandlers) getDataService() shared.DataService {
 }
 
 func (ch *dspHandlers) catalogRequestHandler(w http.ResponseWriter, req *http.Request) error {
-	logger := logging.Extract(req.Context())
 	catalogReq, err := shared.DecodeValid[shared.CatalogRequestMessage](req)
 	if err != nil {
 		return catalogError("request did not validate", http.StatusBadRequest, "400", "Invalid request")
 	}
-	logger.Debug("Got catalog request", "req", catalogReq)
+	ctxslog.Debug(req.Context(), "Got catalog request", "req", catalogReq)
 	// As the filter option is undefined, we will not fill anything
 	resp, err := ch.provider.GetCatalogue(req.Context(), &dsrpc.GetCatalogueRequest{
 		RequesterInfo: authforwarder.ExtractRequesterInfo(req.Context()),
@@ -104,7 +103,7 @@ func (ch *dspHandlers) catalogRequestHandler(w http.ResponseWriter, req *http.Re
 		Service:  []shared.DataService{ch.getDataService()},
 	})
 	if err != nil {
-		logger.Error("failed to serve catalog after accepting", "err", err)
+		ctxslog.Err(req.Context(), "failed to serve catalog after accepting", err)
 	}
 	return nil
 }
@@ -114,12 +113,12 @@ func (ch *dspHandlers) datasetRequestHandler(w http.ResponseWriter, req *http.Re
 	if paramID == "" {
 		return catalogError("no ID in path", http.StatusBadRequest, "400", "No ID given in path")
 	}
-	ctx, logger := logging.InjectLabels(req.Context(), "paramID", paramID)
+	ctx := ctxslog.With(req.Context(), "datasetID", paramID)
 	datasetReq, err := shared.DecodeValid[shared.DatasetRequestMessage](req)
 	if err != nil {
 		return catalogError(err.Error(), http.StatusBadRequest, "400", "Invalid dataset request")
 	}
-	logger.Debug("Got dataset request", "req", datasetReq)
+	ctxslog.Debug(ctx, "Got dataset request", "request", datasetReq)
 	resp, err := ch.provider.GetDataset(ctx, &dsrpc.GetDatasetRequest{
 		DatasetId:     paramID,
 		RequesterInfo: authforwarder.ExtractRequesterInfo(req.Context()),
@@ -130,7 +129,7 @@ func (ch *dspHandlers) datasetRequestHandler(w http.ResponseWriter, req *http.Re
 
 	err = shared.EncodeValid(w, req, http.StatusOK, processProviderDataset(resp.GetDataset(), ch.getDataService()))
 	if err != nil {
-		logger.Error("failed to serve dataset", "err", err)
+		ctxslog.Err(ctx, "failed to serve dataset", err)
 	}
 	return nil
 }

@@ -16,12 +16,11 @@ package badger
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/google/uuid"
+	"go-dataspace.eu/ctxslog"
 	"go-dataspace.eu/run-dsp/dsp/constants"
 	"go-dataspace.eu/run-dsp/dsp/contract"
-	"go-dataspace.eu/run-dsp/logging"
 )
 
 // GetContractR gets a contract and sets the read-only property.
@@ -32,11 +31,10 @@ func (sp *StorageProvider) GetContractR(
 	role constants.DataspaceRole,
 ) (*contract.Negotiation, error) {
 	key := contract.GenerateStorageKey(pid, role)
-	logger := logging.Extract(ctx).With("pid", pid, "role", role, "key", string(key))
+	ctx = ctxslog.With(ctx, "pid", pid, "role", role, "key", string(key))
 	b, err := get(sp.db, key)
 	if err != nil {
-		logger.Error("Failed to get contract", "err", err)
-		return nil, fmt.Errorf("could not get contract: %w", err)
+		return nil, ctxslog.ReturnError(ctx, "could not get contract", err)
 	}
 	negotiation, err := contract.FromBytes(b)
 	if err != nil {
@@ -56,7 +54,7 @@ func (sp *StorageProvider) GetContractRW(
 	role constants.DataspaceRole,
 ) (*contract.Negotiation, error) {
 	key := contract.GenerateStorageKey(pid, role)
-	ctx, _ = logging.InjectLabels(ctx, "type", "contract", "pid", pid, "role", role, "key", string(key))
+	ctx = ctxslog.With(ctx, "type", "contract", "pid", pid, "role", role, "key", string(key))
 	b, err := getLocked(ctx, sp, key)
 	if err != nil {
 		return nil, err
@@ -75,12 +73,6 @@ func (sp *StorageProvider) GetContractRW(
 // If the contract is set to read-only, it will panic as this is a bug in the code.
 // It will release the lock after it has saved.
 func (sp *StorageProvider) PutContract(ctx context.Context, negotiation *contract.Negotiation) error {
-	ctx, _ = logging.InjectLabels(
-		ctx,
-		"consumer_pid", negotiation.GetConsumerPID(),
-		"provider_pid", negotiation.GetProviderPID(),
-		"role", negotiation.GetRole(),
-	)
 	return putUnlock(ctx, sp, negotiation)
 }
 
@@ -89,8 +81,6 @@ func (sp *StorageProvider) ReleaseContract(
 	negotiation *contract.Negotiation,
 ) error {
 	key := contract.GenerateStorageKey(negotiation.GetLocalPID(), negotiation.GetRole())
-	ctx, _ = logging.InjectLabels(
-		ctx, "type", "contract", "pid", negotiation.GetLocalPID(), "role", negotiation.GetRole(), "key", string(key))
 
 	negotiation.SetReadOnly()
 	return sp.ReleaseLock(ctx, newLockKey(key))

@@ -16,6 +16,7 @@ package contract
 
 import (
 	"bytes"
+	"context"
 	"encoding/gob"
 	"fmt"
 	"net/url"
@@ -23,6 +24,7 @@ import (
 	"strconv"
 
 	"github.com/google/uuid"
+	"go-dataspace.eu/ctxslog"
 	"go-dataspace.eu/run-dsp/dsp/constants"
 	"go-dataspace.eu/run-dsp/dsp/shared"
 	"go-dataspace.eu/run-dsp/odrl"
@@ -94,6 +96,7 @@ type storableNegotiation struct {
 }
 
 func New(
+	ctx context.Context,
 	providerPID, consumerPID uuid.UUID,
 	state State,
 	offer odrl.Offer,
@@ -102,7 +105,7 @@ func New(
 	autoAccept bool,
 	requesterInfo *dsrpc.RequesterInfo,
 ) *Negotiation {
-	return &Negotiation{
+	neg := &Negotiation{
 		providerPID:   providerPID,
 		consumerPID:   consumerPID,
 		state:         state,
@@ -114,6 +117,8 @@ func New(
 		modified:      true,
 		requesterInfo: requesterInfo,
 	}
+	ctxslog.Info(ctx, "creating new contract negotiation", neg.GetLogFields("")...)
+	return neg
 }
 
 func FromBytes(b []byte) (*Negotiation, error) {
@@ -162,6 +167,20 @@ func (cn *Negotiation) GetLocalPID() uuid.UUID {
 		return cn.GetProviderPID()
 	default:
 		panic("not a valid role")
+	}
+}
+
+// GetLogFields will return relevant log fields for the negotiation.
+// The suffix argument will append a prefix to the keys.
+func (cn *Negotiation) GetLogFields(suffix string) []any {
+	return []any{
+		"role" + suffix, constants.GetRoleName(cn.role),
+		"consumerPID" + suffix, cn.GetConsumerPID().String(),
+		"providerPID" + suffix, cn.GetProviderPID().String(),
+		"state" + suffix, cn.GetState().String(),
+		"callBack" + suffix, cn.GetCallback().String(),
+		"selfURL" + suffix, cn.GetSelf().String(),
+		"autoAccept" + suffix, cn.AutoAccept(),
 	}
 }
 

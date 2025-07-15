@@ -14,6 +14,8 @@
 
 package constants
 
+import "fmt"
+
 // DataspaceRole signifies what role in a dataspace exchange this is.
 type DataspaceRole uint8
 
@@ -21,3 +23,14 @@ const (
 	DataspaceConsumer DataspaceRole = iota
 	DataspaceProvider
 )
+
+func GetRoleName(r DataspaceRole) string {
+	switch r {
+	case DataspaceConsumer:
+		return "Consumer"
+	case DataspaceProvider:
+		return "Provider"
+	default:
+		panic(fmt.Sprintf("unexpected constants.DataspaceRole: %#v", r))
+	}
+}

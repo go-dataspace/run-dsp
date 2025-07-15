@@ -16,6 +16,7 @@ package transfer
 
 import (
 	"bytes"
+	"context"
 	"encoding/gob"
 	"fmt"
 	"net/url"
@@ -23,6 +24,7 @@ import (
 	"strconv"
 
 	"github.com/google/uuid"
+	"go-dataspace.eu/ctxslog"
 	"go-dataspace.eu/run-dsp/dsp/constants"
 	"go-dataspace.eu/run-dsp/dsp/shared"
 	"go-dataspace.eu/run-dsp/odrl"
@@ -95,6 +97,7 @@ type storableRequest struct {
 }
 
 func New(
+	ctx context.Context,
 	consumerPID uuid.UUID,
 	agreement *odrl.Agreement,
 	format string,
@@ -125,6 +128,7 @@ func New(
 	if publishInfo == nil {
 		t.transferDirection = DirectionPull
 	}
+	ctxslog.Info(ctx, "creating a new transfer request", t.GetLogFields("")...)
 	return t
 }
 
@@ -170,6 +174,18 @@ func (tr *Request) GetRequesterInfo() *dsrpc.RequesterInfo { return tr.requester
 func (tr *Request) GetPublishInfo() *dsrpc.PublishInfo     { return tr.publishInfo }
 func (tr *Request) GetTransferDirection() Direction {
 	return tr.transferDirection
+}
+
+func (tr *Request) GetLogFields(suffix string) []any {
+	return []any{
+		"role" + suffix, constants.GetRoleName(tr.role),
+		"consumerPID" + suffix, tr.GetConsumerPID().String(),
+		"providerPID" + suffix, tr.GetProviderPID().String(),
+		"agreementID" + suffix, tr.GetAgreementID(),
+		"state" + suffix, tr.GetState().String(),
+		"callBack" + suffix, tr.GetCallback().String(),
+		"selfURL" + suffix, tr.GetSelf().String(),
+	}
 }
 
 func (tr *Request) GetLocalPID() uuid.UUID {

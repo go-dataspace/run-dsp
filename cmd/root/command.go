@@ -15,13 +15,14 @@
 package root
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"slices"
 
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
+	"go-dataspace.eu/ctxslog"
 	"go-dataspace.eu/run-dsp/internal/server"
 	"go-dataspace.eu/run-dsp/internal/ui"
 	"go-dataspace.eu/run-dsp/logging"
@@ -42,13 +43,8 @@ var (
 			if !slices.Contains(validLogLevels, logLevel) {
 				return fmt.Errorf("Invalid log level %s, valid levels: %v", logLevel, validLogLevels)
 			}
-			ctx := context.Background()
-			humanReadable := false
-			if viper.GetBool("debug") {
-				humanReadable = true
-				logLevel = "debug"
-			}
-			ctx = logging.Inject(ctx, logging.NewJSON(logLevel, humanReadable))
+
+			ctx := ctxslog.New(logging.New(logLevel, viper.GetBool("human-readable")))
 			viper.Set("initCTX", ctx)
 			return nil
 		},
@@ -61,10 +57,11 @@ func init() {
 
 	rootCmd.PersistentFlags().StringVarP(&cfgFile, "config", "c", "", "config file (default is /etc/run-dsp/run-dsp.toml)")
 	rootCmd.PersistentFlags().BoolP("debug", "d", false, "enable debug mode")
+	rootCmd.PersistentFlags().BoolP("human-readable", "h", false, "Print human-readable logs (instead of JSON)")
 	rootCmd.PersistentFlags().StringP(
 		"log-level", "l", "info", fmt.Sprintf("set log level, valid levels: %v", validLogLevels))
 
-	err := viper.BindPFlag("debug", rootCmd.PersistentFlags().Lookup("debug"))
+	err := viper.BindPFlag("human-readable", rootCmd.PersistentFlags().Lookup("human-readable"))
 	if err != nil {
 		panic(err.Error())
 	}
@@ -73,7 +70,12 @@ func init() {
 		panic(err.Error())
 	}
 
-	viper.SetDefault("debug", false)
+	_ = rootCmd.PersistentFlags().MarkDeprecated(
+		"debug",
+		"Deprecated in favour of the combination of `log-level` and `human-readable`.")
+	rootCmd.PersistentFlags().SetNormalizeFunc(normalizeDebug)
+
+	viper.SetDefault("human-readable", false)
 	viper.SetDefault("logLevel", "info")
 
 	rootCmd.AddCommand(server.Command)
@@ -93,6 +95,13 @@ func initConfig() {
 	if err := viper.ReadInConfig(); err == nil {
 		ui.Print(fmt.Sprintln("Using config file:", viper.ConfigFileUsed()))
 	}
+}
+
+func normalizeDebug(f *pflag.FlagSet, name string) pflag.NormalizedName {
+	if name == "debug" {
+		name = "human-readable"
+	}
+	return pflag.NormalizedName(name)
 }
 
 func Execute() {

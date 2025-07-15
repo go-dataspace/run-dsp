@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"go-dataspace.eu/ctxslog"
 	dspconstants "go-dataspace.eu/run-dsp/dsp/constants"
 	"go-dataspace.eu/run-dsp/dsp/contract"
 	"go-dataspace.eu/run-dsp/dsp/persistence"
@@ -31,7 +32,6 @@ import (
 	"go-dataspace.eu/run-dsp/internal/authforwarder"
 	"go-dataspace.eu/run-dsp/internal/constants"
 	"go-dataspace.eu/run-dsp/jsonld"
-	"go-dataspace.eu/run-dsp/logging"
 	"go-dataspace.eu/run-dsp/odrl"
 	dsrpc "go-dataspace.eu/run-dsrpc/gen/go/dsp/v1alpha2"
 	"google.golang.org/grpc/codes"
@@ -174,6 +174,7 @@ func (s *Server) GetProviderDatasetDownloadInformation(
 	selfURL := shared.MustParseURL(s.selfURL.String())
 	selfURL.Path = path.Join(selfURL.Path, "callback")
 	negotiation := contract.New(
+		ctx,
 		uuid.UUID{}, uuid.New(),
 		contract.States.INITIAL,
 		odrl.Offer{
@@ -203,8 +204,9 @@ func (s *Server) GetProviderDatasetDownloadInformation(
 		return nil, status.Errorf(codes.Internal, "couldn't retrieve contract negotiation: %s", err)
 	}
 
-	ctx, contractInit := statemachine.GetContractNegotiation(ctx, negotiation, s.provider, s.contractService, s.reconciler)
-	ctx, logger := logging.InjectLabels(ctx, "method", "GetProviderDownloadInformationRequest")
+	ctx = ctxslog.With(ctx, negotiation.GetLogFields("_contract_negotiation")...)
+
+	contractInit := statemachine.GetContractNegotiation(negotiation, s.provider, s.contractService, s.reconciler)
 
 	apply, err := contractInit.Send(ctx)
 	if err != nil {
@@ -213,7 +215,7 @@ func (s *Server) GetProviderDatasetDownloadInformation(
 	if err := s.store.PutContract(ctx, negotiation); err != nil {
 		return nil, status.Errorf(codes.Internal, "Couldn't store contract negotiation: %s", err)
 	}
-	logger.Debug("Beginning contract negotiation")
+	ctxslog.Debug(ctx, "Beginning contract negotiation")
 	// These don't really return errors, the err is for uniformity with the recv applyFunc
 	_ = apply()
 
@@ -223,12 +225,13 @@ func (s *Server) GetProviderDatasetDownloadInformation(
 			codes.Internal, "could not get consumer contract with PID %s: %s", negotiation.GetLocalPID(), err)
 	}
 
-	logger.Info("Starting to monitor contract")
+	ctxslog.Info(ctx, "Starting to monitor contract")
 	checks := 0
+
 	for negotiation.GetState() != contract.States.FINALIZED {
 		// Only log the status every 10 checks.
 		if checks%10 == 0 {
-			logger.Info("Contract not finalized", "state", negotiation.GetState().String())
+			ctxslog.Debug(ctx, "Contract not finalized...", "checks", checks, "state", negotiation.GetState().String())
 		}
 		time.Sleep(1 * time.Second)
 		negotiation, err = s.store.GetContractR(ctx, negotiation.GetLocalPID(), dspconstants.DataspaceConsumer)
@@ -243,7 +246,7 @@ func (s *Server) GetProviderDatasetDownloadInformation(
 
 		checks++
 	}
-	logger.Info("Contract finalized, continuing")
+	ctxslog.Info(ctx, "Contract finalized, continuing")
 	transferConsumerPID := uuid.New()
 	agreementID := uuid.MustParse(negotiation.GetAgreement().ID)
 	agreement, err := s.store.GetAgreement(ctx, agreementID)
@@ -252,6 +255,7 @@ func (s *Server) GetProviderDatasetDownloadInformation(
 	}
 
 	transferReq := transfer.New(
+		ctx,
 		transferConsumerPID,
 		agreement,
 		"HTTP_PULL",
@@ -275,9 +279,9 @@ func (s *Server) GetProviderDatasetDownloadInformation(
 	if err := authforwarder.CheckRequesterInfo(ctx, transferReq.GetRequesterInfo()); err != nil {
 		releaseErr := s.store.ReleaseTransfer(ctx, transferReq)
 		if releaseErr != nil {
-			logger.Error("problem when trying to release lock", "err", releaseErr)
+			ctxslog.Error(ctx, "problem when trying to release lock", "err", releaseErr)
 		}
-		return nil, err
+		return nil, status.Errorf(codes.Unauthenticated, "unauthenticated transfer: %s", err)
 	}
 
 	transferInit := statemachine.GetTransferRequestNegotiation(transferReq, s.provider, s.reconciler)
@@ -290,7 +294,7 @@ func (s *Server) GetProviderDatasetDownloadInformation(
 		return nil, status.Errorf(codes.Internal, "Couldn't create transfer request: %s", err)
 	}
 
-	logger.Debug("Beginning transfer request")
+	ctxslog.Debug(ctx, "Beginning transfer request")
 	tApply()
 
 	tReq, err := s.store.GetTransferR(ctx, transferConsumerPID, dspconstants.DataspaceConsumer)
@@ -301,9 +305,11 @@ func (s *Server) GetProviderDatasetDownloadInformation(
 		return nil, err
 	}
 
-	logger.Info("Starting to monitor transfer request")
+	ctx = ctxslog.With(ctx, tReq.GetLogFields("_transfer_requsts")...)
+
+	ctxslog.Info(ctx, "Starting to monitor transfer request")
 	for tReq.GetState() != transfer.States.STARTED {
-		logger.Info("Transfer not started", "state", tReq.GetState().String())
+		ctxslog.Debug(ctx, "Transfer not started", "current_state", tReq.GetState().String())
 		time.Sleep(1 * time.Second)
 		tReq, err = s.store.GetTransferR(ctx, transferConsumerPID, dspconstants.DataspaceConsumer)
 		if err != nil {
@@ -339,6 +345,7 @@ func (s *Server) GetProviderDatasetUploadInformation(
 
 	selfURL := shared.MustParseURL(s.selfURL.String())
 	negotiation := contract.New(
+		ctx,
 		uuid.New(), uuid.UUID{},
 		contract.States.INITIAL,
 		odrl.Offer{
@@ -373,8 +380,9 @@ func (s *Server) GetProviderDatasetUploadInformation(
 		return nil, status.Errorf(codes.Internal, "couldn't retrieve contract negotiation: %s", err)
 	}
 
-	ctx, contractInit := statemachine.GetContractNegotiation(ctx, negotiation, s.provider, s.contractService, s.reconciler)
-	ctx, logger := logging.InjectLabels(ctx, "method", "GetProviderDownloadInformationRequest")
+	ctx = ctxslog.With(ctx, negotiation.GetLogFields("_contract_negotiation")...)
+
+	contractInit := statemachine.GetContractNegotiation(negotiation, s.provider, s.contractService, s.reconciler)
 
 	apply, err := contractInit.Send(ctx)
 	if err != nil {
@@ -383,7 +391,7 @@ func (s *Server) GetProviderDatasetUploadInformation(
 	if err := s.store.PutContract(ctx, negotiation); err != nil {
 		return nil, status.Errorf(codes.Internal, "Couldn't store contract negotiation: %s", err)
 	}
-	logger.Debug("Beginning contract negotiation")
+	ctxslog.Debug(ctx, "Beginning contract negotiation")
 	// These don't really return errors, the err is for uniformity with the recv applyFunc
 	_ = apply()
 
@@ -393,12 +401,12 @@ func (s *Server) GetProviderDatasetUploadInformation(
 			codes.Internal, "could not get provider contract with PID %s: %s", negotiation.GetLocalPID(), err)
 	}
 
-	logger.Info("Starting to monitor contract")
+	ctxslog.Info(ctx, "Starting to monitor contract")
 	checks := 0
 	for negotiation.GetState() != contract.States.FINALIZED {
 		// Only log the status every 10 checks.
 		if checks%10 == 0 {
-			logger.Info("Contract not finalized", "state", negotiation.GetState().String())
+			ctxslog.Info(ctx, "Contract not finalized", "current_state", negotiation.GetState().String())
 		}
 		time.Sleep(1 * time.Second)
 		negotiation, err = s.store.GetContractR(ctx, negotiation.GetLocalPID(), dspconstants.DataspaceProvider)
@@ -408,9 +416,9 @@ func (s *Server) GetProviderDatasetUploadInformation(
 		}
 		checks++
 	}
-	logger.Info("Contract finalized, continuing")
+	ctxslog.Info(ctx, "Contract finalized, continuing")
 
-	logger.Info("Starting to monitor transfer request")
+	ctxslog.Info(ctx, "Starting to monitor transfer request")
 	var tReq *transfer.Request
 	for tReq == nil {
 		transfers, err := s.store.GetTransfers(ctx)
@@ -419,7 +427,7 @@ func (s *Server) GetProviderDatasetUploadInformation(
 		}
 
 		for _, t := range transfers {
-			logger.Info("checking if transfer has started", "transfer-agreement-id",
+			ctxslog.Debug(ctx, "checking if transfer has started", "transfer-agreement-id",
 				t.GetAgreementID(), "negotiation-agreement-id", negotiation.GetAgreement().ID)
 
 			// FIXME: For some reason we have two transfers requests in store for this single transfer.
@@ -433,11 +441,11 @@ func (s *Server) GetProviderDatasetUploadInformation(
 		}
 
 		if tReq != nil {
-			logger.Info("Transfer requested", "state", tReq.GetState().String())
+			ctxslog.Info(ctx, "Transfer requested", "state", tReq.GetState().String())
 			break
 		}
 
-		logger.Info("Transfer not yet requested")
+		ctxslog.Debug(ctx, "Transfer not yet requested")
 		time.Sleep(1 * time.Second)
 	}
 
@@ -452,8 +460,6 @@ func (s *Server) GetProviderDatasetUploadInformation(
 func (s *Server) SignalTransferComplete( //nolint:cyclop
 	ctx context.Context, req *dsrpc.SignalTransferCompleteRequest,
 ) (*dsrpc.SignalTransferCompleteResponse, error) {
-	logger := logging.Extract(ctx)
-
 	id, err := uuid.Parse(req.GetTransferId())
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "Transfer ID is not a valid UUID.")
@@ -467,7 +473,7 @@ func (s *Server) SignalTransferComplete( //nolint:cyclop
 			if err := authforwarder.CheckRequesterInfo(ctx, trReq.GetRequesterInfo()); err != nil {
 				releaseErr := s.store.ReleaseTransfer(ctx, trReq)
 				if releaseErr != nil {
-					logger.Error("problem when trying to release lock", "err", releaseErr)
+					ctxslog.Err(ctx, "problem when trying to release lock", releaseErr)
 				}
 				return nil, err
 			}
@@ -526,7 +532,6 @@ func (s *Server) SignalTransferResume(
 func (s *Server) InitiatePushTransfer(ctx context.Context, r *dsrpc.InitiatePushTransferRequest) (
 	*dsrpc.InitiatePushTransferResponse, error,
 ) {
-	logger := logging.Extract(ctx)
 	selfURL := shared.MustParseURL(s.selfURL.String())
 	selfURL.Path = path.Join(selfURL.Path, "callback")
 	transferConsumerPID := uuid.New()
@@ -547,6 +552,7 @@ func (s *Server) InitiatePushTransfer(ctx context.Context, r *dsrpc.InitiatePush
 		return nil, err
 	}
 	transferReq := transfer.New(
+		ctx,
 		transferConsumerPID,
 		negotiation.GetAgreement(),
 		"HTTP_PUSH",
@@ -570,7 +576,7 @@ func (s *Server) InitiatePushTransfer(ctx context.Context, r *dsrpc.InitiatePush
 	if err := authforwarder.CheckRequesterInfo(ctx, transferReq.GetRequesterInfo()); err != nil {
 		releaseErr := s.store.ReleaseTransfer(ctx, transferReq)
 		if releaseErr != nil {
-			logger.Error("problem when trying to release lock", "err", releaseErr)
+			ctxslog.Err(ctx, "problem when trying to release lock", releaseErr)
 		}
 		return nil, err
 	}

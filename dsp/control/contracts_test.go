@@ -140,6 +140,7 @@ func createNegotiation(
 	providerPID := staticProviderPID
 	consumerPID := staticConsumerPID
 	neg := contract.New(
+		ctx,
 		providerPID,
 		consumerPID,
 		state,

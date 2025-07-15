@@ -16,11 +16,12 @@ package badger
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
 	"github.com/dgraph-io/badger/v4"
-	"go-dataspace.eu/run-dsp/logging"
+	"go-dataspace.eu/ctxslog"
 )
 
 const (
@@ -56,10 +57,9 @@ func New(ctx context.Context, inMemory bool, dbPath string) (*StorageProvider, e
 		opt = badger.DefaultOptions(dbPath)
 		dbType = "disk"
 	}
-	logger := logging.Extract(ctx)
-	opt.WithLogger(logAdaptor{logger})
+	opt.WithLogger(logAdaptor{ctxslog.Extract(ctx)})
 
-	ctx, _ = logging.InjectLabels(ctx,
+	ctx = ctxslog.With(ctx,
 		"module", "badger",
 		"db_type", dbType,
 		"db_path", dbPath,
@@ -78,16 +78,15 @@ func New(ctx context.Context, inMemory bool, dbPath string) (*StorageProvider, e
 
 // maintenance is a goroutine that runs the badger garbage collection every gcInterval.
 func (sp StorageProvider) maintenance() {
-	logger := logging.Extract(sp.ctx)
-	logger.Info("Starting database maintenance loop")
+	ctxslog.Info(sp.ctx, "Starting database maintenance loop")
 	ticker := time.NewTicker(gcInterval)
 	for {
 		select {
 		case <-ticker.C:
-			logger.Info("Garbage collection starting")
+			ctxslog.Debug(sp.ctx, "Garbage collection starting")
 			err := sp.db.RunValueLogGC(0.7)
-			if err != nil {
-				logger.Error("GC not completed cleanly", "err", err)
+			if err != nil && !errors.Is(err, badger.ErrGCInMemoryMode) {
+				ctxslog.Error(sp.ctx, "GC not completed cleanly", "err", err)
 			}
 		case <-sp.ctx.Done():
 			ticker.Stop()
@@ -147,20 +146,18 @@ func getLocked(
 	sp *StorageProvider,
 	key []byte,
 ) ([]byte, error) {
-	logger := logging.Extract(ctx)
-	logger.Info("Acquiring lock")
+	ctxslog.Debug(ctx, "Acquiring lock")
 	if err := sp.AcquireLock(ctx, newLockKey(key)); err != nil {
-		logger.Error("Could not acquire lock, panicking", "err", err)
+		ctxslog.Err(ctx, "Could not acquire lock, panicking", err)
 		panic("Failed to acquire lock")
 	}
-	logger.Info("Lock acquired, fetching")
+	ctxslog.Debug(ctx, "Lock acquired, fetching")
 	b, err := get(sp.db, key)
 	if err != nil {
-		logger.Error("Couldn't fetch from db, unlocking", "err", err)
 		if lockErr := sp.ReleaseLock(ctx, newLockKey(key)); lockErr != nil {
-			logger.Error("Failed to unlock, will have to depend on TTL", "err", lockErr)
+			ctxslog.Err(ctx, "Failed to unlock, will have to depend on TTL", lockErr)
 		}
-		return nil, fmt.Errorf("failed to fetch from db")
+		return nil, ctxslog.ReturnError(ctx, "Couldn't fetch from db", err)
 	}
 	return b, nil
 }
@@ -174,9 +171,9 @@ func put(db *badger.DB, key []byte, value []byte) error {
 func putUnlock[T writeController](ctx context.Context, sp *StorageProvider, thing T) error {
 	tType := fmt.Sprintf("%T", thing)
 	key := thing.StorageKey()
-	logger := logging.Extract(ctx).With("type", tType, "key", string(key))
+	ctx = ctxslog.With(ctx, "type", tType, "key", string(key))
 	if thing.ReadOnly() {
-		logger.Error("Trying to write a read only entry")
+		ctxslog.Error(ctx, "Trying to write a read only entry")
 		panic("Trying to write a read only entry")
 	}
 	if thing.Modified() {
@@ -184,10 +181,9 @@ func putUnlock[T writeController](ctx context.Context, sp *StorageProvider, thin
 		if err != nil {
 			return err
 		}
-		logger.Debug("Writing to store")
+		ctxslog.Debug(ctx, "Writing to store")
 		if err := put(sp.db, key, b); err != nil {
-			logger.Error("Could not save entry, not releasing lock", "err", err)
-			return err
+			return ctxslog.ReturnError(ctx, "Could not save entry, not releasing lock", err)
 		}
 	}
 	return sp.ReleaseLock(ctx, newLockKey(key))

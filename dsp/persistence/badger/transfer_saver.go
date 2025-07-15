@@ -16,12 +16,11 @@ package badger
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/google/uuid"
+	"go-dataspace.eu/ctxslog"
 	"go-dataspace.eu/run-dsp/dsp/constants"
 	"go-dataspace.eu/run-dsp/dsp/transfer"
-	"go-dataspace.eu/run-dsp/logging"
 )
 
 // GetTransfers returns all transfers.
@@ -52,11 +51,10 @@ func (sp *StorageProvider) GetTransferR(
 	role constants.DataspaceRole,
 ) (*transfer.Request, error) {
 	key := transfer.GenerateKey(pid, role)
-	logger := logging.Extract(ctx).With("pid", pid, "role", role, "key", string(key))
+	ctx = ctxslog.With(ctx, "pid", pid, "role", role, "key", string(key))
 	b, err := get(sp.db, key)
 	if err != nil {
-		logger.Error("Failed to get transfer", "err", err)
-		return nil, fmt.Errorf("could not get transfer %w", err)
+		return nil, ctxslog.ReturnError(ctx, "Failed to get transfer", err)
 	}
 	request, err := transfer.FromBytes(b)
 	if err != nil {
@@ -76,9 +74,8 @@ func (sp *StorageProvider) GetTransferRW(
 	role constants.DataspaceRole,
 ) (*transfer.Request, error) {
 	key := transfer.GenerateKey(pid, role)
-	ctx, _ = logging.InjectLabels(ctx, "type", "transfer", "pid", pid, "role", role, "key", string(key))
-	logger := logging.Extract(ctx)
-	logger.Debug("Attempting to read transfer from store")
+	ctx = ctxslog.With(ctx, "type", "transfer", "pid", pid, "role", role, "key", string(key))
+	ctxslog.Debug(ctx, "Attempting to read transfer from store")
 	b, err := getLocked(ctx, sp, key)
 	if err != nil {
 		return nil, err
@@ -96,12 +93,6 @@ func (sp *StorageProvider) GetTransferRW(
 // If the transfer is set to read-only, it will panic as this is a bug in the code.
 // It will release the lock after it has saved.
 func (sp *StorageProvider) PutTransfer(ctx context.Context, transfer *transfer.Request) error {
-	ctx, _ = logging.InjectLabels(
-		ctx,
-		"consumer_pid", transfer.GetConsumerPID(),
-		"provider_pid", transfer.GetProviderPID(),
-		"role", transfer.GetRole(),
-	)
 	return putUnlock(ctx, sp, transfer)
 }
 

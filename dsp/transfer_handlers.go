@@ -22,13 +22,13 @@ import (
 	"net/url"
 
 	"github.com/google/uuid"
+	"go-dataspace.eu/ctxslog"
 	"go-dataspace.eu/run-dsp/dsp/constants"
 	"go-dataspace.eu/run-dsp/dsp/persistence"
 	"go-dataspace.eu/run-dsp/dsp/shared"
 	"go-dataspace.eu/run-dsp/dsp/statemachine"
 	"go-dataspace.eu/run-dsp/dsp/transfer"
 	"go-dataspace.eu/run-dsp/internal/authforwarder"
-	"go-dataspace.eu/run-dsp/logging"
 	dsrpc "go-dataspace.eu/run-dsrpc/gen/go/dsp/v1alpha2"
 )
 
@@ -66,8 +66,19 @@ func (te TransferError) ConsumerPID() string {
 }
 
 func transferError(
+	ctx context.Context,
 	err string, statusCode int, dspCode string, reason string, transfer *transfer.Request,
 ) TransferError {
+	ctxslog.Error(
+		ctx, "transfer error",
+		"statusCode", statusCode,
+		"dspCode", dspCode,
+		"reason", reason,
+		"err", err,
+		"role", constants.GetRoleName(transfer.GetRole()),
+		"localPID", transfer.GetLocalPID(),
+		"direction", transfer.GetTransferDirection(),
+	)
 	return TransferError{
 		status:   statusCode,
 		transfer: transfer,
@@ -78,50 +89,51 @@ func transferError(
 }
 
 func (dh *dspHandlers) providerTransferProcessHandler(w http.ResponseWriter, req *http.Request) error {
-	logger := logging.Extract(req.Context())
+	ctx := ctxslog.With(req.Context(), "handler", "providerTransferProcessHandler")
 	providerPID, err := uuid.Parse(req.PathValue("providerPID"))
 	if err != nil {
-		return transferError("invalid provider ID", http.StatusBadRequest, "400", "Invalid provider PID", nil)
+		return transferError(ctx, "invalid provider ID", http.StatusBadRequest, "400", "Invalid provider PID", nil)
 	}
 
-	contract, err := dh.store.GetTransferR(req.Context(), providerPID, constants.DataspaceProvider)
+	contract, err := dh.store.GetTransferR(ctx, providerPID, constants.DataspaceProvider)
 	if err != nil {
-		return contractError(err.Error(), http.StatusNotFound, "404", "TransferRequest not found", nil)
+		return contractError(ctx, err.Error(), http.StatusNotFound, "404", "TransferRequest not found", nil)
 	}
 	if err := shared.EncodeValid(w, req, http.StatusOK, contract.GetTransferProcess()); err != nil {
-		logger.Error("couldn't serve contract state: %w", "err", err)
+		ctxslog.Err(ctx, "couldn't serve contract state", err)
 	}
 	return nil
 }
 
 func (dh *dspHandlers) providerTransferRequestHandler(w http.ResponseWriter, req *http.Request) error {
+	ctx := ctxslog.With(req.Context(), "handler", "providerTransferRequestHandler")
 	transferReq, err := shared.DecodeValid[shared.TransferRequestMessage](req)
 	if err != nil {
-		return transferError(fmt.Sprintf("invalid request message: %s", err.Error()),
+		return transferError(req.Context(), fmt.Sprintf("invalid request message: %s", err.Error()),
 			http.StatusBadRequest, "400", "Invalid request", nil)
 	}
 
 	consumerPID, err := uuid.Parse(transferReq.ConsumerPID)
 	if err != nil {
-		return transferError(fmt.Sprintf("Invalid consumer ID %s: %s", transferReq.ConsumerPID, err.Error()),
+		return transferError(ctx, fmt.Sprintf("Invalid consumer ID %s: %s", transferReq.ConsumerPID, err.Error()),
 			http.StatusBadRequest, "400", "Invalid request: ConsumerPID is not a UUID", nil)
 	}
 
 	agreementID, err := uuid.Parse(transferReq.AgreementID)
 	if err != nil {
-		return transferError(fmt.Sprintf("Invalid agreement ID %s: %s", transferReq.AgreementID, err.Error()),
+		return transferError(ctx, fmt.Sprintf("Invalid agreement ID %s: %s", transferReq.AgreementID, err.Error()),
 			http.StatusBadRequest, "400", "Invalid request: agreement ID is not a UUID", nil)
 	}
 
-	agreement, err := dh.store.GetAgreement(req.Context(), agreementID)
+	agreement, err := dh.store.GetAgreement(ctx, agreementID)
 	if err != nil {
-		return transferError(fmt.Sprintf("Could not get agreement with ID %s: %s", agreementID, err),
+		return transferError(ctx, fmt.Sprintf("Could not get agreement with ID %s: %s", agreementID, err),
 			http.StatusNotFound, "404", "Invalid request: Agreement not found", nil)
 	}
 
 	cbURL, err := url.Parse(transferReq.CallbackAddress)
 	if err != nil {
-		return transferError(fmt.Sprintf("Invalid callback URL %s: %s", transferReq.CallbackAddress, err.Error()),
+		return transferError(ctx, fmt.Sprintf("Invalid callback URL %s: %s", transferReq.CallbackAddress, err.Error()),
 			http.StatusBadRequest, "400", "Invalid request: Non-valid callback URL.", nil)
 	}
 
@@ -130,12 +142,13 @@ func (dh *dspHandlers) providerTransferRequestHandler(w http.ResponseWriter, req
 	if transferReq.DataAddress != nil {
 		pi, err = statemachine.DataAddressToPublishInfo(transferReq.DataAddress)
 		if err != nil {
-			return transferError(fmt.Sprintf("Invalid callback URL %s: %s", transferReq.CallbackAddress, err.Error()),
+			return transferError(ctx, fmt.Sprintf("Invalid callback URL %s: %s", transferReq.CallbackAddress, err.Error()),
 				http.StatusBadRequest, "400", "Invalid request: Invalid dataAddress supplied.", nil)
 		}
 	}
 
 	request := transfer.New(
+		ctx,
 		consumerPID,
 		agreement,
 		transferReq.Format,
@@ -147,10 +160,11 @@ func (dh *dspHandlers) providerTransferRequestHandler(w http.ResponseWriter, req
 		authforwarder.ExtractRequesterInfo(req.Context()),
 	)
 
-	if err := storeRequest(req.Context(), dh.store, request); err != nil {
+	if err := storeRequest(ctx, dh.store, request); err != nil {
 		return err
 	}
 
+	req = req.WithContext(ctx)
 	return processTransferMessage(dh, w, req, request.GetRole(), request.GetProviderPID(), true, transferReq)
 }
 
@@ -158,19 +172,18 @@ func progressTransferState[T any](
 	dh *dspHandlers, w http.ResponseWriter, req *http.Request, role constants.DataspaceRole,
 	rawPID string, autoProgress bool,
 ) error {
-	logger := logging.Extract(req.Context())
 	pid, err := uuid.Parse(rawPID)
 	if err != nil {
-		return transferError(fmt.Sprintf("Invalid PID %s: %s", rawPID, err.Error()),
+		return transferError(req.Context(), fmt.Sprintf("Invalid PID %s: %s", rawPID, err.Error()),
 			http.StatusBadRequest, "400", "Invalid request: PID is not a UUID", nil)
 	}
 
 	msg, err := shared.DecodeValid[T](req)
 	if err != nil {
-		return transferError(fmt.Sprintf("could not decode message: %s", err),
+		return transferError(req.Context(), fmt.Sprintf("could not decode message: %s", err),
 			http.StatusBadRequest, "400", "Invalid request", nil)
 	}
-	logger.Debug("Got contract message", "req", msg)
+	ctxslog.Debug(req.Context(), "Got contract message", "req", msg)
 	return processTransferMessage(dh, w, req, role, pid, autoProgress, msg)
 }
 
@@ -183,26 +196,28 @@ func processTransferMessage[T any](
 	autoProgress bool,
 	msg T,
 ) error {
-	logger := logging.Extract(req.Context())
 	transfer, err := dh.store.GetTransferRW(req.Context(), pid, role)
 	if err != nil {
-		return transferError(fmt.Sprintf("%d transfer request %s not found: %s", role, pid, err),
+		return transferError(req.Context(), fmt.Sprintf("%d transfer request %s not found: %s", role, pid, err),
 			http.StatusNotFound, "404", "Transfer request not found", nil)
 	}
+	ctx := ctxslog.With(req.Context(), transfer.GetLogFields("_recv")...)
+	ctx = ctxslog.With(ctx, "messageType", fmt.Sprintf("%T", msg))
+	ctxslog.Info(ctx, "processing transfer request")
 
 	pState := statemachine.GetTransferRequestNegotiation(transfer, dh.provider, dh.reconciler)
 
-	nextState, err := pState.Recv(req.Context(), msg)
+	nextState, err := pState.Recv(ctx, msg)
 	if err != nil {
-		return transferError(fmt.Sprintf("invalid request: %s", err),
+		return transferError(req.Context(), fmt.Sprintf("invalid request: %s", err),
 			http.StatusBadRequest, "400", "Invalid request", pState.GetTransferRequest())
 	}
 
 	apply := func() {}
 	if autoProgress {
-		apply, err = nextState.Send(req.Context())
+		apply, err = nextState.Send(ctx)
 		if err != nil {
-			return transferError(fmt.Sprintf("couldn't progress to next state: %s", err.Error()),
+			return transferError(ctx, fmt.Sprintf("couldn't progress to next state: %s", err.Error()),
 				http.StatusInternalServerError, "500", "Not able to progress state", nextState.GetTransferRequest())
 		}
 	}
@@ -212,7 +227,7 @@ func processTransferMessage[T any](
 	}
 
 	if err := shared.EncodeValid(w, req, http.StatusOK, nextState.GetTransferProcess()); err != nil {
-		logger.Error("Couldn't serve response", "err", err)
+		ctxslog.Err(ctx, "Couldn't serve response", err)
 	}
 
 	go apply()
@@ -226,25 +241,28 @@ func storeRequest(
 	request *transfer.Request,
 ) error {
 	if err := store.PutTransfer(ctx, request); err != nil {
-		return transferError(fmt.Sprintf("couldn't store transfer request: %s", err),
+		return transferError(ctx, fmt.Sprintf("couldn't store transfer request: %s", err),
 			http.StatusInternalServerError, "500", "Not able to store transfer request", request)
 	}
 	return nil
 }
 
 func (dh *dspHandlers) providerTransferStartHandler(w http.ResponseWriter, req *http.Request) error {
+	req = req.WithContext(ctxslog.With(req.Context(), "handler", "providerTransferStartHandler"))
 	return progressTransferState[shared.TransferStartMessage](
 		dh, w, req, constants.DataspaceProvider, req.PathValue("providerPID"), false,
 	)
 }
 
 func (dh *dspHandlers) providerTransferCompletionHandler(w http.ResponseWriter, req *http.Request) error {
+	req = req.WithContext(ctxslog.With(req.Context(), "handler", "providerTransferCompletionHandler"))
 	return progressTransferState[shared.TransferCompletionMessage](
 		dh, w, req, constants.DataspaceProvider, req.PathValue("providerPID"), true,
 	)
 }
 
 func (dh *dspHandlers) providerTransferTerminationHandler(w http.ResponseWriter, req *http.Request) error {
+	req = req.WithContext(ctxslog.With(req.Context(), "handler", "providerTransferTerminationHandler"))
 	return progressTransferState[shared.TransferTerminationMessage](
 		dh, w, req, constants.DataspaceProvider, req.PathValue("providerPID"), true,
 	)
@@ -252,7 +270,6 @@ func (dh *dspHandlers) providerTransferTerminationHandler(w http.ResponseWriter,
 
 // TODO: Handle suspension.
 func (dh *dspHandlers) providerTransferSuspensionHandler(w http.ResponseWriter, req *http.Request) error {
-	logger := logging.Extract(req.Context())
 	providerPID := req.PathValue("providerPID")
 	if providerPID == "" {
 		return fmt.Errorf("Missing provider PID")
@@ -266,7 +283,7 @@ func (dh *dspHandlers) providerTransferSuspensionHandler(w http.ResponseWriter, 
 		return fmt.Errorf("Invalid request")
 	}
 
-	logger.Debug("Got transfer suspension", "suspension", suspension)
+	ctxslog.Debug(req.Context(), "Got transfer suspension", "suspension", suspension)
 
 	// If all goes well, we just return a 200
 	w.WriteHeader(http.StatusOK)
@@ -275,18 +292,21 @@ func (dh *dspHandlers) providerTransferSuspensionHandler(w http.ResponseWriter, 
 }
 
 func (dh *dspHandlers) consumerTransferStartHandler(w http.ResponseWriter, req *http.Request) error {
+	req = req.WithContext(ctxslog.With(req.Context(), "handler", "consumerTransferStartHandler"))
 	return progressTransferState[shared.TransferStartMessage](
 		dh, w, req, constants.DataspaceConsumer, req.PathValue("consumerPID"), false,
 	)
 }
 
 func (dh *dspHandlers) consumerTransferCompletionHandler(w http.ResponseWriter, req *http.Request) error {
+	req = req.WithContext(ctxslog.With(req.Context(), "handler", "consumerTransferCompletionHandler"))
 	return progressTransferState[shared.TransferCompletionMessage](
 		dh, w, req, constants.DataspaceConsumer, req.PathValue("consumerPID"), true,
 	)
 }
 
 func (dh *dspHandlers) consumerTransferTerminationHandler(w http.ResponseWriter, req *http.Request) error {
+	req = req.WithContext(ctxslog.With(req.Context(), "handler", "consumerTransferTerminationHandler"))
 	return progressTransferState[shared.TransferTerminationMessage](
 		dh, w, req, constants.DataspaceConsumer, req.PathValue("consumerPID"), true,
 	)
@@ -294,7 +314,6 @@ func (dh *dspHandlers) consumerTransferTerminationHandler(w http.ResponseWriter,
 
 // TODO: Handle suspension.
 func (dh *dspHandlers) consumerTransferSuspensionHandler(w http.ResponseWriter, req *http.Request) error {
-	logger := logging.Extract(req.Context())
 	consumerPID := req.PathValue("providerPID")
 	if consumerPID == "" {
 		return fmt.Errorf("Missing consumner PID")
@@ -308,7 +327,7 @@ func (dh *dspHandlers) consumerTransferSuspensionHandler(w http.ResponseWriter, 
 		return err
 	}
 
-	logger.Debug("Got transfer suspension", "suspension", suspension)
+	ctxslog.Debug(req.Context(), "Got transfer suspension", "suspension", suspension)
 
 	// If all goes well, we just return a 200
 	w.WriteHeader(http.StatusOK)
