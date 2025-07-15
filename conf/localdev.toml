@@ -1,6 +1,6 @@
 ### GLOBAL OPTIONS ###
-debug = true       # Sets the output to a human readable format and sets the log level to debug. ($DEBUG)
-logLevel = "debug" # Sets the log level. Valid values: debug/info/warn/error ($LOGLEVEL)
+humanReadable = true # Sets the output to a human readable format ($HUMANREADABLE)
+logLevel = "debug"   # Sets the log level. Valid values: debug/info/warn/error ($LOGLEVEL)
 
 ### SERVER OPTIONS ###
 [server]
@@ -14,16 +14,16 @@ externalURL = "http://127.0.0.1:8080" # Address that we are reachable by to othe
 ## Provider gRPC settings
 [server.provider]
 address = "127.0.0.1:9090" # The address of the provider service. ($SERVER.PROVIDER.ADDRESS)
-insecure = true             # Disable TLS when connecting to the provider. ($SERVER.PROVIDER.INSECURE)
+insecure = true            # Disable TLS when connecting to the provider. ($SERVER.PROVIDER.INSECURE)
 
 [server.contractService]
-address = "127.0.0.1:9092"            # The address of the contract service. ($SERVER.CONTRACTSERVICE.ADDRESS)
-insecure = true                      # Disable TLS when connecting to the contract service. ($SERVER.CONTRACTSERVICE.INSECURE)
+address = "127.0.0.1:9092" # The address of the contract service. ($SERVER.CONTRACTSERVICE.ADDRESS)
+insecure = true            # Disable TLS when connecting to the contract service. ($SERVER.CONTRACTSERVICE.INSECURE)
 enabled = false
 
 [server.authnService]
-address = "127.0.0.1:9093"            # The address of the contract service. ($SERVER.AUTHNSERVICE.ADDRESS)
-insecure = true                      # Disable TLS when connecting to the contract service. ($SERVER.AUTHNSERVICE.INSECURE)
+address = "127.0.0.1:9093" # The address of the contract service. ($SERVER.AUTHNSERVICE.ADDRESS)
+insecure = true            # Disable TLS when connecting to the contract service. ($SERVER.AUTHNSERVICE.INSECURE)
 enabled = false
 
 ## Control service settings
@@ -36,9 +36,9 @@ insecure = true                    # Disable TLS for the control service ($SERVE
 
 ## Persistence settings
 [server.persistence]
-backend = "badger"  #  Persistence backend to use. "badger" is the only available option right now. ($SERVER.PERSISTENCE.BACKEND)
+backend = "badger" #  Persistence backend to use. "badger" is the only available option right now. ($SERVER.PERSISTENCE.BACKEND)
 
 ## Badger persistence backend settings
 [server.persistence.badger]
-memory = true       # Enable in-memory mode, this will put the database in-memory, making it not persist
-                    # between restarts. ($SERVER.PERSISTENCE.BADGER.MEMORY)
+memory = true # Enable in-memory mode, this will put the database in-memory, making it not persist
+# between restarts. ($SERVER.PERSISTENCE.BADGER.MEMORY)

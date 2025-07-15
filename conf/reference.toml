@@ -3,8 +3,8 @@
 ## with the `-c` command line flag
 
 ### GLOBAL OPTIONS ###
-debug = true      # Sets the output to a human readable format and sets the log level to debug. ($DEBUG)
-logLevel = "info" # Sets the log level. Valid values: debug/info/warn/error ($LOGLEVEL)
+humanReadable = true # Sets the output to a human readable format ($HUMANREADABLE)
+logLevel = "info"    # Sets the log level. Valid values: debug/info/warn/error ($LOGLEVEL)
 
 ### SERVER OPTIONS ###
 [server]
@@ -33,22 +33,22 @@ clientCertKey = "/path/to/client.key" # Key to the above mentioned certificate. 
 
 ## Control service settings
 [server.control]
-enabled = true                        # Enable the control service. ($SERVER.CONTROL.ENABLED)
-address = "127.0.0.1"                 # IP address of the local machine to listen to for the control service. ($SERVER.CONTROL.ADDRESS)
-port = 8081                           # TCP port to listen on for the control service. ($SERVER.CONTROL.PORT)
-externalAddress = "127.0.0.1:8081"    # The address that the control service is reachable by. ($SERVER.CONTROL.EXTERNALADDRESS)
-insecure = false                      # Disable TLS for the control service ($SERVER.CONTROL.INSECURE)
-cert = "/path/to/control.crt"         # TLS certificate to use for the control service ($SERVER.CONTROL.CERT)
-certKey = "/path/to/control.key"      # Key to the above mentioned certificate. ($SERVER.CONTROL.CERTKEY)
-verifyClientCerts = true              # Only allow access to clients with a certificate issued by the CA defined below. ($SERVER.CONTROL.VERIFYCLIENTCERTS)
-clientCACert = "/etc/hosts"           # Certificate of the CA that issues client certificates. ($SERVER.CONTROL.CLIENTCACERT)
+enabled = true                     # Enable the control service. ($SERVER.CONTROL.ENABLED)
+address = "127.0.0.1"              # IP address of the local machine to listen to for the control service. ($SERVER.CONTROL.ADDRESS)
+port = 8081                        # TCP port to listen on for the control service. ($SERVER.CONTROL.PORT)
+externalAddress = "127.0.0.1:8081" # The address that the control service is reachable by. ($SERVER.CONTROL.EXTERNALADDRESS)
+insecure = false                   # Disable TLS for the control service ($SERVER.CONTROL.INSECURE)
+cert = "/path/to/control.crt"      # TLS certificate to use for the control service ($SERVER.CONTROL.CERT)
+certKey = "/path/to/control.key"   # Key to the above mentioned certificate. ($SERVER.CONTROL.CERTKEY)
+verifyClientCerts = true           # Only allow access to clients with a certificate issued by the CA defined below. ($SERVER.CONTROL.VERIFYCLIENTCERTS)
+clientCACert = "/etc/hosts"        # Certificate of the CA that issues client certificates. ($SERVER.CONTROL.CLIENTCACERT)
 
 ## Persistence settings
 [server.persistence]
-backend = "badger"  #  Persistence backend to use. "badger" is the only available option right now. ($SERVER.PERSISTENCE.BACKEND)
+backend = "badger" #  Persistence backend to use. "badger" is the only available option right now. ($SERVER.PERSISTENCE.BACKEND)
 
 ## Badger persistence backend settings
 [server.persistence.badger]
-memory = true       # Enable in-memory mode, this will put the database in-memory, making it not persist
-                    # between restarts. ($SERVER.PERSISTENCE.BADGER.MEMORY)
+memory = true # Enable in-memory mode, this will put the database in-memory, making it not persist
+# between restarts. ($SERVER.PERSISTENCE.BADGER.MEMORY)
 dbPath = "/path/to/database" # Directory to store the database in. ($SERVER.PERSISTENCE.BADGER.DBPATH}

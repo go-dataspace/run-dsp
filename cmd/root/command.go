@@ -20,7 +20,6 @@ import (
 	"slices"
 
 	"github.com/spf13/cobra"
-	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 	"go-dataspace.eu/ctxslog"
 	"go-dataspace.eu/run-dsp/internal/server"
@@ -44,7 +43,7 @@ var (
 				return fmt.Errorf("Invalid log level %s, valid levels: %v", logLevel, validLogLevels)
 			}
 
-			ctx := ctxslog.New(logging.New(logLevel, viper.GetBool("human-readable")))
+			ctx := ctxslog.New(logging.New(logLevel, viper.GetBool("humanReadable")))
 			viper.Set("initCTX", ctx)
 			return nil
 		},
@@ -61,7 +60,7 @@ func init() {
 	rootCmd.PersistentFlags().StringP(
 		"log-level", "l", "info", fmt.Sprintf("set log level, valid levels: %v", validLogLevels))
 
-	err := viper.BindPFlag("human-readable", rootCmd.PersistentFlags().Lookup("human-readable"))
+	err := viper.BindPFlag("humanReadable", rootCmd.PersistentFlags().Lookup("human-readable"))
 	if err != nil {
 		panic(err.Error())
 	}
@@ -70,12 +69,7 @@ func init() {
 		panic(err.Error())
 	}
 
-	_ = rootCmd.PersistentFlags().MarkDeprecated(
-		"debug",
-		"Deprecated in favour of the combination of `log-level` and `human-readable`.")
-	rootCmd.PersistentFlags().SetNormalizeFunc(normalizeDebug)
-
-	viper.SetDefault("human-readable", false)
+	viper.SetDefault("humanReadable", false)
 	viper.SetDefault("logLevel", "info")
 
 	rootCmd.AddCommand(server.Command)
@@ -95,13 +89,6 @@ func initConfig() {
 	if err := viper.ReadInConfig(); err == nil {
 		ui.Print(fmt.Sprintln("Using config file:", viper.ConfigFileUsed()))
 	}
-}
-
-func normalizeDebug(f *pflag.FlagSet, name string) pflag.NormalizedName {
-	if name == "debug" {
-		name = "human-readable"
-	}
-	return pflag.NormalizedName(name)
 }
 
 func Execute() {
