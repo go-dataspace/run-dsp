@@ -55,8 +55,7 @@ func init() {
 	cobra.EnableTraverseRunHooks = true
 
 	rootCmd.PersistentFlags().StringVarP(&cfgFile, "config", "c", "", "config file (default is /etc/run-dsp/run-dsp.toml)")
-	rootCmd.PersistentFlags().BoolP("debug", "d", false, "enable debug mode")
-	rootCmd.PersistentFlags().BoolP("human-readable", "h", false, "Print human-readable logs (instead of JSON)")
+	rootCmd.PersistentFlags().BoolP("human-readable", "r", false, "Print human-readable logs (instead of JSON)")
 	rootCmd.PersistentFlags().StringP(
 		"log-level", "l", "info", fmt.Sprintf("set log level, valid levels: %v", validLogLevels))
 
