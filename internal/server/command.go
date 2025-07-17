@@ -35,6 +35,7 @@ import (
 
 	grpclog "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/logging"
 	"github.com/justinas/alice"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"go-dataspace.eu/ctxslog"
@@ -444,6 +445,8 @@ func (c *command) Run(ctx context.Context) error { //nolint:funlen
 		sloghttp.New(ctxslog.Extract(ctx).With("component", "dspRequests")),
 		ctxslog.NewMiddleware(ctxslog.Extract(ctx).With("component", "dspContext"), true),
 	)
+	// metrics
+	mux.Handle("GET /metrics", promhttp.Handler())
 	mux.Handle("/.well-known/", http.StripPrefix(
 		"/.well-known",
 		baseMW.Append(jsonHeaderMiddleware).Then(dsp.GetWellKnownRoutes()),
