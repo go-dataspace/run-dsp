@@ -34,6 +34,7 @@ import (
 	"time"
 
 	grpclog "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/logging"
+	"github.com/grpc-ecosystem/go-grpc-middleware/v2/metadata"
 	"github.com/justinas/alice"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/spf13/cobra"
@@ -52,6 +53,8 @@ import (
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
 
+	grpcprom "github.com/grpc-ecosystem/go-grpc-middleware/providers/prometheus"
+	"github.com/prometheus/client_golang/prometheus"
 	sloghttp "github.com/samber/slog-http"
 )
 
@@ -397,7 +400,29 @@ func (c *command) Run(ctx context.Context) error { //nolint:funlen
 		"port", c.Port,
 		"externalURL", c.ExternalURL,
 	)
-	provider, conn, pingResponse, err := c.getProvider(ctx)
+
+	// Setup metrics. copy-pasted from example at:
+	//  github.com/grpc-ecosystem/go-grpc-middleware/blob/main/examples/server/main.go
+	srvMetrics := grpcprom.NewServerMetrics(
+		grpcprom.WithServerHandlingTimeHistogram(
+			grpcprom.WithHistogramBuckets([]float64{0.001, 0.01, 0.1, 0.3, 0.6, 1, 3, 6, 9, 20, 30, 60, 90, 120}),
+		),
+		// Add tenant_name as a context label. This server option is necessary
+		// to initialize the metrics with the labels that will be provided
+		// dynamically from the context. This should be used in tandem with
+		// WithLabelsFromContext in the interceptor options.
+		grpcprom.WithContextLabels("tenant_name"),
+	)
+	clMetrics := grpcprom.NewClientMetrics(
+		grpcprom.WithClientHandlingTimeHistogram(
+			grpcprom.WithHistogramBuckets([]float64{0.001, 0.01, 0.1, 0.3, 0.6, 1, 3, 6, 9, 20, 30, 60, 90, 120}),
+		),
+	)
+
+	prometheus.MustRegister(srvMetrics)
+	prometheus.MustRegister(clMetrics)
+
+	provider, conn, pingResponse, err := c.getProvider(ctx, clMetrics)
 	if err != nil {
 		return err
 	}
@@ -411,14 +436,14 @@ func (c *command) Run(ctx context.Context) error { //nolint:funlen
 	reconciler.Run()
 	selfURL := cloneURL(c.ExternalURL)
 	selfURL.Path = path.Join(selfURL.Path, constants.APIPath)
-	contractService, csConn, err := c.getContractService(ctx)
+	contractService, csConn, err := c.getContractService(ctx, clMetrics)
 	if err != nil {
 		return err
 	}
 	if csConn != nil {
 		defer csConn.Close()
 	}
-	authnService, authnConn, err := c.getAuthNService(ctx)
+	authnService, authnConn, err := c.getAuthNService(ctx, clMetrics)
 	if err != nil {
 		return err
 	}
@@ -427,7 +452,7 @@ func (c *command) Run(ctx context.Context) error { //nolint:funlen
 	}
 
 	ctlSVC := control.New(httpClient, store, reconciler, provider, contractService, selfURL)
-	err = c.startControl(ctx, wg, ctlSVC)
+	err = c.startControl(ctx, wg, ctlSVC, srvMetrics)
 	if err != nil {
 		return err
 	}
@@ -445,6 +470,7 @@ func (c *command) Run(ctx context.Context) error { //nolint:funlen
 		sloghttp.New(ctxslog.Extract(ctx).With("component", "dspRequests")),
 		ctxslog.NewMiddleware(ctxslog.Extract(ctx).With("component", "dspContext"), true),
 	)
+
 	// metrics
 	mux.Handle("GET /metrics", promhttp.Handler())
 	mux.Handle("/.well-known/", http.StripPrefix(
@@ -499,6 +525,7 @@ func createToken(ctx context.Context, store persistence.StorageProvider) (string
 func (c *command) startControl(
 	ctx context.Context, wg *sync.WaitGroup,
 	controlSVC *control.Server,
+	srvMetrics *grpcprom.ServerMetrics,
 ) error {
 	wg.Add(1)
 	lis, err := net.Listen("tcp", fmt.Sprintf("%s:%d",
@@ -516,9 +543,24 @@ func (c *command) startControl(
 	logOpts := []grpclog.Option{
 		grpclog.WithLogOnEvents(grpclog.StartCall, grpclog.FinishCall),
 	}
+
+	labelsFromContext := func(ctx context.Context) prometheus.Labels {
+		labels := prometheus.Labels{}
+
+		md := metadata.ExtractIncoming(ctx)
+		tenantName := md.Get("tenant-name")
+		if tenantName == "" {
+			tenantName = "unknown"
+		}
+		labels["tenant_name"] = tenantName
+
+		return labels
+	}
+
 	grpcServer := grpc.NewServer(
 		grpc.Creds(tlsCredentials),
 		grpc.ChainUnaryInterceptor(
+			srvMetrics.UnaryServerInterceptor(grpcprom.WithLabelsFromContext(labelsFromContext)),
 			grpclog.UnaryServerInterceptor(
 				interceptorLogger(ctxslog.Extract(ctx).With("component", "controlRequests")),
 				logOpts...),
@@ -526,6 +568,7 @@ func (c *command) startControl(
 			authforwarder.UnaryInterceptor,
 		),
 		grpc.ChainStreamInterceptor(
+			srvMetrics.StreamServerInterceptor(grpcprom.WithLabelsFromContext(labelsFromContext)),
 			grpclog.StreamServerInterceptor(
 				interceptorLogger(ctxslog.Extract(ctx).With("component", "controlRequests")),
 				logOpts...),
@@ -585,13 +628,17 @@ func (c *command) loadControlTLSCredentials() (credentials.TransportCredentials,
 	return credentials.NewTLS(config), nil
 }
 
-func (c *command) getProvider(ctx context.Context) (
+func (c *command) getProvider(ctx context.Context, clMetrics *grpcprom.ClientMetrics) (
 	dsrpc.ProviderServiceClient,
 	*grpc.ClientConn,
 	*dsrpc.PingResponse,
 	error,
 ) {
-	client, conn, err := getGRPCClient(ctx, c.ProviderAddress, c.ProviderTLSConfig, dsrpc.NewProviderServiceClient)
+	client, conn, err := getGRPCClient(ctx,
+		clMetrics,
+		c.ProviderAddress,
+		c.ProviderTLSConfig,
+		dsrpc.NewProviderServiceClient)
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -602,22 +649,31 @@ func (c *command) getProvider(ctx context.Context) (
 	return client, conn, ping, nil
 }
 
-func (c *command) getContractService(ctx context.Context) (dsrpc.ContractServiceClient, *grpc.ClientConn, error) {
+func (c *command) getContractService(ctx context.Context,
+	clMetrics *grpcprom.ClientMetrics,
+) (dsrpc.ContractServiceClient, *grpc.ClientConn, error) {
 	if c.ContractServiceEnabled {
-		return getGRPCClient(ctx, c.ContractServiceAddress, c.ContractServiceTLSConfig, dsrpc.NewContractServiceClient)
+		return getGRPCClient(ctx,
+			clMetrics,
+			c.ContractServiceAddress,
+			c.ContractServiceTLSConfig,
+			dsrpc.NewContractServiceClient)
 	}
 	return nil, nil, nil
 }
 
-func (c *command) getAuthNService(ctx context.Context) (dsrpc.AuthNServiceClient, *grpc.ClientConn, error) {
+func (c *command) getAuthNService(ctx context.Context,
+	clMetrics *grpcprom.ClientMetrics,
+) (dsrpc.AuthNServiceClient, *grpc.ClientConn, error) {
 	if c.AuthNServiceEnabled {
-		return getGRPCClient(ctx, c.AuthNServiceAddress, c.AuthNServiceTLSConfig, dsrpc.NewAuthNServiceClient)
+		return getGRPCClient(ctx, clMetrics, c.AuthNServiceAddress, c.AuthNServiceTLSConfig, dsrpc.NewAuthNServiceClient)
 	}
 	return nil, nil, nil
 }
 
 func getGRPCClient[T any](
 	ctx context.Context,
+	clMetrics *grpcprom.ClientMetrics,
 	address string,
 	tlsc tlsConfig,
 	clientFunc func(cc grpc.ClientConnInterface) T,
@@ -635,12 +691,14 @@ func getGRPCClient[T any](
 		address,
 		grpc.WithTransportCredentials(tlsCredentials),
 		grpc.WithChainUnaryInterceptor(
+			clMetrics.UnaryClientInterceptor(),
 			grpclog.UnaryClientInterceptor(
 				interceptorLogger(ctxslog.Extract(ctx).With("component", fmt.Sprintf("%TClient", client))),
 				logOpts...),
 			authforwarder.UnaryClientInterceptor,
 		),
 		grpc.WithChainStreamInterceptor(
+			clMetrics.StreamClientInterceptor(),
 			grpclog.StreamClientInterceptor(
 				interceptorLogger(ctxslog.Extract(ctx).With("component", fmt.Sprintf("%TClient", client))),
 				logOpts...),
