@@ -34,7 +34,6 @@ import (
 	"time"
 
 	grpclog "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/logging"
-	"github.com/grpc-ecosystem/go-grpc-middleware/v2/metadata"
 	"github.com/justinas/alice"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/spf13/cobra"
@@ -60,9 +59,11 @@ import (
 
 // Viper keys.
 const (
-	dspAddress     = "server.dsp.address"
-	dspPort        = "server.dsp.port"
-	dspExternalURL = "server.dsp.externalURL"
+	dspAddress        = "server.dsp.address"
+	dspPort           = "server.dsp.port"
+	prometheusAddress = "server.prometheusAddress"
+	prometheusPort    = "server.prometheusPort"
+	dspExternalURL    = "server.dsp.externalURL"
 
 	providerAddress       = "server.provider.address"
 	providerInsecure      = "server.provider.insecure"
@@ -110,6 +111,10 @@ func init() {
 		Command, dspAddress, "dsp-address", "address to listen on for dataspace operations", "0.0.0.0")
 	cfg.AddPersistentFlag(
 		Command, dspPort, "dsp-port", "port to listen on for dataspace operations", 8080)
+	cfg.AddPersistentFlag(
+		Command, prometheusAddress, "prometheus-address", "address to listen on for prometheus metrics", "0.0.0.0")
+	cfg.AddPersistentFlag(
+		Command, prometheusPort, "prometheus-port", "port to listen on for prometheus metrics", 8082)
 	cfg.AddPersistentFlag(
 		Command,
 		dspExternalURL,
@@ -302,6 +307,8 @@ var Command = &cobra.Command{
 		c := command{
 			ListenAddr:      viper.GetString(dspAddress),
 			Port:            viper.GetInt(dspPort),
+			PrometheusAddr:  viper.GetString(prometheusAddress),
+			PrometheusPort:  viper.GetInt(prometheusPort),
 			ExternalURL:     u,
 			ProviderAddress: viper.GetString(providerAddress),
 			ProviderTLSConfig: tlsConfig{
@@ -353,8 +360,10 @@ type tlsConfig struct {
 	ClientCertKey string
 }
 type command struct {
-	ListenAddr string
-	Port       int
+	ListenAddr     string
+	Port           int
+	PrometheusAddr string
+	PrometheusPort int
 
 	ExternalURL *url.URL
 
@@ -399,29 +408,11 @@ func (c *command) Run(ctx context.Context) error { //nolint:funlen
 		"listenAddr", c.ListenAddr,
 		"port", c.Port,
 		"externalURL", c.ExternalURL,
+		"prometheusAddr", c.PrometheusAddr,
+		"prometheusPort", c.PrometheusPort,
 	)
 
-	// Setup metrics. copy-pasted from example at:
-	//  github.com/grpc-ecosystem/go-grpc-middleware/blob/main/examples/server/main.go
-	srvMetrics := grpcprom.NewServerMetrics(
-		grpcprom.WithServerHandlingTimeHistogram(
-			grpcprom.WithHistogramBuckets([]float64{0.001, 0.01, 0.1, 0.3, 0.6, 1, 3, 6, 9, 20, 30, 60, 90, 120}),
-		),
-		// Add tenant_name as a context label. This server option is necessary
-		// to initialize the metrics with the labels that will be provided
-		// dynamically from the context. This should be used in tandem with
-		// WithLabelsFromContext in the interceptor options.
-		grpcprom.WithContextLabels("tenant_name"),
-	)
-	clMetrics := grpcprom.NewClientMetrics(
-		grpcprom.WithClientHandlingTimeHistogram(
-			grpcprom.WithHistogramBuckets([]float64{0.001, 0.01, 0.1, 0.3, 0.6, 1, 3, 6, 9, 20, 30, 60, 90, 120}),
-		),
-	)
-
-	prometheus.MustRegister(srvMetrics)
-	prometheus.MustRegister(clMetrics)
-
+	srvMetrics, clMetrics := setupMetrics()
 	provider, conn, pingResponse, err := c.getProvider(ctx, clMetrics)
 	if err != nil {
 		return err
@@ -464,6 +455,55 @@ func (c *command) Run(ctx context.Context) error { //nolint:funlen
 		}
 	}
 
+	// Setup HTTP services
+	metricsSrv := c.getMetricsServer()
+	srv := c.getDataspaceServer(ctx, authnService, provider, contractService, store, reconciler, selfURL, pingResponse)
+
+	go func() {
+		defer wg.Done()
+		err = metricsSrv.ListenAndServe()
+		if err != nil {
+			ctxslog.Error(ctx, "error from metrics server", err)
+		}
+	}()
+
+	go func() {
+		defer wg.Done()
+		err = srv.ListenAndServe()
+		if err != nil {
+			ctxslog.Error(ctx, "error from main server", err)
+		}
+	}()
+
+	wg.Add(2)
+	reconciler.WaitGroup.Wait()
+	_ = metricsSrv.Shutdown(ctx)
+	err = srv.Shutdown(ctx)
+	wg.Wait()
+	return err
+}
+
+func (c *command) getMetricsServer() *http.Server {
+	metricsMux := http.NewServeMux()
+	metricsMux.Handle("GET /metrics", promhttp.Handler())
+
+	metricsSrv := &http.Server{
+		Addr:              fmt.Sprintf("%s:%d", c.PrometheusAddr, c.PrometheusPort),
+		ReadHeaderTimeout: 2 * time.Second,
+		Handler:           metricsMux,
+	}
+	return metricsSrv
+}
+
+func (c *command) getDataspaceServer(ctx context.Context,
+	authnService dsrpc.AuthNServiceClient,
+	provider dsrpc.ProviderServiceClient,
+	contractService dsrpc.ContractServiceClient,
+	store persistence.StorageProvider,
+	reconciler *statemachine.HTTPReconciler,
+	selfURL *url.URL,
+	pingResponse *dsrpc.PingResponse,
+) *http.Server {
 	mux := http.NewServeMux()
 	baseMW := alice.New(
 		sloghttp.Recovery,
@@ -471,8 +511,6 @@ func (c *command) Run(ctx context.Context) error { //nolint:funlen
 		ctxslog.NewMiddleware(ctxslog.Extract(ctx).With("component", "dspContext"), true),
 	)
 
-	// metrics
-	mux.Handle("GET /metrics", promhttp.Handler())
 	mux.Handle("/.well-known/", http.StripPrefix(
 		"/.well-known",
 		baseMW.Append(jsonHeaderMiddleware).Then(dsp.GetWellKnownRoutes()),
@@ -490,8 +528,26 @@ func (c *command) Run(ctx context.Context) error { //nolint:funlen
 		Handler:           mux,
 		ReadHeaderTimeout: 2 * time.Second,
 	}
-	// TODO: Shut down webserver gracefully and use the reconciler waitgroup.
-	return srv.ListenAndServe()
+	return srv
+}
+
+func setupMetrics() (*grpcprom.ServerMetrics, *grpcprom.ClientMetrics) {
+	// Setup metrics. copy-pasted from example at:
+	//  github.com/grpc-ecosystem/go-grpc-middleware/blob/main/examples/server/main.go
+	srvMetrics := grpcprom.NewServerMetrics(
+		grpcprom.WithServerHandlingTimeHistogram(
+			grpcprom.WithHistogramBuckets([]float64{0.001, 0.01, 0.1, 0.3, 0.6, 1, 3, 6, 9, 20, 30, 60, 90, 120}),
+		),
+	)
+	clMetrics := grpcprom.NewClientMetrics(
+		grpcprom.WithClientHandlingTimeHistogram(
+			grpcprom.WithHistogramBuckets([]float64{0.001, 0.01, 0.1, 0.3, 0.6, 1, 3, 6, 9, 20, 30, 60, 90, 120}),
+		),
+	)
+
+	prometheus.MustRegister(srvMetrics)
+	prometheus.MustRegister(clMetrics)
+	return srvMetrics, clMetrics
 }
 
 func (c *command) configureContractService(
@@ -544,23 +600,10 @@ func (c *command) startControl(
 		grpclog.WithLogOnEvents(grpclog.StartCall, grpclog.FinishCall),
 	}
 
-	labelsFromContext := func(ctx context.Context) prometheus.Labels {
-		labels := prometheus.Labels{}
-
-		md := metadata.ExtractIncoming(ctx)
-		tenantName := md.Get("tenant-name")
-		if tenantName == "" {
-			tenantName = "unknown"
-		}
-		labels["tenant_name"] = tenantName
-
-		return labels
-	}
-
 	grpcServer := grpc.NewServer(
 		grpc.Creds(tlsCredentials),
 		grpc.ChainUnaryInterceptor(
-			srvMetrics.UnaryServerInterceptor(grpcprom.WithLabelsFromContext(labelsFromContext)),
+			srvMetrics.UnaryServerInterceptor(),
 			grpclog.UnaryServerInterceptor(
 				interceptorLogger(ctxslog.Extract(ctx).With("component", "controlRequests")),
 				logOpts...),
@@ -568,7 +611,7 @@ func (c *command) startControl(
 			authforwarder.UnaryInterceptor,
 		),
 		grpc.ChainStreamInterceptor(
-			srvMetrics.StreamServerInterceptor(grpcprom.WithLabelsFromContext(labelsFromContext)),
+			srvMetrics.StreamServerInterceptor(),
 			grpclog.StreamServerInterceptor(
 				interceptorLogger(ctxslog.Extract(ctx).With("component", "controlRequests")),
 				logOpts...),
