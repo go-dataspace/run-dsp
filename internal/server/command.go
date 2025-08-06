@@ -400,7 +400,7 @@ type command struct {
 }
 
 // Run starts the server.
-func (c *command) Run(ctx context.Context) error { //nolint:funlen
+func (c *command) Run(ctx context.Context) error {
 	wg := &sync.WaitGroup{}
 	ctx, cancel := signal.NotifyContext(ctx, os.Interrupt, os.Kill)
 	defer cancel()
@@ -412,52 +412,10 @@ func (c *command) Run(ctx context.Context) error { //nolint:funlen
 		"prometheusPort", c.PrometheusPort,
 	)
 
-	srvMetrics, clMetrics := setupMetrics()
-	provider, conn, pingResponse, err := c.getProvider(ctx, clMetrics)
+	reconciler, metricsSrv, srv, err := c.setupServices(ctx, wg)
 	if err != nil {
 		return err
 	}
-	defer conn.Close()
-	store, err := c.getStorageProvider(ctx)
-	if err != nil {
-		return err
-	}
-	httpClient := &shared.HTTPRequester{}
-	reconciler := statemachine.NewReconciler(ctx, httpClient, store)
-	reconciler.Run()
-	selfURL := cloneURL(c.ExternalURL)
-	selfURL.Path = path.Join(selfURL.Path, constants.APIPath)
-	contractService, csConn, err := c.getContractService(ctx, clMetrics)
-	if err != nil {
-		return err
-	}
-	if csConn != nil {
-		defer csConn.Close()
-	}
-	authnService, authnConn, err := c.getAuthNService(ctx, clMetrics)
-	if err != nil {
-		return err
-	}
-	if authnConn != nil {
-		defer authnConn.Close()
-	}
-
-	ctlSVC := control.New(httpClient, store, reconciler, provider, contractService, selfURL)
-	err = c.startControl(ctx, wg, ctlSVC, srvMetrics)
-	if err != nil {
-		return err
-	}
-
-	if contractService != nil {
-		err = c.configureContractService(ctx, store, contractService)
-		if err != nil {
-			return err
-		}
-	}
-
-	// Setup HTTP services
-	metricsSrv := c.getMetricsServer()
-	srv := c.getDataspaceServer(ctx, authnService, provider, contractService, store, reconciler, selfURL, pingResponse)
 
 	go func() {
 		defer wg.Done()
@@ -481,6 +439,58 @@ func (c *command) Run(ctx context.Context) error { //nolint:funlen
 	err = srv.Shutdown(ctx)
 	wg.Wait()
 	return err
+}
+
+func (c *command) setupServices(ctx context.Context,
+	wg *sync.WaitGroup,
+) (*statemachine.HTTPReconciler, *http.Server, *http.Server, error) {
+	srvMetrics, clMetrics := setupMetrics()
+	provider, conn, pingResponse, err := c.getProvider(ctx, clMetrics)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	defer conn.Close()
+	store, err := c.getStorageProvider(ctx)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	httpClient := &shared.HTTPRequester{}
+	reconciler := statemachine.NewReconciler(ctx, httpClient, store)
+	reconciler.Run()
+	selfURL := cloneURL(c.ExternalURL)
+	selfURL.Path = path.Join(selfURL.Path, constants.APIPath)
+	contractService, csConn, err := c.getContractService(ctx, clMetrics)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	if csConn != nil {
+		defer csConn.Close()
+	}
+	authnService, authnConn, err := c.getAuthNService(ctx, clMetrics)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	if authnConn != nil {
+		defer authnConn.Close()
+	}
+
+	ctlSVC := control.New(httpClient, store, reconciler, provider, contractService, selfURL)
+	err = c.startControl(ctx, wg, ctlSVC, srvMetrics)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
+	if contractService != nil {
+		err = c.configureContractService(ctx, store, contractService)
+		if err != nil {
+			return nil, nil, nil, err
+		}
+	}
+
+	// Setup HTTP services
+	metricsSrv := c.getMetricsServer()
+	srv := c.getDataspaceServer(ctx, authnService, provider, contractService, store, reconciler, selfURL, pingResponse)
+	return reconciler, metricsSrv, srv, nil
 }
 
 func (c *command) getMetricsServer() *http.Server {
