@@ -61,6 +61,7 @@ import (
 const (
 	dspAddress        = "server.dsp.address"
 	dspPort           = "server.dsp.port"
+	prometheusEnabled = "server.prometheusEnabled"
 	prometheusAddress = "server.prometheusAddress"
 	prometheusPort    = "server.prometheusPort"
 	dspExternalURL    = "server.dsp.externalURL"
@@ -111,6 +112,8 @@ func init() {
 		Command, dspAddress, "dsp-address", "address to listen on for dataspace operations", "0.0.0.0")
 	cfg.AddPersistentFlag(
 		Command, dspPort, "dsp-port", "port to listen on for dataspace operations", 8080)
+	cfg.AddPersistentFlag(
+		Command, prometheusEnabled, "prometheus-enabled", "enable prometheus metrics", false)
 	cfg.AddPersistentFlag(
 		Command, prometheusAddress, "prometheus-address", "address to listen on for prometheus metrics", "0.0.0.0")
 	cfg.AddPersistentFlag(
@@ -305,12 +308,13 @@ var Command = &cobra.Command{
 			panic(err.Error())
 		}
 		c := command{
-			ListenAddr:      viper.GetString(dspAddress),
-			Port:            viper.GetInt(dspPort),
-			PrometheusAddr:  viper.GetString(prometheusAddress),
-			PrometheusPort:  viper.GetInt(prometheusPort),
-			ExternalURL:     u,
-			ProviderAddress: viper.GetString(providerAddress),
+			ListenAddr:        viper.GetString(dspAddress),
+			Port:              viper.GetInt(dspPort),
+			PrometheusEnabled: viper.GetBool(prometheusEnabled),
+			PrometheusAddr:    viper.GetString(prometheusAddress),
+			PrometheusPort:    viper.GetInt(prometheusPort),
+			ExternalURL:       u,
+			ProviderAddress:   viper.GetString(providerAddress),
 			ProviderTLSConfig: tlsConfig{
 				Insecure:      viper.GetBool(providerInsecure),
 				CACert:        viper.GetString(providerCACert),
@@ -360,10 +364,11 @@ type tlsConfig struct {
 	ClientCertKey string
 }
 type command struct {
-	ListenAddr     string
-	Port           int
-	PrometheusAddr string
-	PrometheusPort int
+	ListenAddr        string
+	Port              int
+	PrometheusEnabled bool
+	PrometheusAddr    string
+	PrometheusPort    int
 
 	ExternalURL *url.URL
 
@@ -412,52 +417,50 @@ func (c *command) Run(ctx context.Context) error {
 		"prometheusPort", c.PrometheusPort,
 	)
 
-	reconciler, metricsSrv, srv, grpcConnections, err := c.setupServices(ctx, wg)
+	reconciler, httpServices, grpcConnections, err := c.setupServices(ctx, wg)
 	if err != nil {
 		return err
+	}
+
+	for _, s := range httpServices {
+		go func() {
+			defer wg.Done()
+			err = s.ListenAndServe()
+			if err != nil {
+				ctxslog.Error(ctx, "error from http service", err)
+			}
+		}()
 	}
 
 	for _, conn := range grpcConnections {
 		defer conn.Close()
 	}
 
-	go func() {
-		defer wg.Done()
-		err = metricsSrv.ListenAndServe()
-		if err != nil {
-			ctxslog.Error(ctx, "error from metrics server", err)
-		}
-	}()
-
-	go func() {
-		defer wg.Done()
-		err = srv.ListenAndServe()
-		if err != nil {
-			ctxslog.Error(ctx, "error from main server", err)
-		}
-	}()
-
-	wg.Add(2)
+	wg.Add(len(httpServices))
 	reconciler.WaitGroup.Wait()
-	_ = metricsSrv.Shutdown(ctx)
-	err = srv.Shutdown(ctx)
+	for _, s := range httpServices {
+		err = s.Shutdown(ctx)
+		if err != nil {
+			return err
+		}
+	}
 	wg.Wait()
 	return err
 }
 
 func (c *command) setupServices(ctx context.Context,
 	wg *sync.WaitGroup,
-) (*statemachine.HTTPReconciler, *http.Server, *http.Server, []*grpc.ClientConn, error) {
+) (*statemachine.HTTPReconciler, []*http.Server, []*grpc.ClientConn, error) {
 	srvMetrics, clMetrics := setupMetrics()
 	grpcConnections := []*grpc.ClientConn{}
 	provider, conn, pingResponse, err := c.getProvider(ctx, clMetrics)
 	if err != nil {
-		return nil, nil, nil, grpcConnections, err
+		return nil, []*http.Server{}, grpcConnections, err
 	}
 	grpcConnections = append(grpcConnections, conn)
 	store, err := c.getStorageProvider(ctx)
 	if err != nil {
-		return nil, nil, nil, grpcConnections, err
+		return nil, []*http.Server{}, grpcConnections, err
 	}
 	httpClient := &shared.HTTPRequester{}
 	reconciler := statemachine.NewReconciler(ctx, httpClient, store)
@@ -466,14 +469,14 @@ func (c *command) setupServices(ctx context.Context,
 	selfURL.Path = path.Join(selfURL.Path, constants.APIPath)
 	contractService, csConn, err := c.getContractService(ctx, clMetrics)
 	if err != nil {
-		return nil, nil, nil, grpcConnections, err
+		return nil, []*http.Server{}, grpcConnections, err
 	}
 	if csConn != nil {
 		grpcConnections = append(grpcConnections, csConn)
 	}
 	authnService, authnConn, err := c.getAuthNService(ctx, clMetrics)
 	if err != nil {
-		return nil, nil, nil, grpcConnections, err
+		return nil, []*http.Server{}, grpcConnections, err
 	}
 	if authnConn != nil {
 		grpcConnections = append(grpcConnections, authnConn)
@@ -482,32 +485,36 @@ func (c *command) setupServices(ctx context.Context,
 	ctlSVC := control.New(httpClient, store, reconciler, provider, contractService, selfURL)
 	err = c.startControl(ctx, wg, ctlSVC, srvMetrics)
 	if err != nil {
-		return nil, nil, nil, grpcConnections, err
+		return nil, []*http.Server{}, grpcConnections, err
 	}
 
 	if contractService != nil {
 		err = c.configureContractService(ctx, store, contractService)
 		if err != nil {
-			return nil, nil, nil, grpcConnections, err
+			return nil, []*http.Server{}, grpcConnections, err
 		}
 	}
 
 	// Setup HTTP services
-	metricsSrv := c.getMetricsServer()
-	srv := c.getDataspaceServer(ctx, authnService, provider, contractService, store, reconciler, selfURL, pingResponse)
-	return reconciler, metricsSrv, srv, grpcConnections, nil
+	httpServices := []*http.Server{
+		c.getDataspaceServer(ctx, authnService, provider, contractService, store, reconciler, selfURL, pingResponse),
+	}
+
+	if c.PrometheusEnabled {
+		httpServices = append(httpServices, c.getMetricsServer(ctx))
+	}
+	return reconciler, httpServices, grpcConnections, nil
 }
 
-func (c *command) getMetricsServer() *http.Server {
+func (c *command) getMetricsServer(ctx context.Context) *http.Server {
 	metricsMux := http.NewServeMux()
 	metricsMux.Handle("GET /metrics", promhttp.Handler())
-
-	metricsSrv := &http.Server{
+	ctxslog.Info(ctx, "configuring metrics HTTP service")
+	return &http.Server{
 		Addr:              fmt.Sprintf("%s:%d", c.PrometheusAddr, c.PrometheusPort),
 		ReadHeaderTimeout: 2 * time.Second,
 		Handler:           metricsMux,
 	}
-	return metricsSrv
 }
 
 func (c *command) getDataspaceServer(ctx context.Context,
@@ -538,6 +545,8 @@ func (c *command) getDataspaceServer(ctx context.Context,
 			authforwarder.NewAuthNMiddleware(authnService)).Then(
 			dsp.GetDSPRoutes(authnService, provider, contractService, store, reconciler, selfURL, pingResponse)),
 	))
+
+	ctxslog.Info(ctx, "configuring main HTTP service")
 	srv := &http.Server{
 		Addr:              fmt.Sprintf("%s:%d", c.ListenAddr, c.Port),
 		Handler:           mux,
