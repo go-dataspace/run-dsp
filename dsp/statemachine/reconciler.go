@@ -25,6 +25,8 @@ import (
 
 	"github.com/gammazero/deque"
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 	"go-dataspace.eu/ctxslog"
 	"go-dataspace.eu/run-dsp/dsp/constants"
 	"go-dataspace.eu/run-dsp/dsp/contract"
@@ -34,8 +36,20 @@ import (
 )
 
 var (
-	ErrFatal     = errors.New("fatal error")
-	ErrTransient = errors.New("transient error")
+	ErrFatal         = errors.New("fatal error")
+	ErrTransient     = errors.New("transient error")
+	contractsCounter = promauto.NewCounterVec(prometheus.CounterOpts{
+		Name: "contracts_total",
+		Help: "Contract state counter",
+	},
+		[]string{"role", "state", "callback"},
+	)
+	transfersCounter = promauto.NewCounterVec(prometheus.CounterOpts{
+		Name: "transfers_total",
+		Help: "Transfer state counter",
+	},
+		[]string{"role", "state", "callback"},
+	)
 )
 
 type ReconciliationType uint
@@ -295,6 +309,11 @@ func (c *HTTPReconciler) setTransferState(
 	if err != nil {
 		return fmt.Errorf("Can't save transfer request: %w", err)
 	}
+	transfersCounter.WithLabelValues(
+		constants.GetRoleName(role),
+		ts.String(),
+		tr.GetCallback().String(),
+	).Inc()
 	return nil
 }
 
@@ -318,5 +337,10 @@ func (c *HTTPReconciler) setContractState(
 	if err != nil {
 		return fmt.Errorf("Can't save contract: %w", err)
 	}
+	contractsCounter.WithLabelValues(
+		constants.GetRoleName(role),
+		cs.String(),
+		con.GetCallback().String(),
+	).Inc()
 	return nil
 }
