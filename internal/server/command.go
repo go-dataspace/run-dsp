@@ -21,6 +21,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net"
@@ -48,6 +49,8 @@ import (
 	"go-dataspace.eu/run-dsp/internal/cfg"
 	"go-dataspace.eu/run-dsp/internal/constants"
 	dsrpc "go-dataspace.eu/run-dsrpc/gen/go/dsp/v1alpha2"
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
@@ -61,6 +64,9 @@ import (
 const (
 	dspAddress        = "server.dsp.address"
 	dspPort           = "server.dsp.port"
+	otelEnabled       = "server.otelEnabled"
+	otelEndpointUrl   = "server.otelEndpointUrl"
+	otelServiceName   = "server.otelServiceName"
 	prometheusEnabled = "server.prometheusEnabled"
 	prometheusAddress = "server.prometheusAddress"
 	prometheusPort    = "server.prometheusPort"
@@ -112,6 +118,16 @@ func init() {
 		Command, dspAddress, "dsp-address", "address to listen on for dataspace operations", "0.0.0.0")
 	cfg.AddPersistentFlag(
 		Command, dspPort, "dsp-port", "port to listen on for dataspace operations", 8080)
+	cfg.AddPersistentFlag(
+		Command, otelEnabled, "otel-enabled", "enable sending opentelemetry data", false)
+	cfg.AddPersistentFlag(
+		Command,
+		otelEndpointUrl,
+		"otel-endpoint-url",
+		"endpoint URL for opentelemetry receiver",
+		"http://localhost:4318/v1/traces")
+	cfg.AddPersistentFlag(
+		Command, prometheusAddress, "otel-service-name", "service name for display purposes", "run-dsp")
 	cfg.AddPersistentFlag(
 		Command, prometheusEnabled, "prometheus-enabled", "enable prometheus metrics", false)
 	cfg.AddPersistentFlag(
@@ -310,6 +326,9 @@ var Command = &cobra.Command{
 		c := command{
 			ListenAddr:        viper.GetString(dspAddress),
 			Port:              viper.GetInt(dspPort),
+			OtelEnabled:       viper.GetBool(otelEnabled),
+			OtelEndpointUrl:   viper.GetString(otelEndpointUrl),
+			OtelServiceName:   viper.GetString(otelServiceName),
 			PrometheusEnabled: viper.GetBool(prometheusEnabled),
 			PrometheusAddr:    viper.GetString(prometheusAddress),
 			PrometheusPort:    viper.GetInt(prometheusPort),
@@ -366,6 +385,9 @@ type tlsConfig struct {
 type command struct {
 	ListenAddr        string
 	Port              int
+	OtelEnabled       bool
+	OtelEndpointUrl   string
+	OtelServiceName   string
 	PrometheusEnabled bool
 	PrometheusAddr    string
 	PrometheusPort    int
@@ -416,6 +438,19 @@ func (c *command) Run(ctx context.Context) error {
 		"prometheusAddr", c.PrometheusAddr,
 		"prometheusPort", c.PrometheusPort,
 	)
+
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+	defer stop()
+
+	// Set up OpenTelemetry.
+	otelShutdown, err := setupOTelSDK(ctx, c.OtelEnabled, c.OtelEndpointUrl, c.OtelServiceName)
+	if err != nil {
+		return nil
+	}
+	// Handle shutdown properly so nothing leaks.
+	defer func() {
+		err = errors.Join(err, otelShutdown(context.Background()))
+	}()
 
 	reconciler, httpServices, grpcConnections, err := c.setupServices(ctx, wg)
 	if err != nil {
@@ -546,10 +581,13 @@ func (c *command) getDataspaceServer(ctx context.Context,
 			dsp.GetDSPRoutes(authnService, provider, contractService, store, reconciler, selfURL, pingResponse)),
 	))
 
+	// 	Add HTTP instrumentation for the whole server.
+	handler := otelhttp.NewHandler(mux, "/")
+
 	ctxslog.Info(ctx, "configuring main HTTP service")
 	srv := &http.Server{
 		Addr:              fmt.Sprintf("%s:%d", c.ListenAddr, c.Port),
-		Handler:           mux,
+		Handler:           handler,
 		ReadHeaderTimeout: 2 * time.Second,
 	}
 	return srv
@@ -626,6 +664,7 @@ func (c *command) startControl(
 
 	grpcServer := grpc.NewServer(
 		grpc.Creds(tlsCredentials),
+		grpc.StatsHandler(otelgrpc.NewServerHandler()),
 		grpc.ChainUnaryInterceptor(
 			srvMetrics.UnaryServerInterceptor(),
 			grpclog.UnaryServerInterceptor(
@@ -757,6 +796,7 @@ func getGRPCClient[T any](
 	conn, err := grpc.NewClient(
 		address,
 		grpc.WithTransportCredentials(tlsCredentials),
+		grpc.WithStatsHandler(otelgrpc.NewClientHandler()),
 		grpc.WithChainUnaryInterceptor(
 			clMetrics.UnaryClientInterceptor(),
 			grpclog.UnaryClientInterceptor(

@@ -77,8 +77,9 @@ type Request struct {
 	requesterInfo     *dsrpc.RequesterInfo
 	transferDirection Direction
 
-	ro       bool
-	modified bool
+	ro        bool
+	modified  bool
+	traceInfo shared.TraceInfo
 }
 
 type storableRequest struct {
@@ -94,6 +95,7 @@ type storableRequest struct {
 	PublishInfo       *dsrpc.PublishInfo
 	RequesterInfo     *dsrpc.RequesterInfo
 	TransferDirection Direction
+	TraceInfo         shared.TraceInfo
 }
 
 func New(
@@ -124,6 +126,7 @@ func New(
 		requesterInfo:     requesterInfo,
 		transferDirection: DirectionPush,
 		modified:          true,
+		traceInfo:         shared.ExtractTraceInfo(ctx),
 	}
 	if publishInfo == nil {
 		t.transferDirection = DirectionPull
@@ -152,6 +155,7 @@ func FromBytes(b []byte) (*Request, error) {
 		publishInfo:       sr.PublishInfo,
 		requesterInfo:     sr.RequesterInfo,
 		transferDirection: sr.TransferDirection,
+		traceInfo:         sr.TraceInfo,
 	}, nil
 }
 
@@ -188,6 +192,7 @@ func (tr *Request) GetLogFields(suffix string) []any {
 	}
 }
 
+func (tr *Request) GetTraceInfo() shared.TraceInfo { return tr.traceInfo }
 func (tr *Request) GetLocalPID() uuid.UUID {
 	switch tr.role {
 	case constants.DataspaceConsumer:
@@ -250,6 +255,7 @@ func (tr *Request) ToBytes() ([]byte, error) {
 		PublishInfo:       tr.publishInfo,
 		RequesterInfo:     tr.requesterInfo,
 		TransferDirection: tr.transferDirection,
+		TraceInfo:         tr.traceInfo,
 	}
 	var buf bytes.Buffer
 	enc := gob.NewEncoder(&buf)

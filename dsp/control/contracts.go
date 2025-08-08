@@ -296,6 +296,7 @@ func (s *Server) ContractTerminate(
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "could not find contract with PID %s: %s", pid.String(), err)
 	}
+
 	reasons := make([]shared.Multilanguage, 0)
 	for _, reason := range req.Reason {
 		reasons = append(reasons, shared.Multilanguage{

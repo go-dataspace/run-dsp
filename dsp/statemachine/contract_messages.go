@@ -97,6 +97,8 @@ func makeRequestFunction(
 //nolint:dupl
 func sendContractRequest(ctx context.Context, r Reconciler, c *contract.Negotiation) (applyFunc, error) {
 	ctx = ctxslog.With(ctx, "operation", "sendContractRequest")
+	ctx, span := tracer.Start(ctx, "send-contract-request")
+	defer span.End()
 	contractRequest := shared.ContractRequestMessage{
 		Context:         shared.GetDSPContext(),
 		Type:            "dspace:ContractRequestMessage",
@@ -135,6 +137,8 @@ func sendContractRequest(ctx context.Context, r Reconciler, c *contract.Negotiat
 //nolint:dupl
 func sendContractOffer(ctx context.Context, r Reconciler, c *contract.Negotiation) (applyFunc, error) {
 	ctx = ctxslog.With(ctx, "operation", "sendContractOffer")
+	ctx, span := tracer.Start(ctx, "send-contract-offer")
+	defer span.End()
 	contractOffer := shared.ContractOfferMessage{
 		Context:         shared.GetDSPContext(),
 		Type:            "dspace:ContractOfferMessage",
@@ -174,6 +178,8 @@ func sendContractOffer(ctx context.Context, r Reconciler, c *contract.Negotiatio
 
 func sendContractAgreement(ctx context.Context, r Reconciler, c *contract.Negotiation) (applyFunc, error) {
 	ctx = ctxslog.With(ctx, "operation", "sendContractAgreement")
+	ctx, span := tracer.Start(ctx, "send-contract-agreement")
+	defer span.End()
 	c.SetAgreement(&odrl.Agreement{
 		PolicyClass: odrl.PolicyClass{},
 		Type:        "odrl:Agreement",
@@ -211,6 +217,8 @@ func sendContractEvent(
 	ctx context.Context, r Reconciler, c *contract.Negotiation, pid uuid.UUID, state contract.State,
 ) (applyFunc, error) {
 	ctx = ctxslog.With(ctx, "operation", "sendContractEvent")
+	ctx, span := tracer.Start(ctx, "send-contract-event")
+	defer span.End()
 	contractEvent := shared.ContractNegotiationEventMessage{
 		Context:     shared.GetDSPContext(),
 		Type:        "dspace:ContractNegotiationEventMessage",
@@ -237,6 +245,8 @@ func sendContractEvent(
 
 func sendContractVerification(ctx context.Context, r Reconciler, c *contract.Negotiation) (applyFunc, error) {
 	ctx = ctxslog.With(ctx, "operation", "sendContractVerification")
+	ctx, span := tracer.Start(ctx, "send-contract-verification")
+	defer span.End()
 	contractVerification := shared.ContractAgreementVerificationMessage{
 		Context:     shared.GetDSPContext(),
 		Type:        "dspace:ContractAgreementVerificationMessage",

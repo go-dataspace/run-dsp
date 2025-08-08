@@ -33,6 +33,8 @@ import (
 	"go-dataspace.eu/run-dsp/dsp/persistence"
 	"go-dataspace.eu/run-dsp/dsp/shared"
 	"go-dataspace.eu/run-dsp/dsp/transfer"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/trace"
 )
 
 var (
@@ -50,6 +52,7 @@ var (
 	},
 		[]string{"role", "state", "callback"},
 	)
+	tracer trace.Tracer
 )
 
 type ReconciliationType uint
@@ -132,6 +135,7 @@ func NewReconciler(ctx context.Context, r shared.Requester, s persistence.Storag
 }
 
 func (r *HTTPReconciler) Run() {
+	tracer = otel.Tracer("reconciler")
 	r.WaitGroup.Add(1 + workers)
 	go r.manager()
 	for range workers {
@@ -200,8 +204,10 @@ func (r *HTTPReconciler) worker() {
 			)
 			ctxslog.Info(ctx, "Attempting to reconcile entry")
 
+			ctx, span := tracer.Start(ctx, "reconciliation-entry")
 			// As the dataspace standard doesn't care if we parse this, we won't.
 			_, err := r.r.SendHTTPRequest(ctx, entry.Method, entry.URL, entry.Body)
+			span.End()
 			if err != nil {
 				r.handleError(ctx, op, err)
 				continue

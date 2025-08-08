@@ -64,6 +64,8 @@ func makeTransferRequestFunction(
 
 func sendTransferRequest(ctx context.Context, tr *TransferRequestNegotiationInitial) (func(), error) {
 	ctx = ctxslog.With(ctx, "operation", "sendTransferRequest")
+	ctx, span := tracer.Start(ctx, "send-transfer-request")
+	defer span.End()
 	transferRequest := shared.TransferRequestMessage{
 		Context:         shared.GetDSPContext(),
 		Type:            "dspace:TransferRequestMessage",
@@ -100,6 +102,8 @@ func sendTransferRequest(ctx context.Context, tr *TransferRequestNegotiationInit
 
 func sendTransferStart(ctx context.Context, tr *TransferRequestNegotiationRequested) (func(), error) {
 	ctx = ctxslog.With(ctx, "operation", "sendTransferStarted")
+	ctx, span := tracer.Start(ctx, "send-transfer-started")
+	defer span.End()
 	startRequest := shared.TransferStartMessage{
 		Context:     shared.GetDSPContext(),
 		Type:        "dspace:TransferStartMessage",
@@ -139,6 +143,8 @@ func sendTransferStart(ctx context.Context, tr *TransferRequestNegotiationReques
 
 func sendTransferCompletion(ctx context.Context, tr *TransferRequestNegotiationStarted) (func(), error) {
 	ctx = ctxslog.With(ctx, "operation", "sendTransferCompletion")
+	ctx, span := tracer.Start(ctx, "send-transfer-completion")
+	defer span.End()
 	startRequest := shared.TransferCompletionMessage{
 		Context:     shared.GetDSPContext(),
 		Type:        "dspace:TransferCompletionMessage",

@@ -75,9 +75,10 @@ type Negotiation struct {
 	role        constants.DataspaceRole
 	autoAccept  bool
 
-	initial  bool
-	ro       bool
-	modified bool
+	initial   bool
+	ro        bool
+	modified  bool
+	traceInfo shared.TraceInfo
 
 	requesterInfo *dsrpc.RequesterInfo
 }
@@ -93,6 +94,7 @@ type storableNegotiation struct {
 	Role          constants.DataspaceRole
 	AutoAccept    bool
 	RequesterInfo *dsrpc.RequesterInfo
+	TraceInfo     shared.TraceInfo
 }
 
 func New(
@@ -115,6 +117,7 @@ func New(
 		role:          role,
 		autoAccept:    autoAccept,
 		modified:      true,
+		traceInfo:     shared.ExtractTraceInfo(ctx),
 		requesterInfo: requesterInfo,
 	}
 	ctxslog.Info(ctx, "creating new contract negotiation", neg.GetLogFields("")...)
@@ -139,6 +142,7 @@ func FromBytes(b []byte) (*Negotiation, error) {
 		role:          sn.Role,
 		autoAccept:    sn.AutoAccept,
 		requesterInfo: sn.RequesterInfo,
+		traceInfo:     sn.TraceInfo,
 	}, nil
 }
 
@@ -159,6 +163,7 @@ func (cn *Negotiation) GetSelf() *url.URL                      { return cn.self 
 func (cn *Negotiation) GetContract() *Negotiation              { return cn }
 func (cn *Negotiation) GetRequesterInfo() *dsrpc.RequesterInfo { return cn.requesterInfo }
 
+func (cn *Negotiation) GetTraceInfo() shared.TraceInfo { return cn.traceInfo }
 func (cn *Negotiation) GetLocalPID() uuid.UUID {
 	switch cn.role {
 	case constants.DataspaceConsumer:
@@ -271,6 +276,7 @@ func (cn *Negotiation) ToBytes() ([]byte, error) {
 		Role:          cn.role,
 		AutoAccept:    cn.autoAccept,
 		RequesterInfo: cn.requesterInfo,
+		TraceInfo:     cn.traceInfo,
 	}
 	var buf bytes.Buffer
 	enc := gob.NewEncoder(&buf)

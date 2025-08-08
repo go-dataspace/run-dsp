@@ -24,7 +24,11 @@ import (
 
 	"go-dataspace.eu/ctxslog"
 	"go-dataspace.eu/run-dsp/internal/authforwarder"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/propagation"
 )
+
+var propagator = otel.GetTextMapPropagator()
 
 type Requester interface {
 	SendHTTPRequest(ctx context.Context, method string, url *url.URL, reqBody []byte) ([]byte, error)
@@ -58,6 +62,10 @@ func (hr *HTTPRequester) SendHTTPRequest(
 	}
 	req.Header.Add("Content-Type", "application/json")
 	req.Header.Add("Accept", "application/json")
+
+	// Inject the trace context into the HTTP headers
+	propagator.Inject(ctx, propagation.HeaderCarrier(req.Header))
+
 	resp, err := hr.Client.Do(req)
 	if err != nil {
 		return nil, ctxslog.ReturnError(ctx, "Failed to send request", err)

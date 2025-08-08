@@ -34,6 +34,8 @@ import (
 	"go-dataspace.eu/run-dsp/jsonld"
 	"go-dataspace.eu/run-dsp/odrl"
 	dsrpc "go-dataspace.eu/run-dsrpc/gen/go/dsp/v1alpha2"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -50,6 +52,7 @@ type Server struct {
 	provider        dsrpc.ProviderServiceClient
 	contractService dsrpc.ContractServiceClient
 	selfURL         *url.URL
+	tracer          trace.Tracer
 }
 
 func New(
@@ -67,6 +70,7 @@ func New(
 		provider:        provider,
 		contractService: contractService,
 		selfURL:         selfURL,
+		tracer:          otel.Tracer("control-service"),
 	}
 }
 
@@ -103,6 +107,8 @@ func (s *Server) getProviderURL(ctx context.Context, u string) (*url.URL, error)
 func (s *Server) GetProviderCatalogue(
 	ctx context.Context, req *dsrpc.GetProviderCatalogueRequest,
 ) (*dsrpc.GetProviderCatalogueResponse, error) {
+	ctx, span := s.tracer.Start(ctx, "get-provider-catalog")
+	defer span.End()
 	providerURL, err := s.getProviderURL(ctx, req.ProviderUri)
 	if err != nil {
 		return nil, err
@@ -133,6 +139,8 @@ func (s *Server) GetProviderCatalogue(
 func (s *Server) GetProviderDataset(
 	ctx context.Context, req *dsrpc.GetProviderDatasetRequest,
 ) (*dsrpc.GetProviderDatasetResponse, error) {
+	ctx, span := s.tracer.Start(ctx, "get-provider-dataset")
+	defer span.End()
 	providerURL, err := s.getProviderURL(ctx, req.ProviderUrl)
 	if err != nil {
 		return nil, err

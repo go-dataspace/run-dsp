@@ -1,47 +1,50 @@
 ### GLOBAL OPTIONS ###
-humanReadable = true # Sets the output to a human readable format ($HUMANREADABLE)
-logLevel = "debug"   # Sets the log level. Valid values: debug/info/warn/error ($LOGLEVEL)
+humanReadable = true               # Sets the output to a human readable format ($HUMANREADABLE)
+logLevel = "debug"                 # Sets the log level. Valid values: debug/info/warn/error ($LOGLEVEL)
 
 ### SERVER OPTIONS ###
 [server]
-prometheusEnabled = false             # Enable prometheus metrics ($SERVER.PROMETHEUSENABLED)
-prometheusAddress = "127.0.0.1"       # IP address of the local machine to listen to for prometheus metrics. ($SERVER.PROMETHEUSADDRESS)
-prometheusPort = 8082                 # TCP port to listen on for prometheus metrics. ($SERVER.PROMETHEUSPORT)
+otelEnabled = false                                 # Enable sending opentelemetry data ($SERVER.OTELENABLED)
+otelEndpointUrl = "http://localhost:4318/v1/traces" # Endpoint URL for opentelemetry receiver. ($SERVER.OTELENDPOINTURL)
+otelServiceName = "run-dsp"                         # Service name for display purposes. ($SERVER.OTELSERVICENAME)
+prometheusEnabled = false                           # Enable prometheus metrics ($SERVER.PROMETHEUSENABLED)
+prometheusAddress = "127.0.0.1"                     # IP address of the local machine to listen to for prometheus metrics. ($SERVER.PROMETHEUSADDRESS)
+prometheusPort = 8082                               # TCP port to listen on for prometheus metrics. ($SERVER.PROMETHEUSPORT)
 
 ## Dataspace component configuration
 [server.dsp]
-address = "127.0.0.1"                 # IP address of the local machine to listen to for dataspace requests. ($SERVER.DSP.ADDRESS)
-port = 8080                           # TCP port to listen on for dataspace requests. ($SERVER.DSP.PORT)
-externalURL = "http://127.0.0.1:8080" # Address that we are reachable by to other dataspace participants. ($SERVER.DSP.EXTERNALURL)
+address = "127.0.0.1"                               # IP address of the local machine to listen to for dataspace requests. ($SERVER.DSP.ADDRESS)
+port = 8080                                         # TCP port to listen on for dataspace requests. ($SERVER.DSP.PORT)
+externalURL = "http://127.0.0.1:8080"               # Address that we are reachable by to other dataspace participants. ($SERVER.DSP.EXTERNALURL)
 
 ## Provider gRPC settings
 [server.provider]
-address = "127.0.0.1:9090" # The address of the provider service. ($SERVER.PROVIDER.ADDRESS)
-insecure = true            # Disable TLS when connecting to the provider. ($SERVER.PROVIDER.INSECURE)
+address = "127.0.0.1:9090"                          # The address of the provider service. ($SERVER.PROVIDER.ADDRESS)
+insecure = true                                     # Disable TLS when connecting to the provider. ($SERVER.PROVIDER.INSECURE)
 
 [server.contractService]
-address = "127.0.0.1:9092" # The address of the contract service. ($SERVER.CONTRACTSERVICE.ADDRESS)
-insecure = true            # Disable TLS when connecting to the contract service. ($SERVER.CONTRACTSERVICE.INSECURE)
+address = "127.0.0.1:9092"                          # The address of the contract service. ($SERVER.CONTRACTSERVICE.ADDRESS)
+insecure = true                                     # Disable TLS when connecting to the contract service. ($SERVER.CONTRACTSERVICE.INSECURE)
 enabled = false
 
 [server.authnService]
-address = "127.0.0.1:9093" # The address of the contract service. ($SERVER.AUTHNSERVICE.ADDRESS)
-insecure = true            # Disable TLS when connecting to the contract service. ($SERVER.AUTHNSERVICE.INSECURE)
+address = "127.0.0.1:9093"                          # The address of the contract service. ($SERVER.AUTHNSERVICE.ADDRESS)
+insecure = true                                     # Disable TLS when connecting to the contract service. ($SERVER.AUTHNSERVICE.INSECURE)
 enabled = false
 
 ## Control service settings
 [server.control]
-enabled = true                     # Enable the control service. ($SERVER.CONTROL.ENABLED)
-address = "127.0.0.1"              # IP address of the local machine to listen to for the control service. ($SERVER.CONTROL.ADDRESS)
-port = 8081                        # TCP port to listen on for the control service. ($SERVER.CONTROL.PORT)
-externalAddress = "127.0.0.1:8081" # The address that the control service is reachable by. ($SERVER.CONTROL.EXTERNALADDRESS)
-insecure = true                    # Disable TLS for the control service ($SERVER.CONTROL.INSECURE)
+enabled = true                                      # Enable the control service. ($SERVER.CONTROL.ENABLED)
+address = "127.0.0.1"                               # IP address of the local machine to listen to for the control service. ($SERVER.CONTROL.ADDRESS)
+port = 8081                                         # TCP port to listen on for the control service. ($SERVER.CONTROL.PORT)
+externalAddress = "127.0.0.1:8081"                  # The address that the control service is reachable by. ($SERVER.CONTROL.EXTERNALADDRESS)
+insecure = true                                     # Disable TLS for the control service ($SERVER.CONTROL.INSECURE)
 
 ## Persistence settings
 [server.persistence]
-backend = "badger" #  Persistence backend to use. "badger" is the only available option right now. ($SERVER.PERSISTENCE.BACKEND)
+backend = "badger"               #  Persistence backend to use. "badger" is the only available option right now. ($SERVER.PERSISTENCE.BACKEND)
 
 ## Badger persistence backend settings
 [server.persistence.badger]
-memory = true # Enable in-memory mode, this will put the database in-memory, making it not persist
-# between restarts. ($SERVER.PERSISTENCE.BADGER.MEMORY)
+memory = true               # Enable in-memory mode, this will put the database in-memory, making it not persist
+              # between restarts. ($SERVER.PERSISTENCE.BADGER.MEMORY)
