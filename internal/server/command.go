@@ -483,7 +483,7 @@ func (c *command) Run(ctx context.Context) error {
 	return err
 }
 
-func (c *command) setupServices(ctx context.Context,
+func (c *command) setupServices(ctx context.Context, //nolint:cyclop
 	wg *sync.WaitGroup,
 ) (*statemachine.HTTPReconciler, []*http.Server, []*grpc.ClientConn, error) {
 	srvMetrics, clMetrics := setupMetrics()

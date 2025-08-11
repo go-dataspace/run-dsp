@@ -66,11 +66,47 @@ func GetDSPRoutes(
 		dataserviceEndpoint: pingResponse.GetDataserviceUrl(),
 	}
 	// Catalog endpoints
-	handleFunc("POST /catalog/request", WrapHandlerWithMetrics(
-		"catalog_request", WrapHandlerWithError(ch.catalogRequestHandler)))
-	handleFunc("GET /catalog/datasets/{id}", WrapHandlerWithMetrics(
-		"catalog_datasets", WrapHandlerWithError(ch.datasetRequestHandler)))
+	setupCatalogEndpoints(handleFunc, ch)
 
+	// Contract endpoints
+	setupContractEndpoints(handleFunc, ch)
+
+	// Transfer endpoints
+	setupTransferEndpoints(handleFunc, ch)
+
+	return mux
+}
+
+func setupTransferEndpoints(handleFunc func(
+	pattern string, handlerFunc func(http.ResponseWriter, *http.Request)), ch dspHandlers,
+) {
+	// Transfer process endpoints
+	handleFunc("GET /transfers/{providerPID}", WrapHandlerWithMetrics(
+		"transfers_ongoing", WrapHandlerWithError(ch.providerTransferProcessHandler)))
+	handleFunc("POST /transfers/request", WrapHandlerWithMetrics(
+		"transfers_request", WrapHandlerWithError(ch.providerTransferRequestHandler)))
+	handleFunc("POST /transfers/{providerPID}/start", WrapHandlerWithMetrics(
+		"transfers_ongoing_start", WrapHandlerWithError(ch.providerTransferStartHandler)))
+	handleFunc("POST /transfers/{providerPID}/completion", WrapHandlerWithMetrics(
+		"transfers_ongoing_completion", WrapHandlerWithError(ch.providerTransferCompletionHandler)))
+	handleFunc("POST /transfers/{providerPID}/termination", WrapHandlerWithMetrics(
+		"transfers_ongoing_termination", WrapHandlerWithError(ch.providerTransferTerminationHandler)))
+	handleFunc("POST /transfers/{providerPID}/suspension", WrapHandlerWithMetrics(
+		"transfers_ongoing_suspension", WrapHandlerWithError(ch.providerTransferSuspensionHandler)))
+	// Transfer process consumer callbacks
+	handleFunc("POST /callback/transfers/{consumerPID}/start", WrapHandlerWithMetrics(
+		"callback_transfers_ongoing_start", WrapHandlerWithError(ch.consumerTransferStartHandler)))
+	handleFunc("POST /callback/transfers/{consumerPID}/completion", WrapHandlerWithMetrics(
+		"callback_transfers_ongoing_completion", WrapHandlerWithError(ch.consumerTransferCompletionHandler)))
+	handleFunc("POST /callback/transfers/{consumerPID}/termination", WrapHandlerWithMetrics(
+		"callback_transfers_ongoing_termination", WrapHandlerWithError(ch.consumerTransferTerminationHandler)))
+	handleFunc("POST /callback/transfers/{consumerPID}/suspension", WrapHandlerWithMetrics(
+		"callback_transfers_ongoing_suspension", WrapHandlerWithError(ch.consumerTransferSuspensionHandler)))
+}
+
+func setupContractEndpoints(handleFunc func(
+	pattern string, handlerFunc func(http.ResponseWriter, *http.Request)), ch dspHandlers,
+) {
 	// Contract negotiation endpoints
 	handleFunc("GET /negotiations/{providerPID}", WrapHandlerWithMetrics(
 		"negotiations", WrapHandlerWithError(ch.providerContractStateHandler)))
@@ -96,29 +132,13 @@ func GetDSPRoutes(
 		"callback_negotiations_ongoing_events", WrapHandlerWithError(ch.consumerContractEventHandler)))
 	handleFunc("POST /callback/negotiations/{PID}/termination", WrapHandlerWithMetrics(
 		"callback_negotiations_ongoing_termination", WrapHandlerWithError(ch.contractTerminationHandler)))
+}
 
-	// Transfer process endpoints
-	handleFunc("GET /transfers/{providerPID}", WrapHandlerWithMetrics(
-		"transfers_ongoing", WrapHandlerWithError(ch.providerTransferProcessHandler)))
-	handleFunc("POST /transfers/request", WrapHandlerWithMetrics(
-		"transfers_request", WrapHandlerWithError(ch.providerTransferRequestHandler)))
-	handleFunc("POST /transfers/{providerPID}/start", WrapHandlerWithMetrics(
-		"transfers_ongoing_start", WrapHandlerWithError(ch.providerTransferStartHandler)))
-	handleFunc("POST /transfers/{providerPID}/completion", WrapHandlerWithMetrics(
-		"transfers_ongoing_completion", WrapHandlerWithError(ch.providerTransferCompletionHandler)))
-	handleFunc("POST /transfers/{providerPID}/termination", WrapHandlerWithMetrics(
-		"transfers_ongoing_termination", WrapHandlerWithError(ch.providerTransferTerminationHandler)))
-	handleFunc("POST /transfers/{providerPID}/suspension", WrapHandlerWithMetrics(
-		"transfers_ongoing_suspension", WrapHandlerWithError(ch.providerTransferSuspensionHandler)))
-	// Transfer process consumer callbacks
-	handleFunc("POST /callback/transfers/{consumerPID}/start", WrapHandlerWithMetrics(
-		"callback_transfers_ongoing_start", WrapHandlerWithError(ch.consumerTransferStartHandler)))
-	handleFunc("POST /callback/transfers/{consumerPID}/completion", WrapHandlerWithMetrics(
-		"callback_transfers_ongoing_completion", WrapHandlerWithError(ch.consumerTransferCompletionHandler)))
-	handleFunc("POST /callback/transfers/{consumerPID}/termination", WrapHandlerWithMetrics(
-		"callback_transfers_ongoing_termination", WrapHandlerWithError(ch.consumerTransferTerminationHandler)))
-	handleFunc("POST /callback/transfers/{consumerPID}/suspension", WrapHandlerWithMetrics(
-		"callback_transfers_ongoing_suspension", WrapHandlerWithError(ch.consumerTransferSuspensionHandler)))
-
-	return mux
+func setupCatalogEndpoints(handleFunc func(
+	pattern string, handlerFunc func(http.ResponseWriter, *http.Request)), ch dspHandlers,
+) {
+	handleFunc("POST /catalog/request", WrapHandlerWithMetrics(
+		"catalog_request", WrapHandlerWithError(ch.catalogRequestHandler)))
+	handleFunc("GET /catalog/datasets/{id}", WrapHandlerWithMetrics(
+		"catalog_datasets", WrapHandlerWithError(ch.datasetRequestHandler)))
 }

@@ -34,7 +34,6 @@ import (
 	"go-dataspace.eu/run-dsp/dsp/shared"
 	"go-dataspace.eu/run-dsp/dsp/transfer"
 	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/trace"
 )
 
 var (
@@ -52,7 +51,7 @@ var (
 	},
 		[]string{"role", "state", "callback"},
 	)
-	tracer trace.Tracer
+	tracer = otel.Tracer("reconciler")
 )
 
 type ReconciliationType uint
@@ -135,7 +134,6 @@ func NewReconciler(ctx context.Context, r shared.Requester, s persistence.Storag
 }
 
 func (r *HTTPReconciler) Run() {
-	tracer = otel.Tracer("reconciler")
 	r.WaitGroup.Add(1 + workers)
 	go r.manager()
 	for range workers {
