@@ -21,6 +21,6 @@ when:
 
 steps:
   - name: test
-    image: golang:1.24.4
+    image: golang:1.25.0
     commands:
       - make test
