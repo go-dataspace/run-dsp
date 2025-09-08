@@ -475,9 +475,6 @@ func (c *command) Run(ctx context.Context) error {
 		"prometheusPort", c.PrometheusPort,
 	)
 
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
-	defer stop()
-
 	// Set up OpenTelemetry.
 	otelShutdown, err := setupOTelSDK(ctx, c.OtelEnabled, c.OtelGRPC, c.OtelEndpointUrl, c.OtelServiceName)
 	if err != nil {
