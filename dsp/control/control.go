@@ -559,7 +559,6 @@ func (s *Server) InitiatePushTransfer(ctx context.Context, r *dsrpc.InitiatePush
 	if err != nil {
 		return nil, err
 	}
-
 	response, err := s.provider.ReceiveDataset(ctx, &dsrpc.ReceiveDatasetRequest{
 		DatasetId:     negotiation.GetOffer().Target, // FIXME: This could be bad and potentially overwrite things.
 		RequesterInfo: r.RequesterInfo,
@@ -598,7 +597,6 @@ func (s *Server) InitiatePushTransfer(ctx context.Context, r *dsrpc.InitiatePush
 	}
 
 	transferInit := statemachine.GetTransferRequestNegotiation(transferReq, s.provider, s.reconciler)
-
 	tApply, err := transferInit.Send(ctx)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "Couldn't generate inital initial request.")

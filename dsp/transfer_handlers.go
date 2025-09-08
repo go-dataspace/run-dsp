@@ -122,13 +122,11 @@ func (dh *dspHandlers) providerTransferRequestHandler(w http.ResponseWriter, req
 		return transferError(ctx, fmt.Sprintf("Invalid consumer ID %s: %s", transferReq.ConsumerPID, err.Error()),
 			http.StatusBadRequest, "400", "Invalid request: ConsumerPID is not a UUID", nil)
 	}
-
 	agreementID, err := uuid.Parse(transferReq.AgreementID)
 	if err != nil {
 		return transferError(ctx, fmt.Sprintf("Invalid agreement ID %s: %s", transferReq.AgreementID, err.Error()),
 			http.StatusBadRequest, "400", "Invalid request: agreement ID is not a UUID", nil)
 	}
-
 	agreement, err := dh.store.GetAgreement(ctx, agreementID)
 	if err != nil {
 		return transferError(ctx, fmt.Sprintf("Could not get agreement with ID %s: %s", agreementID, err),

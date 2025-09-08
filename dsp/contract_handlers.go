@@ -233,13 +233,11 @@ func processMessage[T any](
 	if err != nil {
 		return err
 	}
-
 	if err := apply(); err != nil {
 		return contractError(ctx, fmt.Sprintf("failed to propagate: %s", err),
 			http.StatusInternalServerError, "500", "Internal error", pState.GetContract(),
 		)
 	}
-
 	if err := shared.EncodeValid(w, req, http.StatusOK, pState.GetContractNegotiation()); err != nil {
 		ctxslog.Err(ctx, "Couldn't serve response", err)
 	}
