@@ -25,9 +25,13 @@ import (
 	"go-dataspace.eu/run-dsp/dsp/statemachine"
 	"go-dataspace.eu/run-dsp/internal/constants"
 	dsrpc "go-dataspace.eu/run-dsrpc/gen/go/dsp/v1alpha2"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
+
+var tracer trace.Tracer
 
 type dspHandlers struct {
 	store               persistence.StorageProvider
@@ -42,6 +46,10 @@ type dspHandlers struct {
 
 type errorResponse struct {
 	Error string `json:"error"`
+}
+
+func init() {
+	tracer = otel.Tracer("codeberg.org/go-dataspace/run-dsp/dsp")
 }
 
 func routeNotImplemented(w http.ResponseWriter, req *http.Request) {
@@ -73,6 +81,8 @@ func grpcErrorHandler(err error) CatalogError {
 }
 
 func dspaceVersionHandler(w http.ResponseWriter, req *http.Request) error {
+	_, span := tracer.Start(req.Context(), "dspaceVersionHandler")
+	defer span.End()
 	vResp := shared.VersionResponse{
 		Context: shared.GetDSPContext(),
 		ProtocolVersions: []shared.ProtocolVersion{

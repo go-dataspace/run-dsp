@@ -20,7 +20,15 @@ package shared
 
 import (
 	"go-dataspace.eu/run-dsp/jsonld"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/trace"
 )
+
+var tracer trace.Tracer
+
+func init() {
+	tracer = otel.Tracer("codeberg.org/go-dataspace/run-dsp/dsp/shared")
+}
 
 // VersionResponse contains multiple protocol version specifications.
 type VersionResponse struct {

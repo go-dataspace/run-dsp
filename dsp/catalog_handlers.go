@@ -74,14 +74,16 @@ func (dh *dspHandlers) getDataService() shared.DataService {
 }
 
 func (ch *dspHandlers) catalogRequestHandler(w http.ResponseWriter, req *http.Request) error {
+	ctx, span := tracer.Start(req.Context(), "catalogRequestHandler")
+	defer span.End()
 	catalogReq, err := shared.DecodeValid[shared.CatalogRequestMessage](req)
 	if err != nil {
 		return catalogError("request did not validate", http.StatusBadRequest, "400", "Invalid request")
 	}
-	ctxslog.Debug(req.Context(), "Got catalog request", "req", catalogReq)
+	ctxslog.Debug(ctx, "Got catalog request", "req", catalogReq)
 	// As the filter option is undefined, we will not fill anything
-	resp, err := ch.provider.GetCatalogue(req.Context(), &dsrpc.GetCatalogueRequest{
-		RequesterInfo: authforwarder.ExtractRequesterInfo(req.Context()),
+	resp, err := ch.provider.GetCatalogue(ctx, &dsrpc.GetCatalogueRequest{
+		RequesterInfo: authforwarder.ExtractRequesterInfo(ctx),
 	})
 	if err != nil {
 		return grpcErrorHandler(err)
@@ -103,17 +105,19 @@ func (ch *dspHandlers) catalogRequestHandler(w http.ResponseWriter, req *http.Re
 		Service:  []shared.DataService{ch.getDataService()},
 	})
 	if err != nil {
-		ctxslog.Err(req.Context(), "failed to serve catalog after accepting", err)
+		ctxslog.Err(ctx, "failed to serve catalog after accepting", err)
 	}
 	return nil
 }
 
 func (ch *dspHandlers) datasetRequestHandler(w http.ResponseWriter, req *http.Request) error {
+	ctx, span := tracer.Start(req.Context(), "datasetRequestHandler")
+	defer span.End()
 	paramID := req.PathValue("id")
 	if paramID == "" {
 		return catalogError("no ID in path", http.StatusBadRequest, "400", "No ID given in path")
 	}
-	ctx := ctxslog.With(req.Context(), "datasetID", paramID)
+	ctx = ctxslog.With(ctx, "datasetID", paramID)
 	datasetReq, err := shared.DecodeValid[shared.DatasetRequestMessage](req)
 	if err != nil {
 		return catalogError(err.Error(), http.StatusBadRequest, "400", "Invalid dataset request")
@@ -121,7 +125,7 @@ func (ch *dspHandlers) datasetRequestHandler(w http.ResponseWriter, req *http.Re
 	ctxslog.Debug(ctx, "Got dataset request", "request", datasetReq)
 	resp, err := ch.provider.GetDataset(ctx, &dsrpc.GetDatasetRequest{
 		DatasetId:     paramID,
-		RequesterInfo: authforwarder.ExtractRequesterInfo(req.Context()),
+		RequesterInfo: authforwarder.ExtractRequesterInfo(ctx),
 	})
 	if err != nil {
 		return grpcErrorHandler(err)

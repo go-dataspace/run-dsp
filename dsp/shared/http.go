@@ -51,6 +51,9 @@ func (hr *HTTPRequester) SendHTTPRequest(
 		hr.setDefaultClient()
 	}
 	ctx = ctxslog.With(ctx, "method", method, "target_url", url)
+	ctx, span := tracer.Start(ctx, "SendHTTPRequest")
+	defer span.End()
+
 	ctxslog.Debug(ctx, "Doing HTTP request")
 	var payload io.Reader
 	if reqBody != nil {

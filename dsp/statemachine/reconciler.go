@@ -51,7 +51,7 @@ var (
 	},
 		[]string{"role", "state", "callback"},
 	)
-	tracer = otel.Tracer("reconciler")
+	tracer = otel.Tracer("odeberg.org/go-dataspace/run-dsp/dsp/statemachine")
 )
 
 type ReconciliationType uint

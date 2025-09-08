@@ -70,7 +70,7 @@ func New(
 		provider:        provider,
 		contractService: contractService,
 		selfURL:         selfURL,
-		tracer:          otel.Tracer("control-service"),
+		tracer:          otel.Tracer("odeberg.org/go-dataspace/run-dsp/dsp/control"),
 	}
 }
 
@@ -107,7 +107,7 @@ func (s *Server) getProviderURL(ctx context.Context, u string) (*url.URL, error)
 func (s *Server) GetProviderCatalogue(
 	ctx context.Context, req *dsrpc.GetProviderCatalogueRequest,
 ) (*dsrpc.GetProviderCatalogueResponse, error) {
-	ctx, span := s.tracer.Start(ctx, "get-provider-catalog")
+	ctx, span := s.tracer.Start(ctx, "GetProviderCatalogue")
 	defer span.End()
 	providerURL, err := s.getProviderURL(ctx, req.ProviderUri)
 	if err != nil {
@@ -139,7 +139,7 @@ func (s *Server) GetProviderCatalogue(
 func (s *Server) GetProviderDataset(
 	ctx context.Context, req *dsrpc.GetProviderDatasetRequest,
 ) (*dsrpc.GetProviderDatasetResponse, error) {
-	ctx, span := s.tracer.Start(ctx, "get-provider-dataset")
+	ctx, span := s.tracer.Start(ctx, "GetProviderDataset")
 	defer span.End()
 	providerURL, err := s.getProviderURL(ctx, req.ProviderUrl)
 	if err != nil {
@@ -174,6 +174,8 @@ func (s *Server) GetProviderDataset(
 func (s *Server) GetProviderDatasetDownloadInformation(
 	ctx context.Context, req *dsrpc.GetProviderDatasetDownloadInformationRequest,
 ) (*dsrpc.GetProviderDatasetDownloadInformationResponse, error) {
+	ctx, span := s.tracer.Start(ctx, "GetProviderDatasetDownloadInformation")
+	defer span.End()
 	providerURL, err := s.getProviderURL(ctx, req.GetProviderUrl())
 	if err != nil {
 		return nil, err
@@ -346,6 +348,8 @@ func (s *Server) GetProviderDatasetDownloadInformation(
 func (s *Server) GetProviderDatasetUploadInformation(
 	ctx context.Context, req *dsrpc.GetProviderDatasetUploadInformationRequest,
 ) (*dsrpc.GetProviderDatasetUploadInformationResponse, error) {
+	ctx, span := s.tracer.Start(ctx, "GetProviderDatasetUploadInformation")
+	defer span.End()
 	providerURL, err := s.getProviderURL(ctx, req.GetProviderUrl())
 	if err != nil {
 		return nil, err
@@ -468,6 +472,8 @@ func (s *Server) GetProviderDatasetUploadInformation(
 func (s *Server) SignalTransferComplete( //nolint:cyclop
 	ctx context.Context, req *dsrpc.SignalTransferCompleteRequest,
 ) (*dsrpc.SignalTransferCompleteResponse, error) {
+	ctx, span := s.tracer.Start(ctx, "SignalTransferComplete")
+	defer span.End()
 	id, err := uuid.Parse(req.GetTransferId())
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "Transfer ID is not a valid UUID.")
@@ -540,6 +546,8 @@ func (s *Server) SignalTransferResume(
 func (s *Server) InitiatePushTransfer(ctx context.Context, r *dsrpc.InitiatePushTransferRequest) (
 	*dsrpc.InitiatePushTransferResponse, error,
 ) {
+	ctx, span := s.tracer.Start(ctx, "InitiatePushTransfer")
+	defer span.End()
 	selfURL := shared.MustParseURL(s.selfURL.String())
 	selfURL.Path = path.Join(selfURL.Path, "callback")
 	transferConsumerPID := uuid.New()
