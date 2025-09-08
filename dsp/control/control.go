@@ -70,7 +70,7 @@ func New(
 		provider:        provider,
 		contractService: contractService,
 		selfURL:         selfURL,
-		tracer:          otel.Tracer("odeberg.org/go-dataspace/run-dsp/dsp/control"),
+		tracer:          otel.Tracer("codeberg.org/go-dataspace/run-dsp/dsp/control"),
 	}
 }
 
