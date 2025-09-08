@@ -62,11 +62,14 @@ import (
 
 // Viper keys.
 const (
-	dspAddress        = "server.dsp.address"
-	dspPort           = "server.dsp.port"
-	otelEnabled       = "server.otelEnabled"
-	otelEndpointUrl   = "server.otelEndpointUrl"
-	otelServiceName   = "server.otelServiceName"
+	dspAddress = "server.dsp.address"
+	dspPort    = "server.dsp.port"
+
+	otelEnabled     = "server.tracing.enabled"
+	otelGRPC        = "server.tracing.grpc"
+	otelEndpointUrl = "server.tracing.endpointUrl"
+	otelServiceName = "server.tracing.serviceName"
+
 	prometheusEnabled = "server.prometheusEnabled"
 	prometheusAddress = "server.prometheusAddress"
 	prometheusPort    = "server.prometheusPort"
@@ -119,13 +122,21 @@ func init() {
 	cfg.AddPersistentFlag(
 		Command, dspPort, "dsp-port", "port to listen on for dataspace operations", 8080)
 	cfg.AddPersistentFlag(
-		Command, otelEnabled, "otel-enabled", "enable sending opentelemetry data", false)
+		Command, otelEnabled, "tracing-enabled", "enable sending opentelemetry tracing data", false)
+	cfg.AddPersistentFlag(
+		Command, otelGRPC, "tracing-grpc", "Use grpc to write opentelemetry tracing data", false)
 	cfg.AddPersistentFlag(
 		Command,
 		otelEndpointUrl,
-		"otel-endpoint-url",
+		"tracing-endpoint-url",
 		"endpoint URL for opentelemetry receiver",
 		"http://localhost:4318/v1/traces")
+	cfg.AddPersistentFlag(
+		Command,
+		otelServiceName,
+		"tracing-service-name",
+		"Name of the service in opentelemetry.",
+		"run-dsp")
 	cfg.AddPersistentFlag(
 		Command, prometheusAddress, "otel-service-name", "service name for display purposes", "run-dsp")
 	cfg.AddPersistentFlag(
@@ -244,7 +255,7 @@ var Command = &cobra.Command{
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 		_, err := url.Parse(viper.GetString(dspExternalURL))
 		if err != nil {
-			return fmt.Errorf("Invalid external URL: %w", err)
+			return fmt.Errorf("invalid external URL: %w", err)
 		}
 		err = cfg.CheckListenPort(viper.GetString(dspAddress), viper.GetInt(dspPort))
 		if err != nil {
@@ -350,6 +361,7 @@ var Command = &cobra.Command{
 			ListenAddr:        viper.GetString(dspAddress),
 			Port:              viper.GetInt(dspPort),
 			OtelEnabled:       viper.GetBool(otelEnabled),
+			OtelGRPC:          viper.GetBool(otelGRPC),
 			OtelEndpointUrl:   viper.GetString(otelEndpointUrl),
 			OtelServiceName:   viper.GetString(otelServiceName),
 			PrometheusEnabled: viper.GetBool(prometheusEnabled),
@@ -409,6 +421,7 @@ type command struct {
 	ListenAddr        string
 	Port              int
 	OtelEnabled       bool
+	OtelGRPC          bool
 	OtelEndpointUrl   string
 	OtelServiceName   string
 	PrometheusEnabled bool
@@ -462,11 +475,8 @@ func (c *command) Run(ctx context.Context) error {
 		"prometheusPort", c.PrometheusPort,
 	)
 
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
-	defer stop()
-
 	// Set up OpenTelemetry.
-	otelShutdown, err := setupOTelSDK(ctx, c.OtelEnabled, c.OtelEndpointUrl, c.OtelServiceName)
+	otelShutdown, err := setupOTelSDK(ctx, c.OtelEnabled, c.OtelGRPC, c.OtelEndpointUrl, c.OtelServiceName)
 	if err != nil {
 		return nil
 	}
@@ -491,7 +501,7 @@ func (c *command) Run(ctx context.Context) error {
 	}
 
 	for _, conn := range grpcConnections {
-		defer conn.Close()
+		defer func() { _ = conn.Close() }()
 	}
 
 	wg.Add(len(httpServices))

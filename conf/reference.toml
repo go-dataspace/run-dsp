@@ -8,12 +8,16 @@ logLevel = "info"    # Sets the log level. Valid values: debug/info/warn/error (
 
 ### SERVER OPTIONS ###
 [server]
-otelEnabled = false                                 # Enable sending opentelemetry data ($SERVER.OTELENABLED)
-otelEndpointUrl = "http://localhost:4318/v1/traces" # Endpoint URL for opentelemetry receiver. ($SERVER.OTELENDPOINTURL)
-otelServiceName = "run-dsp"                         # Service name for display purposes. ($SERVER.OTELSERVICENAME)
-prometheusEnabled = false                           # Enable prometheus metrics ($SERVER.PROMETHEUSENABLED)
-prometheusAddress = "127.0.0.1"                     # IP address of the local machine to listen to for prometheus metrics. ($SERVER.PROMETHEUSADDRESS)
-prometheusPort = 8082                               # TCP port to listen on for prometheus metrics. ($SERVER.PROMETHEUSPORT)
+prometheusEnabled = false       # Enable prometheus metrics ($SERVER.PROMETHEUSENABLED)
+prometheusAddress = "127.0.0.1" # IP address of the local machine to listen to for prometheus metrics. ($SERVER.PROMETHEUSADDRESS)
+prometheusPort = 8082           # TCP port to listen on for prometheus metrics. ($SERVER.PROMETHEUSPORT)
+
+### TRACING OPTIONS
+[server.tracing]
+enabled = false                                 # Enable sending opentelemetry data ($SERVER.TRACING.ENABLED)
+grpc = false                                    # Send opentelemetry using gRPC ($SERVER.TRACING.GRPC)
+endpointUrl = "http://localhost:4318/v1/traces" # Endpoint URL for opentelemetry receiver. ($SERVER.TRACING.ENDPOINTURL)
+serviceName = "run-dsp"                         # Service name for display purposes. ($SERVER.TRACING.SERVICENAME)
 
 ## Dataspace component configuration
 [server.dsp]
@@ -33,7 +37,7 @@ clientCertKey = "/path/to/client.key"               # Key to the above mentioned
 [server.contractService]
 address = "127.0.0.1:9092"                          # The address of the contract service. ($SERVER.CONTRACTSERVICE.ADDRESS)
 insecure = false                                    # Disable TLS when connecting to the contract service. ($SERVER.CONTRACTSERVICE.INSECURE)
-caCert = "/path/to/ca.crt"                          # Path to the CA certificate of the CA that issued the server certificate of the contract service. ($SERVER.CONTRACTSERVICE.CACERT)
+caCert = "/path/to/ca.crt"                          # Path to the CA certificate of the CA that issued the server certificate of the contract service. ($SERVER.CONTACTSERVICE.CACERT)
 clientCert = "/path/to/client.crt"                  # Client certificate to authenticate with to the contract service. ($SERVER.CONTRACTSERVICE.CLIENTCERT)
 clientCertKey = "/path/to/client.key"               # Key to the above mentioned certificate. ($SERVER.CONTRACTSERVICE.CLIENTCERTKEY)
 

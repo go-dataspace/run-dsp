@@ -73,7 +73,7 @@ func (hr *HTTPRequester) SendHTTPRequest(
 	if err != nil {
 		return nil, ctxslog.ReturnError(ctx, "Failed to send request", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	// In the future we might want to return the reader to handle big bodies.
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {

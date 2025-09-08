@@ -45,7 +45,7 @@ func (ce *ContextEntry) UnmarshalJSON(data []byte) error {
 		ce.ID = id
 		return nil
 	}
-	return fmt.Errorf("Couldn't unmarshal ContextEntry: %s", data)
+	return fmt.Errorf("couldn't unmarshal ContextEntry: %s", data)
 }
 
 // MarshalJSON will marshal the ContextEntry as an object if Type is not empty, and
@@ -94,7 +94,7 @@ func (c *Context) UnmarshalJSON(data []byte) error {
 		c.rootContexts = append(c.rootContexts, ContextEntry{ID: sc})
 		return nil
 	}
-	return fmt.Errorf("Couldn't unmarshal Context: %s", data)
+	return fmt.Errorf("couldn't unmarshal Context: %s", data)
 }
 
 // MarshalJSON will first check if namedContext are available, and marshal those if they are.

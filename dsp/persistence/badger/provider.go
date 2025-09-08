@@ -90,7 +90,7 @@ func (sp StorageProvider) maintenance() {
 			}
 		case <-sp.ctx.Done():
 			ticker.Stop()
-			sp.db.Close()
+			_ = sp.db.Close()
 			return
 		}
 	}

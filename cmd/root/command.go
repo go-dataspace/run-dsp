@@ -40,7 +40,7 @@ var (
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			logLevel := viper.GetString("logLevel")
 			if !slices.Contains(validLogLevels, logLevel) {
-				return fmt.Errorf("Invalid log level %s, valid levels: %v", logLevel, validLogLevels)
+				return fmt.Errorf("invalid log level %s, valid levels: %v", logLevel, validLogLevels)
 			}
 
 			ctx := ctxslog.New(logging.New(logLevel, viper.GetBool("humanReadable")))

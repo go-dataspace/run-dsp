@@ -62,7 +62,7 @@ func routeNotImplemented(w http.ResponseWriter, req *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusNotImplemented)
-	fmt.Fprint(w, string(s))
+	_, _ = fmt.Fprint(w, string(s))
 }
 
 func grpcErrorHandler(err error) CatalogError {
@@ -98,6 +98,6 @@ func dspaceVersionHandler(w http.ResponseWriter, req *http.Request) error {
 	}
 
 	w.WriteHeader(http.StatusOK)
-	fmt.Fprint(w, string(data))
-	return nil
+	_, err = fmt.Fprint(w, string(data))
+	return err
 }

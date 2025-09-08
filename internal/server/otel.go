@@ -6,6 +6,8 @@ import (
 
 	"go-dataspace.eu/ctxslog"
 	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/sdk/resource"
@@ -28,7 +30,7 @@ func (e *NullExporter) Shutdown(ctx context.Context) error {
 }
 
 func setupOTelSDK(
-	ctx context.Context, enabled bool, endpointUrl string, serviceName string,
+	ctx context.Context, enabled bool, grpc bool, endpointUrl string, serviceName string,
 ) (func(context.Context) error, error) {
 	var shutdownFuncs []func(context.Context) error
 	shutdown := func(ctx context.Context) error {
@@ -45,7 +47,7 @@ func setupOTelSDK(
 	otel.SetTextMapPropagator(prop)
 
 	// Set up trace provider.
-	tracerProvider, err := newTracerProvider(ctx, enabled, endpointUrl, serviceName)
+	tracerProvider, err := newTracerProvider(ctx, enabled, grpc, endpointUrl, serviceName)
 	if err != nil {
 		err = errors.Join(err, shutdown(ctx))
 		return nil, err
@@ -63,7 +65,7 @@ func newPropagator() propagation.TextMapPropagator {
 }
 
 func newTracerProvider(
-	ctx context.Context, enabled bool, endpointUrl string, serviceName string,
+	ctx context.Context, enabled bool, grpc bool, endpointUrl string, serviceName string,
 ) (*trace.TracerProvider, error) {
 	res, err := resource.New(
 		context.Background(),
@@ -84,7 +86,12 @@ func newTracerProvider(
 
 	ctxslog.Info(ctx, "Setting up opentelemetry HTTP exporter",
 		"endpoint_url", endpointUrl, "service_name", serviceName)
-	exp, err := otlptracehttp.New(ctx, otlptracehttp.WithEndpointURL(endpointUrl))
+	var exp *otlptrace.Exporter
+	if grpc {
+		exp, err = otlptracegrpc.New(ctx, otlptracegrpc.WithEndpointURL(endpointUrl))
+	} else {
+		exp, err = otlptracehttp.New(ctx, otlptracehttp.WithEndpointURL(endpointUrl))
+	}
 	if err != nil {
 		return nil, err
 	}

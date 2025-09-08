@@ -23,23 +23,23 @@ import (
 
 // Error prints a red error message to stderr.
 func Error(message string) {
-	color.New(color.BgRed, color.FgWhite, color.Bold).Fprint(os.Stderr, " ERROR ")
-	color.New(color.FgRed, color.Bold).Fprintln(os.Stderr, " "+message)
+	_, _ = color.New(color.BgRed, color.FgWhite, color.Bold).Fprint(os.Stderr, " ERROR ")
+	_, _ = color.New(color.FgRed, color.Bold).Fprintln(os.Stderr, " "+message)
 }
 
 // Warn prints a yellow warning message to stderr.
 func Warn(message string) {
-	color.New(color.BgYellow, color.FgWhite, color.Bold).Fprint(os.Stderr, " WARN ")
-	color.New(color.FgYellow, color.Bold).Fprintln(os.Stderr, " "+message)
+	_, _ = color.New(color.BgYellow, color.FgWhite, color.Bold).Fprint(os.Stderr, " WARN ")
+	_, _ = color.New(color.FgYellow, color.Bold).Fprintln(os.Stderr, " "+message)
 }
 
 // Info prints a green informational message to stderr.
 func Info(message string) {
-	color.New(color.BgGreen, color.FgWhite, color.Bold).Fprint(os.Stderr, " INFO ")
-	color.New(color.FgGreen, color.Bold).Fprintln(os.Stderr, " "+message)
+	_, _ = color.New(color.BgGreen, color.FgWhite, color.Bold).Fprint(os.Stderr, " INFO ")
+	_, _ = color.New(color.FgGreen, color.Bold).Fprintln(os.Stderr, " "+message)
 }
 
 // Print is a normal message, to stdout.
 func Print(message string) {
-	color.New().Print(message)
+	_, _ = color.New().Print(message)
 }

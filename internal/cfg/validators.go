@@ -28,7 +28,7 @@ func CheckListenPort(address string, port int) error {
 	if err != nil {
 		return fmt.Errorf("can't listen on %s:%d: %w", address, port, err)
 	}
-	defer listen.Close()
+	defer func() { _ = listen.Close() }()
 	return nil
 }
 
@@ -40,7 +40,7 @@ func CheckConnectAddr(address string) error {
 	if err != nil {
 		return fmt.Errorf("can't connect to %s: %w", address, err)
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 	return nil
 }
 

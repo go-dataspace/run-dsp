@@ -68,7 +68,7 @@ func (tr *TransferRequestNegotiationInitial) Recv(
 ) (TransferRequestNegotiationState, error) {
 	switch t := message.(type) {
 	case shared.TransferRequestMessage:
-		if tr.Request.GetFormat() == "HTTP_PULL" {
+		if tr.GetFormat() == "HTTP_PULL" {
 			_, err := tr.GetProvider().GetDataset(ctx, &dsrpc.GetDatasetRequest{
 				DatasetId:     tr.GetTarget(),
 				RequesterInfo: authforwarder.ExtractRequesterInfo(ctx),
