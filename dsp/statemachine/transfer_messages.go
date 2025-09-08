@@ -77,7 +77,7 @@ func sendTransferRequest(ctx context.Context, tr *TransferRequestNegotiationInit
 	if tr.GetTransferDirection() == transfer.DirectionPush {
 		ctxslog.Debug(ctx, "Push transfer request, trying to add dataddress")
 		if tr.GetPublishInfo() == nil {
-			return func() {}, errors.New("Push transfer request without publishinfo attempted")
+			return func() {}, errors.New("push transfer request without publishinfo attempted")
 		}
 		transferRequest.DataAddress = publishInfoToDataAddress(tr.GetPublishInfo())
 	}
@@ -114,7 +114,7 @@ func sendTransferStart(ctx context.Context, tr *TransferRequestNegotiationReques
 	if tr.GetTransferDirection() == transfer.DirectionPull {
 		ctxslog.Debug(ctx, "Pull transfer start, trying to add dataddress")
 		if tr.GetPublishInfo() == nil {
-			return func() {}, errors.New("Pull transfer start without publishinfo attempted")
+			return func() {}, errors.New("pull transfer start without publishinfo attempted")
 		}
 		startRequest.DataAddress = publishInfoToDataAddress(tr.GetPublishInfo())
 	}

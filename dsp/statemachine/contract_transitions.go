@@ -97,7 +97,7 @@ func (cn *ContractNegotiationInitial) Recv(
 	case shared.ContractOfferMessage:
 		return cn.processContractOffer(ctx, t)
 	default:
-		return ctx, nil, fmt.Errorf("Message type %s is not supported at this stage", t)
+		return ctx, nil, fmt.Errorf("message type %s is not supported at this stage", t)
 	}
 }
 
@@ -113,8 +113,8 @@ func (cn *ContractNegotiationInitial) processContractOffer(
 	if err := cn.SetState(contract.States.OFFERED); err != nil {
 		return ctx, nil, ctxslog.ReturnError(ctx, "could not set state", err)
 	}
-	cn.Negotiation.SetConsumerPID(uuid.New())
-	cn.Negotiation.SetInitial()
+	cn.SetConsumerPID(uuid.New())
+	cn.SetInitial()
 
 	offer, err := json.Marshal(cn.GetOffer())
 	if err != nil {
@@ -169,8 +169,8 @@ func (cn *ContractNegotiationInitial) processContractRequest(
 	if err := cn.SetState(contract.States.REQUESTED); err != nil {
 		return ctx, nil, ctxslog.ReturnError(ctx, "could not set state", err)
 	}
-	cn.Negotiation.SetProviderPID(uuid.New())
-	cn.Negotiation.SetInitial()
+	cn.SetProviderPID(uuid.New())
+	cn.SetInitial()
 	offer, err := json.Marshal(cn.GetOffer())
 	if err != nil {
 		return ctx, nil, ctxslog.ReturnError(ctx, "couldn't marshall offer", err)
@@ -255,7 +255,7 @@ func (cn *ContractNegotiationRequested) Recv(
 		callbackAddress = t.CallbackAddress
 		targetState = contract.States.OFFERED
 		if ppid, err := uuid.Parse(providerPID); err == nil && cn.GetProviderPID() == emptyUUID {
-			cn.Negotiation.SetProviderPID(ppid)
+			cn.SetProviderPID(ppid)
 		}
 		ctx = ctxslog.With(ctx,
 			"recv_msg_type", fmt.Sprintf("%T", t),
@@ -278,7 +278,7 @@ func (cn *ContractNegotiationRequested) Recv(
 		consumerPID = t.ConsumerPID
 		providerPID = t.ProviderPID
 		callbackAddress = t.CallbackAddress
-		cn.Negotiation.SetAgreement(&t.Agreement)
+		cn.SetAgreement(&t.Agreement)
 		targetState = contract.States.AGREED
 		ctx = ctxslog.With(ctx,
 			"recv_msg_type", fmt.Sprintf("%T", t),
@@ -306,8 +306,8 @@ func (cn *ContractNegotiationRequested) Recv(
 func (cn *ContractNegotiationRequested) Send(ctx context.Context) (applyFunc, error) {
 	ctx = ctxslog.With(ctx, "send_type", fmt.Sprintf("%T", cn))
 	// Detect if this is a consumer initiated or provider initiated request.
-	if cn.Negotiation.Initial() {
-		cn.Negotiation.UnsetInitial()
+	if cn.Initial() {
+		cn.UnsetInitial()
 		return sendContractOffer(ctx, cn.GetReconciler(), cn.GetContract())
 	} else {
 		return sendContractAgreement(ctx, cn.GetReconciler(), cn.GetContract())
@@ -339,7 +339,7 @@ func (cn *ContractNegotiationOffered) Recv(
 		callbackAddress = t.CallbackAddress
 		targetState = contract.States.REQUESTED
 		if ppid, err := uuid.Parse(consumerPID); err == nil && cn.GetConsumerPID() == emptyUUID {
-			cn.Negotiation.SetConsumerPID(ppid)
+			cn.SetConsumerPID(ppid)
 		}
 		ctx = ctxslog.With(ctx,
 			"recv_msg_type", fmt.Sprintf("%T", t),
@@ -403,8 +403,8 @@ func (cn *ContractNegotiationOffered) Recv(
 func (cn *ContractNegotiationOffered) Send(ctx context.Context) (applyFunc, error) {
 	ctx = ctxslog.With(ctx, "send_type", fmt.Sprintf("%T", cn))
 	// Detect if this is a consumer initiated or provider initiated request.
-	if cn.Negotiation.Initial() {
-		cn.Negotiation.UnsetInitial()
+	if cn.Initial() {
+		cn.UnsetInitial()
 		return sendContractRequest(ctx, cn.GetReconciler(), cn.GetContract())
 	} else {
 		return sendContractEvent(
@@ -540,7 +540,7 @@ func (cn *ContractNegotiationVerified) Recv(
 		}
 		ctxslog.Debug(ctx, "Received message")
 		af := func() error {
-			offer, err := shared.ValidateAndMarshal(ctx, cn.Negotiation.GetOffer())
+			offer, err := shared.ValidateAndMarshal(ctx, cn.GetOffer())
 			if err != nil {
 				return err
 			}

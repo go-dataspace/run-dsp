@@ -244,7 +244,7 @@ var Command = &cobra.Command{
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 		_, err := url.Parse(viper.GetString(dspExternalURL))
 		if err != nil {
-			return fmt.Errorf("Invalid external URL: %w", err)
+			return fmt.Errorf("invalid external URL: %w", err)
 		}
 		err = cfg.CheckListenPort(viper.GetString(dspAddress), viper.GetInt(dspPort))
 		if err != nil {
@@ -491,7 +491,7 @@ func (c *command) Run(ctx context.Context) error {
 	}
 
 	for _, conn := range grpcConnections {
-		defer conn.Close()
+		defer func() { _ = conn.Close() }()
 	}
 
 	wg.Add(len(httpServices))

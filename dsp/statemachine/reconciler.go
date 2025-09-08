@@ -213,7 +213,7 @@ func (r *HTTPReconciler) worker() {
 
 			err = r.updateState(ctx, entry, entry.TargetState)
 			if err != nil {
-				r.handleError(ctx, op, fmt.Errorf("Could not update state: %w", err))
+				r.handleError(ctx, op, fmt.Errorf("could not update state: %w", err))
 				continue
 			}
 		case <-r.ctx.Done():
@@ -303,15 +303,15 @@ func (c *HTTPReconciler) setTransferState(
 	}
 	tr, err := c.s.GetTransferRW(ctx, id, role)
 	if err != nil {
-		return fmt.Errorf("Can't find transfer request: %w", err)
+		return fmt.Errorf("can't find transfer request: %w", err)
 	}
 	err = tr.SetState(ts)
 	if err != nil {
-		return fmt.Errorf("Can't change state: %w", err)
+		return fmt.Errorf("can't change state: %w", err)
 	}
 	err = c.s.PutTransfer(ctx, tr)
 	if err != nil {
-		return fmt.Errorf("Can't save transfer request: %w", err)
+		return fmt.Errorf("can't save transfer request: %w", err)
 	}
 	transfersCounter.WithLabelValues(
 		constants.GetRoleName(role),
@@ -331,15 +331,15 @@ func (c *HTTPReconciler) setContractState(
 	var con *contract.Negotiation
 	con, err = c.s.GetContractRW(ctx, id, role)
 	if err != nil {
-		return fmt.Errorf("Can't find contract: %w", err)
+		return fmt.Errorf("can't find contract: %w", err)
 	}
 	err = con.SetState(cs)
 	if err != nil {
-		return fmt.Errorf("Can't change state: %w", err)
+		return fmt.Errorf("can't change state: %w", err)
 	}
 	err = c.s.PutContract(ctx, con)
 	if err != nil {
-		return fmt.Errorf("Can't save contract: %w", err)
+		return fmt.Errorf("can't save contract: %w", err)
 	}
 	contractsCounter.WithLabelValues(
 		constants.GetRoleName(role),

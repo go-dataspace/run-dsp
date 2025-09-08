@@ -157,7 +157,7 @@ func fetchAndDecode[T any](ctx context.Context, t *testing.T, method, url string
 	resp, err := http.DefaultClient.Do(req)
 	assert.Nil(t, err)
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	return decode[T](t, resp.Body)
 }
 

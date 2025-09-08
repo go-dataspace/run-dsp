@@ -38,7 +38,7 @@ func jsonHeaderMiddleware(next http.Handler) http.Handler {
 			if err != nil {
 				panic(err.Error())
 			}
-			fmt.Fprint(w, string(resp))
+			_, _ = fmt.Fprint(w, string(resp))
 			return
 		}
 		next.ServeHTTP(w, r)

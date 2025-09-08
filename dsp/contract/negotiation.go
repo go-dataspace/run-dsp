@@ -129,7 +129,7 @@ func FromBytes(b []byte) (*Negotiation, error) {
 	r := bytes.NewReader(b)
 	dec := gob.NewDecoder(r)
 	if err := dec.Decode(&sn); err != nil {
-		return nil, fmt.Errorf("Could not decode bytes into storableNegotiation: %w", err)
+		return nil, fmt.Errorf("could not decode bytes into storableNegotiation: %w", err)
 	}
 	return &Negotiation{
 		providerPID:   sn.ProviderPID,

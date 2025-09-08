@@ -75,7 +75,7 @@ func EncodeValid[T any](w http.ResponseWriter, r *http.Request, status int, v T)
 }
 
 func DecodeValid[T any](r *http.Request) (T, error) {
-	defer r.Body.Close()
+	defer func() { _ = r.Body.Close() }()
 	var v T
 	if err := json.NewDecoder(r.Body).Decode(&v); err != nil {
 		return v, fmt.Errorf("decode json: %w", err)
@@ -128,7 +128,7 @@ func handleValidationError(ctx context.Context, err error) error {
 			"Value", err.Value(),
 			"Param", err.Param(),
 		)
-		return fmt.Errorf("Validation Error: %w", err)
+		return fmt.Errorf("validation Error: %w", err)
 	}
 	return ctxslog.ReturnError(ctx, "Unknown error", err)
 }

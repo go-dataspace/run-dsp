@@ -272,15 +272,15 @@ func (dh *dspHandlers) providerTransferTerminationHandler(w http.ResponseWriter,
 func (dh *dspHandlers) providerTransferSuspensionHandler(w http.ResponseWriter, req *http.Request) error {
 	providerPID := req.PathValue("providerPID")
 	if providerPID == "" {
-		return fmt.Errorf("Missing provider PID")
+		return fmt.Errorf("missing provider PID")
 	}
 	reqBody, err := io.ReadAll(req.Body)
 	if err != nil {
-		return fmt.Errorf("Could not read body")
+		return fmt.Errorf("could not read body")
 	}
 	suspension, err := shared.UnmarshalAndValidate(req.Context(), reqBody, shared.TransferSuspensionMessage{})
 	if err != nil {
-		return fmt.Errorf("Invalid request")
+		return fmt.Errorf("invalid request")
 	}
 
 	ctxslog.Debug(req.Context(), "Got transfer suspension", "suspension", suspension)
@@ -316,7 +316,7 @@ func (dh *dspHandlers) consumerTransferTerminationHandler(w http.ResponseWriter,
 func (dh *dspHandlers) consumerTransferSuspensionHandler(w http.ResponseWriter, req *http.Request) error {
 	consumerPID := req.PathValue("providerPID")
 	if consumerPID == "" {
-		return fmt.Errorf("Missing consumner PID")
+		return fmt.Errorf("missing consumner PID")
 	}
 	reqBody, err := io.ReadAll(req.Body)
 	if err != nil {

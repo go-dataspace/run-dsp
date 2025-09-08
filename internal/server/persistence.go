@@ -27,6 +27,6 @@ func (c *command) getStorageProvider(ctx context.Context) (persistence.StoragePr
 	case "badger":
 		return badger.New(ctx, c.BadgerMemoryDB, c.BadgerDBPath)
 	default:
-		return nil, fmt.Errorf("Invalid backend: %s", c.PersistenceBackend)
+		return nil, fmt.Errorf("invalid backend: %s", c.PersistenceBackend)
 	}
 }

@@ -17,6 +17,10 @@ version: "2"
 run:
   timeout: 10m
 
+formatters:
+  enable:
+    - gofmt
+    - gofumpt
 linters:
   enable:
     - asciicheck
@@ -38,11 +42,8 @@ linters:
     - gocheckcompilerdirectives
     - gocritic
     - godot
-    - gofmt
-    - gofumpt
     - gomoddirectives
     - gosec
-    - gosimple
     - govet
     - importas
     - ineffassign
