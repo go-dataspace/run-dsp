@@ -556,8 +556,7 @@ github.com/yuin/goldmark v1.4.1/go.mod h1:mwnBkeHKe2W/ZEtQ+71ViKU8L12m81fl3OWwC1
 github.com/yuin/goldmark v1.4.13/go.mod h1:6yULJ656Px+3vBD8DxQVa3kxgyrAnzto9xy5taEt/CY=
 gitlab.com/bosi/decorder v0.4.2 h1:qbQaV3zgwnBZ4zPMhGLW4KZe7A7NwxEhJx39R3shffo=
 gitlab.com/bosi/decorder v0.4.2/go.mod h1:muuhHoaJkA9QLcYHq4Mj8FJUwDZ+EirSHRiaTcTf6T8=
-go-dataspace.eu/ctxslog v0.0.4 h1:/EvhC7nIV2h4KxnRa7TKR4pg5H3YL5QXVrm9TZaoqtc=
-go-dataspace.eu/ctxslog v0.0.4/go.mod h1:wG1UCnuALZBuwmGsevbvcoXUiIHasunpktsbMx8881I=
+go-dataspace.eu/ctxslog v0.0.5 h1:4OcdZtiKt/0AR6jso2w8pbyJqZCzqewadTc2bfShd6o=
 go-dataspace.eu/ctxslog v0.0.5/go.mod h1:R6fBgyhB4MpPRBHlMcClnLJQAX8y31GK2xis0h/11R4=
 go-dataspace.eu/run-dsrpc v0.0.18-alpha2 h1:QkdIdvAbdKNotlVcc7mcl51zbS7Bl+LtVNK82YWk+9g=
 go-dataspace.eu/run-dsrpc v0.0.18-alpha2/go.mod h1:/645KCGqHGBJB3F4vajgLklPoaMraNcDs9AFhkJPfI0=
