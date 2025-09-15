@@ -64,8 +64,8 @@ func WrapHandlerWithMetrics(path string, handler http.Handler) http.HandlerFunc 
 		handler.ServeHTTP(lrw, r)
 		elapsed := time.Since(start)
 		labelsValues := []string{
-			fmt.Sprint(lrw.Status()),
 			r.Method,
+			fmt.Sprint(lrw.Status()),
 			path,
 			r.Host,
 		}
