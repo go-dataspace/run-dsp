@@ -45,6 +45,6 @@ func WithState(state transfer.State) RequestOption {
 	return func(rq RequestQuery) { rq.SetState(state) }
 }
 
-func WithWR() RequestOption {
+func WithRW() RequestOption {
 	return func(rq RequestQuery) { rq.SetRW() }
 }
