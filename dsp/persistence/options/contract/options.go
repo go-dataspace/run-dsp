@@ -28,6 +28,17 @@ func WithProviderPID(pid *uuid.UUID) NegotiationOption {
 	return func(nq NegotiationQuery) { nq.SetProviderPID(pid) }
 }
 
+func WithRolePID(pid *uuid.UUID, role constants.DataspaceRole) NegotiationOption {
+	switch role {
+	case constants.DataspaceConsumer:
+		return WithConsumerPID(pid)
+	case constants.DataspaceProvider:
+		return WithProviderPID(pid)
+	default:
+		panic("Undefined dataspace role given")
+	}
+}
+
 func WithAgreementID(id *uuid.UUID) NegotiationOption {
 	return func(nq NegotiationQuery) { nq.SetAgreementID(id) }
 }

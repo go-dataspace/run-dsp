@@ -29,6 +29,17 @@ func WithProviderPID(pid *uuid.UUID) RequestOption {
 	return func(rq RequestQuery) { rq.SetProviderPID(pid) }
 }
 
+func WithRolePID(pid *uuid.UUID, role constants.DataspaceRole) RequestOption {
+	switch role {
+	case constants.DataspaceConsumer:
+		return WithConsumerPID(pid)
+	case constants.DataspaceProvider:
+		return WithProviderPID(pid)
+	default:
+		panic("Undefined dataspace role given")
+	}
+}
+
 func WithAgreementID(id *uuid.UUID) RequestOption {
 	return func(rq RequestQuery) { rq.SetAgreementID(id) }
 }

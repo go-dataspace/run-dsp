@@ -116,7 +116,7 @@ func sendContractMessage[T any](
 	// Add local origin requester info to context since all control requests are from
 	// a trusted source.
 	ctx = authforwarder.SetRequesterInfo(ctx, localRequesterInfo)
-	negotiation, err := s.store.GetContractRW(ctx, pid, role)
+	negotiation, err := s.store.GetContract(ctx, contractopts.WithRolePID(pid, role
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "could not find contract with pid %s: %s", pid, err)
 	}
