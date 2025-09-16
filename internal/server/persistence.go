@@ -19,13 +19,13 @@ import (
 	"fmt"
 
 	"go-dataspace.eu/run-dsp/dsp/persistence"
-	"go-dataspace.eu/run-dsp/dsp/persistence/badger"
+	"go-dataspace.eu/run-dsp/dsp/persistence/backends/sqlite"
 )
 
 func (c *command) getStorageProvider(ctx context.Context) (persistence.StorageProvider, error) {
 	switch c.PersistenceBackend {
-	case "badger":
-		return badger.New(ctx, c.BadgerMemoryDB, c.BadgerDBPath)
+	case "sqlite":
+		return sqlite.New(ctx, c.BadgerMemoryDB, c.BadgerDBPath)
 	default:
 		return nil, fmt.Errorf("invalid backend: %s", c.PersistenceBackend)
 	}

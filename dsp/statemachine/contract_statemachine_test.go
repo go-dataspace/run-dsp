@@ -25,7 +25,7 @@ import (
 	"go-dataspace.eu/ctxslog"
 	"go-dataspace.eu/run-dsp/dsp/constants"
 	"go-dataspace.eu/run-dsp/dsp/contract"
-	"go-dataspace.eu/run-dsp/dsp/persistence/badger"
+	"go-dataspace.eu/run-dsp/dsp/persistence/backends/sqlite"
 	"go-dataspace.eu/run-dsp/dsp/shared"
 	"go-dataspace.eu/run-dsp/dsp/statemachine"
 	"go-dataspace.eu/run-dsp/logging"
@@ -86,7 +86,7 @@ func TestTermination(t *testing.T) {
 	ctx, done := context.WithCancel(ctx)
 	defer done()
 
-	store, err := badger.New(ctx, true, "")
+	store, err := sqlite.New(ctx, true, "")
 	assert.Nil(t, err)
 
 	requester := &MockRequester{}

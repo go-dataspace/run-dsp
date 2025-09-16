@@ -31,6 +31,8 @@ import (
 	"go-dataspace.eu/run-dsp/dsp/constants"
 	"go-dataspace.eu/run-dsp/dsp/contract"
 	"go-dataspace.eu/run-dsp/dsp/persistence"
+	contractopts "go-dataspace.eu/run-dsp/dsp/persistence/options/contract"
+	transferopts "go-dataspace.eu/run-dsp/dsp/persistence/options/transfer"
 	"go-dataspace.eu/run-dsp/dsp/shared"
 	"go-dataspace.eu/run-dsp/dsp/transfer"
 	"go.opentelemetry.io/otel"
@@ -301,7 +303,10 @@ func (c *HTTPReconciler) setTransferState(
 	if err != nil {
 		return fmt.Errorf("%w: Invalid state: %w", ErrFatal, err)
 	}
-	tr, err := c.s.GetTransferRW(ctx, id, role)
+	tr, err := c.s.GetTransfer(ctx,
+		transferopts.WithRW(),
+		transferopts.WithRolePID(id, role),
+	)
 	if err != nil {
 		return fmt.Errorf("can't find transfer request: %w", err)
 	}
@@ -329,7 +334,10 @@ func (c *HTTPReconciler) setContractState(
 		return fmt.Errorf("%w: Invalid state: %w", ErrFatal, err)
 	}
 	var con *contract.Negotiation
-	con, err = c.s.GetContractRW(ctx, id, role)
+	con, err = c.s.GetContract(ctx,
+		contractopts.WithRW(),
+		contractopts.WithRolePID(id, role),
+	)
 	if err != nil {
 		return fmt.Errorf("can't find contract: %w", err)
 	}
