@@ -24,11 +24,13 @@ import (
 	"go-dataspace.eu/ctxslog"
 	"go-dataspace.eu/run-dsp/dsp/constants"
 	"go-dataspace.eu/run-dsp/dsp/contract"
+	contractopts "go-dataspace.eu/run-dsp/dsp/persistence/options/contract"
 	"go-dataspace.eu/run-dsp/dsp/shared"
 	"go-dataspace.eu/run-dsp/dsp/statemachine"
 	"go-dataspace.eu/run-dsp/internal/authforwarder"
 	"go-dataspace.eu/run-dsp/odrl"
 	dsrpc "go-dataspace.eu/run-dsrpc/gen/go/dsp/v1alpha2"
+
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -116,7 +118,7 @@ func sendContractMessage[T any](
 	// Add local origin requester info to context since all control requests are from
 	// a trusted source.
 	ctx = authforwarder.SetRequesterInfo(ctx, localRequesterInfo)
-	negotiation, err := s.store.GetContract(ctx, contractopts.WithRolePID(pid, role
+	negotiation, err := s.store.GetContract(ctx, contractopts.WithRolePID(pid, role))
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "could not find contract with pid %s: %s", pid, err)
 	}
@@ -287,7 +289,7 @@ func (s *Server) ContractTerminate(
 
 	var negotiation *contract.Negotiation
 	for _, role := range []constants.DataspaceRole{constants.DataspaceConsumer, constants.DataspaceProvider} {
-		negotiation, err = s.store.GetContractR(ctx, pid, role)
+		negotiation, err = s.store.GetContract(ctx, contractopts.WithRolePID(pid, role))
 		if err == nil {
 			ctxslog.Debug(ctx, "Contract found", "pid", negotiation.GetLocalPID().String(), "role", role)
 			break

@@ -5,11 +5,11 @@ import (
 )
 
 type Query interface {
-	SetAgreementID(*uuid.UUID)
+	SetAgreementID(uuid.UUID)
 }
 
 type Option func(Query)
 
-func WithAgreementID(id *uuid.UUID) Option {
+func WithAgreementID(id uuid.UUID) Option {
 	return func(nq Query) { nq.SetAgreementID(id) }
 }
