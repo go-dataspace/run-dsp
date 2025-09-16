@@ -29,6 +29,8 @@ import (
 
 // StorageProvider is an interface that combines the *Saver interfaces.
 type StorageProvider interface {
+	// Initialise initialises the storage provider, by, for instance, running migrations.
+	Initialise() error
 	ContractSaver
 	AgreementSaver
 	TransferSaver
