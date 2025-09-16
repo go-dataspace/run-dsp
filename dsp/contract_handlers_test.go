@@ -35,7 +35,8 @@ import (
 	"go-dataspace.eu/run-dsp/dsp/constants"
 	"go-dataspace.eu/run-dsp/dsp/contract"
 	"go-dataspace.eu/run-dsp/dsp/persistence"
-	"go-dataspace.eu/run-dsp/dsp/persistence/badger"
+	"go-dataspace.eu/run-dsp/dsp/persistence/backends/sqlite"
+	contractopts "go-dataspace.eu/run-dsp/dsp/persistence/options/contract"
 	"go-dataspace.eu/run-dsp/dsp/shared"
 	"go-dataspace.eu/run-dsp/dsp/statemachine"
 	"go-dataspace.eu/run-dsp/internal/authforwarder"
@@ -98,7 +99,7 @@ type environment struct {
 	server          *httptest.Server
 	provider        *mockdsrpc.MockProviderServiceClient
 	contractService *mockdsrpc.MockContractServiceClient
-	store           *badger.StorageProvider
+	store           *sqlite.Provider
 	reconciler      *mockReconciler
 }
 
@@ -128,7 +129,7 @@ func setupEnvironment(t *testing.T, autoAccept bool) (
 		// Only used in the initial requests as we don't set the negotiation there.
 		cService = mockdsrpc.NewMockContractServiceClient(t)
 	}
-	store, err := badger.New(ctx, true, "")
+	store, err := sqlite.New(ctx, true, "")
 	reconciler := &mockReconciler{}
 	assert.Nil(t, err)
 	pingResponse := &dsrpc.PingResponse{
@@ -263,7 +264,10 @@ func TestNegotiationProviderInitialRequest(t *testing.T) {
 		assert.Equal(t, contract.States.REQUESTED.String(), status.State)
 
 		providerPID := uuid.MustParse(status.ProviderPID)
-		negotiation, err := env.store.GetContractR(ctx, providerPID, constants.DataspaceProvider)
+		negotiation, err := env.store.GetContract(
+			ctx,
+			contractopts.WithRolePID(providerPID, constants.DataspaceProvider),
+		)
 		assert.Nil(t, err)
 		assert.Equal(t, staticConsumerPID, negotiation.GetConsumerPID())
 		assert.Equal(t, providerPID, negotiation.GetProviderPID())
@@ -328,7 +332,10 @@ func TestNegotiationProviderRequest(t *testing.T) {
 		assert.Equal(t, staticProviderPID.URN(), status.ProviderPID)
 		assert.Equal(t, contract.States.REQUESTED.String(), status.State)
 
-		negotiation, err := env.store.GetContractR(ctx, staticProviderPID, constants.DataspaceProvider)
+		negotiation, err := env.store.GetContract(
+			ctx,
+			contractopts.WithRolePID(staticProviderPID, constants.DataspaceProvider),
+		)
 		assert.Nil(t, err)
 		assert.Equal(t, staticConsumerPID, negotiation.GetConsumerPID())
 		assert.Equal(t, staticProviderPID, negotiation.GetProviderPID())
@@ -392,7 +399,10 @@ func TestNegotiationProviderEventAccepted(t *testing.T) { //nolint:funlen
 		assert.Equal(t, staticProviderPID.URN(), status.ProviderPID)
 		assert.Equal(t, contract.States.ACCEPTED.String(), status.State)
 
-		negotiation, err := env.store.GetContractR(ctx, staticProviderPID, constants.DataspaceProvider)
+		negotiation, err := env.store.GetContract(
+			ctx,
+			contractopts.WithRolePID(staticProviderPID, constants.DataspaceProvider),
+		)
 		assert.Nil(t, err)
 		assert.Equal(t, staticConsumerPID, negotiation.GetConsumerPID())
 		assert.Equal(t, staticProviderPID, negotiation.GetProviderPID())
@@ -458,7 +468,10 @@ func TestNegotiationProviderAgreementVerification(t *testing.T) { //nolint:funle
 		assert.Equal(t, staticProviderPID.URN(), status.ProviderPID)
 		assert.Equal(t, contract.States.VERIFIED.String(), status.State)
 
-		negotiation, err := env.store.GetContractR(ctx, staticProviderPID, constants.DataspaceProvider)
+		negotiation, err := env.store.GetContract(
+			ctx,
+			contractopts.WithRolePID(staticProviderPID, constants.DataspaceProvider),
+		)
 		assert.Nil(t, err)
 		assert.Equal(t, staticConsumerPID, negotiation.GetConsumerPID())
 		assert.Equal(t, staticProviderPID, negotiation.GetProviderPID())
@@ -517,7 +530,10 @@ func TestNegotiationConsumerInitialOffer(t *testing.T) {
 		assert.Equal(t, contract.States.OFFERED.String(), status.State)
 
 		consumerPID := uuid.MustParse(status.ConsumerPID)
-		negotiation, err := env.store.GetContractR(ctx, consumerPID, constants.DataspaceConsumer)
+		negotiation, err := env.store.GetContract(
+			ctx,
+			contractopts.WithRolePID(consumerPID, constants.DataspaceConsumer),
+		)
 		assert.Nil(t, err)
 		assert.Equal(t, consumerPID, negotiation.GetConsumerPID())
 		assert.Equal(t, staticProviderPID, negotiation.GetProviderPID())
@@ -584,7 +600,10 @@ func TestNegotiationConsumerOffer(t *testing.T) { //nolint:funlen
 		assert.Equal(t, staticProviderPID.URN(), status.ProviderPID)
 		assert.Equal(t, contract.States.OFFERED.String(), status.State)
 
-		negotiation, err := env.store.GetContractR(ctx, staticConsumerPID, constants.DataspaceConsumer)
+		negotiation, err := env.store.GetContract(
+			ctx,
+			contractopts.WithRolePID(staticConsumerPID, constants.DataspaceConsumer),
+		)
 		assert.Nil(t, err)
 		assert.Equal(t, staticConsumerPID, negotiation.GetConsumerPID())
 		assert.Equal(t, staticProviderPID, negotiation.GetProviderPID())
@@ -655,7 +674,10 @@ func TestNegotiationConsumerAgreement(t *testing.T) {
 			assert.Equal(t, staticProviderPID.URN(), status.ProviderPID)
 			assert.Equal(t, contract.States.AGREED.String(), status.State)
 
-			negotiation, err := env.store.GetContractR(ctx, staticConsumerPID, constants.DataspaceConsumer)
+			negotiation, err := env.store.GetContract(
+				ctx,
+				contractopts.WithRolePID(staticConsumerPID, constants.DataspaceConsumer),
+			)
 			assert.Nil(t, err)
 			assert.Equal(t, staticConsumerPID, negotiation.GetConsumerPID())
 			assert.Equal(t, staticProviderPID, negotiation.GetProviderPID())
@@ -728,7 +750,10 @@ func TestNegotiationConsumerEventFinalized(t *testing.T) {
 		assert.Equal(t, staticProviderPID.URN(), status.ProviderPID)
 		assert.Equal(t, contract.States.FINALIZED.String(), status.State)
 
-		negotiation, err := env.store.GetContractR(ctx, staticConsumerPID, constants.DataspaceConsumer)
+		negotiation, err := env.store.GetContract(
+			ctx,
+			contractopts.WithRolePID(staticConsumerPID, constants.DataspaceConsumer),
+		)
 		assert.Nil(t, err)
 		assert.Equal(t, staticConsumerPID, negotiation.GetConsumerPID())
 		assert.Equal(t, staticProviderPID, negotiation.GetProviderPID())
@@ -788,7 +813,10 @@ func TestNegotiationTermination(t *testing.T) {
 				assert.Equal(t, staticProviderPID.URN(), status.ProviderPID)
 				assert.Equal(t, contract.States.TERMINATED.String(), status.State)
 
-				negotiation, err := env.store.GetContractR(ctx, pidMap[r], r)
+				negotiation, err := env.store.GetContract(
+					ctx,
+					contractopts.WithRolePID(pidMap[r], r),
+				)
 				assert.Nil(t, err)
 				assert.Equal(t, staticConsumerPID, negotiation.GetConsumerPID())
 				assert.Equal(t, staticProviderPID, negotiation.GetProviderPID())

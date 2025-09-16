@@ -25,6 +25,8 @@ import (
 	"go-dataspace.eu/ctxslog"
 	"go-dataspace.eu/run-dsp/dsp/constants"
 	"go-dataspace.eu/run-dsp/dsp/persistence"
+	agreementopts "go-dataspace.eu/run-dsp/dsp/persistence/options/agreement"
+	transferopts "go-dataspace.eu/run-dsp/dsp/persistence/options/transfer"
 	"go-dataspace.eu/run-dsp/dsp/shared"
 	"go-dataspace.eu/run-dsp/dsp/statemachine"
 	"go-dataspace.eu/run-dsp/dsp/transfer"
@@ -97,7 +99,10 @@ func (dh *dspHandlers) providerTransferProcessHandler(w http.ResponseWriter, req
 		return transferError(ctx, "invalid provider ID", http.StatusBadRequest, "400", "Invalid provider PID", nil)
 	}
 
-	contract, err := dh.store.GetTransferR(ctx, providerPID, constants.DataspaceProvider)
+	contract, err := dh.store.GetTransfer(
+		ctx,
+		transferopts.WithRolePID(providerPID, constants.DataspaceProvider),
+	)
 	if err != nil {
 		return contractError(ctx, err.Error(), http.StatusNotFound, "404", "TransferRequest not found", nil)
 	}
@@ -127,7 +132,7 @@ func (dh *dspHandlers) providerTransferRequestHandler(w http.ResponseWriter, req
 		return transferError(ctx, fmt.Sprintf("Invalid agreement ID %s: %s", transferReq.AgreementID, err.Error()),
 			http.StatusBadRequest, "400", "Invalid request: agreement ID is not a UUID", nil)
 	}
-	agreement, err := dh.store.GetAgreement(ctx, agreementID)
+	agreement, err := dh.store.GetAgreement(ctx, agreementopts.WithAgreementID(agreementID))
 	if err != nil {
 		return transferError(ctx, fmt.Sprintf("Could not get agreement with ID %s: %s", agreementID, err),
 			http.StatusNotFound, "404", "Invalid request: Agreement not found", nil)
@@ -202,7 +207,11 @@ func processTransferMessage[T any](
 ) error {
 	ctx, span := tracer.Start(req.Context(), "processTransferMessage")
 	defer span.End()
-	transfer, err := dh.store.GetTransferRW(ctx, pid, role)
+	transfer, err := dh.store.GetTransfer(
+		ctx,
+		transferopts.WithRW(),
+		transferopts.WithRolePID(pid, role),
+	)
 	if err != nil {
 		return transferError(ctx, fmt.Sprintf("%d transfer request %s not found: %s", role, pid, err),
 			http.StatusNotFound, "404", "Transfer request not found", nil)

@@ -27,6 +27,7 @@ import (
 	"go-dataspace.eu/run-dsp/dsp/constants"
 	"go-dataspace.eu/run-dsp/dsp/contract"
 	"go-dataspace.eu/run-dsp/dsp/persistence"
+	contractopts "go-dataspace.eu/run-dsp/dsp/persistence/options/contract"
 	"go-dataspace.eu/run-dsp/dsp/shared"
 	"go-dataspace.eu/run-dsp/dsp/statemachine"
 	"go-dataspace.eu/run-dsp/internal/authforwarder"
@@ -98,7 +99,10 @@ func (dh *dspHandlers) providerContractStateHandler(w http.ResponseWriter, req *
 		return contractError(ctx, "invalid provider ID", http.StatusBadRequest, "400", "Invalid provider PID", nil)
 	}
 
-	contract, err := dh.store.GetContractR(ctx, providerPID, constants.DataspaceProvider)
+	contract, err := dh.store.GetContract(
+		ctx,
+		contractopts.WithRolePID(providerPID, constants.DataspaceProvider),
+	)
 	if err != nil {
 		return contractError(ctx, err.Error(), http.StatusNotFound, "404", "Contract not found", nil)
 	}
@@ -192,7 +196,11 @@ func processMessage[T any](
 ) error {
 	ctx, span := tracer.Start(req.Context(), "processMessage")
 	defer span.End()
-	contract, err := dh.store.GetContractRW(ctx, pid, role)
+	contract, err := dh.store.GetContract(
+		ctx,
+		contractopts.WithRW(),
+		contractopts.WithRolePID(pid, role),
+	)
 	if err != nil {
 		return contractError(ctx, fmt.Sprintf("%d contract %s not found: %s", role, pid, err),
 			http.StatusNotFound, "404", "Contract not found", nil)
@@ -305,7 +313,8 @@ func (dh *dspHandlers) contractTerminationHandler(w http.ResponseWriter, req *ht
 		return contractError(ctx, fmt.Sprintf("Invalid PID: %s", pid),
 			http.StatusBadRequest, "400", "Invalid request: PID is not a UUID", nil)
 	}
-	if _, err := dh.store.GetContractR(ctx, id, constants.DataspaceProvider); err == nil {
+	if _, err := dh.store.GetContract(
+		ctx, contractopts.WithRolePID(id, constants.DataspaceProvider)); err == nil {
 		return progressContractState[shared.ContractNegotiationTerminationMessage](
 			dh, w, req, constants.DataspaceProvider, pid,
 		)
