@@ -9,9 +9,9 @@ import (
 )
 
 type NegotiationQuery interface {
-	SetConsumerPID(*uuid.UUID)
-	SetProviderPID(*uuid.UUID)
-	SetAgreementID(*uuid.UUID)
+	SetConsumerPID(uuid.UUID)
+	SetProviderPID(uuid.UUID)
+	SetAgreementID(uuid.UUID)
 	SetCallback(*url.URL)
 	SetRole(constants.DataspaceRole)
 	SetState(contract.State)
@@ -20,15 +20,15 @@ type NegotiationQuery interface {
 
 type NegotiationOption func(NegotiationQuery)
 
-func WithConsumerPID(pid *uuid.UUID) NegotiationOption {
+func WithConsumerPID(pid uuid.UUID) NegotiationOption {
 	return func(nq NegotiationQuery) { nq.SetConsumerPID(pid) }
 }
 
-func WithProviderPID(pid *uuid.UUID) NegotiationOption {
+func WithProviderPID(pid uuid.UUID) NegotiationOption {
 	return func(nq NegotiationQuery) { nq.SetProviderPID(pid) }
 }
 
-func WithRolePID(pid *uuid.UUID, role constants.DataspaceRole) NegotiationOption {
+func WithRolePID(pid uuid.UUID, role constants.DataspaceRole) NegotiationOption {
 	switch role {
 	case constants.DataspaceConsumer:
 		return WithConsumerPID(pid)
@@ -39,7 +39,7 @@ func WithRolePID(pid *uuid.UUID, role constants.DataspaceRole) NegotiationOption
 	}
 }
 
-func WithAgreementID(id *uuid.UUID) NegotiationOption {
+func WithAgreementID(id uuid.UUID) NegotiationOption {
 	return func(nq NegotiationQuery) { nq.SetAgreementID(id) }
 }
 

@@ -31,7 +31,7 @@ import (
 	"go-dataspace.eu/run-dsp/dsp/contract"
 	"go-dataspace.eu/run-dsp/dsp/control"
 	"go-dataspace.eu/run-dsp/dsp/persistence"
-	"go-dataspace.eu/run-dsp/dsp/persistence/badger"
+	"go-dataspace.eu/run-dsp/dsp/persistence/backends/sqlite"
 	"go-dataspace.eu/run-dsp/dsp/shared"
 	"go-dataspace.eu/run-dsp/dsp/statemachine"
 	mockdsrpc "go-dataspace.eu/run-dsp/mocks/go-dataspace.eu/run-dsrpc/gen/go/dsp/v1alpha2"
@@ -97,7 +97,7 @@ type environment struct {
 	server          *control.Server
 	provider        *mockdsrpc.MockProviderServiceClient
 	contractService *mockdsrpc.MockContractServiceClient
-	store           *badger.StorageProvider
+	store           *sqlite.Provider
 	reconciler      *mockReconciler
 	requester       *mockRequester
 }
@@ -113,7 +113,7 @@ func setupEnvironment(t *testing.T) (
 	slog.SetDefault(logger)
 	prov := mockdsrpc.NewMockProviderServiceClient(t)
 	cService := mockdsrpc.NewMockContractServiceClient(t)
-	store, err := badger.New(ctx, true, "")
+	store, err := sqlite.New(ctx, true, "")
 	reconciler := &mockReconciler{}
 	requester := &mockRequester{}
 	assert.Nil(t, err)

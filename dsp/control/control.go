@@ -26,6 +26,9 @@ import (
 	dspconstants "go-dataspace.eu/run-dsp/dsp/constants"
 	"go-dataspace.eu/run-dsp/dsp/contract"
 	"go-dataspace.eu/run-dsp/dsp/persistence"
+	agreementopts "go-dataspace.eu/run-dsp/dsp/persistence/options/agreement"
+	contractopts "go-dataspace.eu/run-dsp/dsp/persistence/options/contract"
+	transferopts "go-dataspace.eu/run-dsp/dsp/persistence/options/transfer"
 	"go-dataspace.eu/run-dsp/dsp/shared"
 	"go-dataspace.eu/run-dsp/dsp/statemachine"
 	"go-dataspace.eu/run-dsp/dsp/transfer"
@@ -209,7 +212,11 @@ func (s *Server) GetProviderDatasetDownloadInformation(
 	if err := s.store.PutContract(ctx, negotiation); err != nil {
 		return nil, status.Errorf(codes.Internal, "couldn't store contract negotiation: %s", err)
 	}
-	negotiation, err = s.store.GetContractRW(ctx, negotiation.GetLocalPID(), negotiation.GetRole())
+	negotiation, err = s.store.GetContract(
+		ctx,
+		contractopts.WithRolePID(negotiation.GetLocalPID(), negotiation.GetRole()),
+		contractopts.WithRW(),
+	)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "couldn't retrieve contract negotiation: %s", err)
 	}
@@ -229,7 +236,10 @@ func (s *Server) GetProviderDatasetDownloadInformation(
 	// These don't really return errors, the err is for uniformity with the recv applyFunc
 	_ = apply()
 
-	negotiation, err = s.store.GetContractR(ctx, negotiation.GetLocalPID(), dspconstants.DataspaceConsumer)
+	negotiation, err = s.store.GetContract(
+		ctx,
+		contractopts.WithRolePID(negotiation.GetLocalPID(), dspconstants.DataspaceConsumer),
+	)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal, "could not get consumer contract with PID %s: %s", negotiation.GetLocalPID(), err)
@@ -244,7 +254,10 @@ func (s *Server) GetProviderDatasetDownloadInformation(
 			ctxslog.Debug(ctx, "Contract not finalized...", "checks", checks, "state", negotiation.GetState().String())
 		}
 		time.Sleep(1 * time.Second)
-		negotiation, err = s.store.GetContractR(ctx, negotiation.GetLocalPID(), dspconstants.DataspaceConsumer)
+		negotiation, err = s.store.GetContract(
+			ctx,
+			contractopts.WithRolePID(negotiation.GetLocalPID(), dspconstants.DataspaceConsumer),
+		)
 		if err != nil {
 			return nil, status.Errorf(
 				codes.Internal, "could not get consumer contract with PID %s: %s", negotiation.GetLocalPID(), err)
@@ -259,7 +272,7 @@ func (s *Server) GetProviderDatasetDownloadInformation(
 	ctxslog.Info(ctx, "Contract finalized, continuing")
 	transferConsumerPID := uuid.New()
 	agreementID := uuid.MustParse(negotiation.GetAgreement().ID)
-	agreement, err := s.store.GetAgreement(ctx, agreementID)
+	agreement, err := s.store.GetAgreement(ctx, agreementopts.WithAgreementID(agreementID))
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "could not get agreement with ID %s: %s", agreementID, err)
 	}
@@ -282,7 +295,11 @@ func (s *Server) GetProviderDatasetDownloadInformation(
 	if err := s.store.PutTransfer(ctx, transferReq); err != nil {
 		return nil, status.Errorf(codes.Internal, "Couldn't create transfer request: %s", err)
 	}
-	transferReq, err = s.store.GetTransferRW(ctx, transferReq.GetConsumerPID(), dspconstants.DataspaceConsumer)
+	transferReq, err = s.store.GetTransfer(
+		ctx,
+		transferopts.WithRolePID(transferReq.GetConsumerPID(), dspconstants.DataspaceConsumer),
+		transferopts.WithRW(),
+	)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "could not retrieve transfer request: %s", err)
 	}
@@ -307,7 +324,10 @@ func (s *Server) GetProviderDatasetDownloadInformation(
 	ctxslog.Debug(ctx, "Beginning transfer request")
 	tApply()
 
-	tReq, err := s.store.GetTransferR(ctx, transferConsumerPID, dspconstants.DataspaceConsumer)
+	tReq, err := s.store.GetTransfer(
+		ctx,
+		transferopts.WithRolePID(transferConsumerPID, dspconstants.DataspaceConsumer),
+	)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "could not get consumer transfer with PID %s: %s", transferConsumerPID, err)
 	}
@@ -321,7 +341,10 @@ func (s *Server) GetProviderDatasetDownloadInformation(
 	for tReq.GetState() != transfer.States.STARTED {
 		ctxslog.Debug(ctx, "Transfer not started", "current_state", tReq.GetState().String())
 		time.Sleep(1 * time.Second)
-		tReq, err = s.store.GetTransferR(ctx, transferConsumerPID, dspconstants.DataspaceConsumer)
+		tReq, err = s.store.GetTransfer(
+			ctx,
+			transferopts.WithRolePID(transferConsumerPID, dspconstants.DataspaceConsumer),
+		)
 		if err != nil {
 			return nil, status.Errorf(
 				codes.Internal, "could not get consumer contract with PID %s: %s", transferConsumerPID, err,
@@ -387,7 +410,11 @@ func (s *Server) GetProviderDatasetUploadInformation(
 	if err := s.store.PutContract(ctx, negotiation); err != nil {
 		return nil, status.Errorf(codes.Internal, "couldn't store contract negotiation: %s", err)
 	}
-	negotiation, err = s.store.GetContractRW(ctx, negotiation.GetLocalPID(), negotiation.GetRole())
+	negotiation, err = s.store.GetContract(
+		ctx,
+		contractopts.WithRolePID(negotiation.GetLocalPID(), negotiation.GetRole()),
+		contractopts.WithRW(),
+	)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "couldn't retrieve contract negotiation: %s", err)
 	}
@@ -407,7 +434,10 @@ func (s *Server) GetProviderDatasetUploadInformation(
 	// These don't really return errors, the err is for uniformity with the recv applyFunc
 	_ = apply()
 
-	negotiation, err = s.store.GetContractR(ctx, negotiation.GetLocalPID(), dspconstants.DataspaceProvider)
+	negotiation, err = s.store.GetContract(
+		ctx,
+		contractopts.WithRolePID(negotiation.GetLocalPID(), dspconstants.DataspaceProvider),
+	)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal, "could not get provider contract with PID %s: %s", negotiation.GetLocalPID(), err)
@@ -421,7 +451,10 @@ func (s *Server) GetProviderDatasetUploadInformation(
 			ctxslog.Info(ctx, "Contract not finalized", "current_state", negotiation.GetState().String())
 		}
 		time.Sleep(1 * time.Second)
-		negotiation, err = s.store.GetContractR(ctx, negotiation.GetLocalPID(), dspconstants.DataspaceProvider)
+		negotiation, err = s.store.GetContract(
+			ctx,
+			contractopts.WithRolePID(negotiation.GetLocalPID(), dspconstants.DataspaceProvider),
+		)
 		if err != nil {
 			return nil, status.Errorf(
 				codes.Internal, "could not get provider contract with PID %s: %s", negotiation.GetLocalPID(), err)
@@ -482,7 +515,7 @@ func (s *Server) SignalTransferComplete( //nolint:cyclop
 	trReq := &transfer.Request{}
 	role := dspconstants.DataspaceConsumer
 	for _, role = range []dspconstants.DataspaceRole{dspconstants.DataspaceConsumer, dspconstants.DataspaceProvider} {
-		trReq, _ = s.store.GetTransferRW(ctx, id, role)
+		trReq, _ = s.store.GetTransfer(ctx, transferopts.WithRolePID(id, role), transferopts.WithRW())
 		if trReq != nil {
 			if err := authforwarder.CheckRequesterInfo(ctx, trReq.GetRequesterInfo()); err != nil {
 				releaseErr := s.store.ReleaseTransfer(ctx, trReq)
@@ -510,7 +543,7 @@ func (s *Server) SignalTransferComplete( //nolint:cyclop
 	apply()
 	for trReq.GetState() != transfer.States.COMPLETED {
 		time.Sleep(1 * time.Second)
-		trReq, err = s.store.GetTransferR(ctx, id, role)
+		trReq, err = s.store.GetTransfer(ctx, transferopts.WithRolePID(id, role))
 		if err != nil {
 			return nil, status.Errorf(codes.Internal, "could not get consumer contract with PID %s: %s", id, err)
 		}
@@ -555,7 +588,10 @@ func (s *Server) InitiatePushTransfer(ctx context.Context, r *dsrpc.InitiatePush
 	// Add requester info to context
 	ctx = authforwarder.SetRequesterInfo(ctx, r.RequesterInfo)
 	contractID := uuid.MustParse(r.Pid)
-	negotiation, err := s.store.GetContractR(ctx, contractID, dspconstants.DataspaceConsumer)
+	negotiation, err := s.store.GetContract(
+		ctx,
+		contractopts.WithRolePID(contractID, dspconstants.DataspaceConsumer),
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -584,7 +620,10 @@ func (s *Server) InitiatePushTransfer(ctx context.Context, r *dsrpc.InitiatePush
 	if err := s.store.PutTransfer(ctx, transferReq); err != nil {
 		return nil, status.Errorf(codes.Internal, "Couldn't create transfer request: %s", err)
 	}
-	transferReq, err = s.store.GetTransferRW(ctx, transferReq.GetConsumerPID(), dspconstants.DataspaceConsumer)
+	transferReq, err = s.store.GetTransfer(ctx,
+		transferopts.WithRW(),
+		transferopts.WithRolePID(transferReq.GetConsumerPID(), dspconstants.DataspaceConsumer),
+	)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "could not retrieve transfer request: %s", err)
 	}

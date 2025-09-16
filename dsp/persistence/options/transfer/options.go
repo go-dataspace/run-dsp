@@ -9,9 +9,9 @@ import (
 )
 
 type RequestQuery interface {
-	SetConsumerPID(*uuid.UUID)
-	SetProviderPID(*uuid.UUID)
-	SetAgreementID(*uuid.UUID)
+	SetConsumerPID(uuid.UUID)
+	SetProviderPID(uuid.UUID)
+	SetAgreementID(uuid.UUID)
 	SetCallback(*url.URL)
 	SetRole(constants.DataspaceRole)
 	SetState(transfer.State)
@@ -21,15 +21,15 @@ type RequestQuery interface {
 
 type RequestOption func(RequestQuery)
 
-func WithConsumerPID(pid *uuid.UUID) RequestOption {
+func WithConsumerPID(pid uuid.UUID) RequestOption {
 	return func(rq RequestQuery) { rq.SetConsumerPID(pid) }
 }
 
-func WithProviderPID(pid *uuid.UUID) RequestOption {
+func WithProviderPID(pid uuid.UUID) RequestOption {
 	return func(rq RequestQuery) { rq.SetProviderPID(pid) }
 }
 
-func WithRolePID(pid *uuid.UUID, role constants.DataspaceRole) RequestOption {
+func WithRolePID(pid uuid.UUID, role constants.DataspaceRole) RequestOption {
 	switch role {
 	case constants.DataspaceConsumer:
 		return WithConsumerPID(pid)
@@ -40,7 +40,7 @@ func WithRolePID(pid *uuid.UUID, role constants.DataspaceRole) RequestOption {
 	}
 }
 
-func WithAgreementID(id *uuid.UUID) RequestOption {
+func WithAgreementID(id uuid.UUID) RequestOption {
 	return func(rq RequestQuery) { rq.SetAgreementID(id) }
 }
 
