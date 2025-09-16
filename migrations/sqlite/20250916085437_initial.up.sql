@@ -14,8 +14,8 @@ CREATE TABLE IF NOT EXISTS contract_negotiations (
     consumer_pid TEXT NULL,
     agreement_id TEXT NULL,
     state TEXT,
-    callback_id TEXT,
-    self TEXT,
+    callback_url TEXT,
+    self_url TEXT,
     role TEXT,
     auto_accept BOOLEAN, -- Note: sqlite doesn't have boolean, this actually becomes a NUMERIC field.
     requester_info TEXT, -- For now, this should be just the JSON representation of the requester info.
@@ -23,6 +23,13 @@ CREATE TABLE IF NOT EXISTS contract_negotiations (
     locked BOOLEAN,
     FOREIGN KEY(agreement_id) REFERENCES agreements(id)
 );
+
+CREATE UNIQUE INDEX cn_provider_pid_idx ON contract_negotiations(provider_pid);
+CREATE UNIQUE INDEX cn_consumer_pid_idx ON contract_negotiations(consumer_pid);
+CREATE UNIQUE INDEX cn_agreement_id_idx ON contract_negotiations(agreement_id);
+CREATE UNIQUE INDEX cn_callback_idx ON contract_negotiations(callback_url);
+CREATE UNIQUE INDEX cn_role_idx ON contract_negotiations(role);
+CREATE UNIQUE INDEX cn_state_idx ON contract_negotiations(state);
 
 -- Table containing the contract negotiations
 -- For now, it seems not useful to have a separate
@@ -34,8 +41,8 @@ CREATE TABLE IF NOT EXISTS transfer_requests (
     target TEXT,
     format TEXT,
     state TEXT,
-    callback_id TEXT,
-    self TEXT,
+    callback_url TEXT,
+    self_url TEXT,
     role TEXT,
     transfer_direction TEXT,
     publish_info TEXT, -- For now, this should be just the JSON representation of the trace info.
@@ -46,6 +53,12 @@ CREATE TABLE IF NOT EXISTS transfer_requests (
     FOREIGN KEY(agreement_id) REFERENCES agreements(id)
 );
 
+CREATE UNIQUE INDEX tr_provider_pid_idx ON transfer_requests(provider_pid);
+CREATE UNIQUE INDEX tr_consumer_pid_idx ON transfer_requests(consumer_pid);
+CREATE UNIQUE INDEX tr_agreement_id_idx ON transfer_requests(agreement_id);
+CREATE UNIQUE INDEX tr_callback_idx ON transfer_requests(callback_url);
+CREATE UNIQUE INDEX tr_role_idx ON transfer_requests(role);
+CREATE UNIQUE INDEX tr_state_idx ON transfer_requests(state);
 
 -- Verification token table.
 CREATE TABLE IF NOT EXISTS tokens (
