@@ -19,9 +19,10 @@ package persistence
 import (
 	"context"
 
-	"github.com/google/uuid"
-	"go-dataspace.eu/run-dsp/dsp/constants"
 	"go-dataspace.eu/run-dsp/dsp/contract"
+	agreementopts "go-dataspace.eu/run-dsp/dsp/persistence/options/agreement"
+	contractopts "go-dataspace.eu/run-dsp/dsp/persistence/options/contract"
+	transferopts "go-dataspace.eu/run-dsp/dsp/persistence/options/transfer"
 	"go-dataspace.eu/run-dsp/dsp/transfer"
 	"go-dataspace.eu/run-dsp/odrl"
 )
@@ -35,71 +36,52 @@ type StorageProvider interface {
 }
 
 // ContractSaver is an interface for storing/retrieving dataspace contracts.
-// It supports both read-only and read/write versions.
-// Do note that in this implementation that read-only is enforced at save time, as all contract
+// By default returned contract negotiations are readonly, they are set to read/write if the option is passed.
+// Do note that in this implementation that read-only is enforced at save time, as all contract negotiation
 // fields are public (for encoding purposes).
 // It is up to the implementer to handle locking of contracts for the read/write instances,
 // and to error if a read-only contract is being saved.
 type ContractSaver interface {
-	// GetContractR gets a read-only version of a contract.
-	GetContractR(
-		ctx context.Context,
-		pid uuid.UUID,
-		role constants.DataspaceRole,
-	) (*contract.Negotiation, error)
-	// GetContractRW gets a read/write version of a contract. This should set a contract specific
-	// lock for the requested contract.
-	GetContractRW(
-		ctx context.Context,
-		pid uuid.UUID,
-		role constants.DataspaceRole,
-	) (*contract.Negotiation, error)
+	// GetContract gets a single contract negotiation, returning an error if not exactly one negotiation matches.
+	GetContract(context.Context, ...contractopts.NegotiationOption) (*contract.Negotiation, error)
+	// GetContract gets all matching contract negotiations, returns an empty slice if no negotiations matched.
+	GetContracts(context.Context, ...contractopts.NegotiationOption) ([]*contract.Negotiation, error)
 	// PutContract saves a contract, and releases the contract specific lock. If the contract
 	// is read-only, it will return an error.
-	PutContract(ctx context.Context, contract *contract.Negotiation) error
+	PutContract(context.Context, *contract.Negotiation) error
 	// ReleaseContract will release any lock the negotiation has
-	ReleaseContract(ctx context.Context, negotiation *contract.Negotiation) error
+	ReleaseContract(context.Context, *contract.Negotiation) error
 }
 
 // AgreementSaver is an interface for storing/retrieving dataspace agreements.
 // This does not have any locking involved as agreements are immutable.
 type AgreementSaver interface {
-	// GetAgreement gets an agreement by ID.
-	GetAgreement(ctx context.Context, id uuid.UUID) (*odrl.Agreement, error)
+	// GetAgreement gets an agreement based on the given options, returns an error if not exactly one found.
+	GetAgreement(context.Context, ...agreementopts.Option) (*odrl.Agreement, error)
 	// PutAgreement stores an agreement, but should return an error if the agreement ID already
 	// exists.
-	PutAgreement(ctx context.Context, agreement *odrl.Agreement) error
+	PutAgreement(context.Context, *odrl.Agreement) error
 }
 
 // TransferSaver is an interface for storing dataspace transfer request.
 // The read/write semantics are the same as those for contracts.
 type TransferSaver interface {
-	// GetAgreementTransfers returns a read-only list of all transfers.
-	GetTransfers(ctx context.Context) ([]*transfer.Request, error)
 	// GetTransferR gets a read-only version of a transfer request.
-	GetTransferR(
-		ctx context.Context,
-		pid uuid.UUID,
-		role constants.DataspaceRole,
-	) (*transfer.Request, error)
-	// GetTransferRW gets a read/write version of a transfer request.
-	GetTransferRW(
-		ctx context.Context,
-		pid uuid.UUID,
-		role constants.DataspaceRole,
-	) (*transfer.Request, error)
+	GetTransfer(context.Context, ...transferopts.RequestOption) (*transfer.Request, error)
+
+	GetTransfers(context.Context, ...transferopts.RequestOption) ([]*transfer.Request, error)
 	// PutTransfer saves a transfer.
-	PutTransfer(ctx context.Context, transfer *transfer.Request) error
+	PutTransfer(context.Context, *transfer.Request) error
 	// ReleaseTransfer will release any lock the transferhas
-	ReleaseTransfer(ctx context.Context, transfer *transfer.Request) error
+	ReleaseTransfer(context.Context, *transfer.Request) error
 }
 
 // TokenSaver saves a token to a key, no locking necessary as a token is immutable.
 type TokenSaver interface {
 	// GetToken retrieves a token by key.
-	GetToken(ctx context.Context, key string) (string, error)
+	GetToken(context.Context, string) (string, error)
 	// DelToken deletes a token by key.
-	DelToken(ctx context.Context, key string) error
+	DelToken(context.Context, string) error
 	// PutToken stores a key/token combination.
-	PutToken(ctx context.Context, key, token string) error
+	PutToken(context.Context, string, string) error
 }
