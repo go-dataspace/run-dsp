@@ -44,6 +44,6 @@ func WithState(state contract.State) NegotiationOption {
 	return func(nq NegotiationQuery) { nq.SetState(state) }
 }
 
-func WithWR() NegotiationOption {
+func WithRW() NegotiationOption {
 	return func(nq NegotiationQuery) { nq.SetRW() }
 }
