@@ -106,8 +106,8 @@ const (
 
 	persistenceBackend = "server.persistence.backend"
 
-	persistenceBadgerMemory = "server.persistence.badger.memory"
-	persistenceBadgerDBPath = "server.persistence.badger.dbPath"
+	persistenceSQLiteMemory = "server.persistence.sqlite.memory"
+	persistenceSQLiteDBPath = "server.persistence.sqlite.dbPath"
 )
 
 // validStorageBackends are all the persistence backends we support. Right now, it's only badger.
@@ -231,18 +231,18 @@ func init() {
 			"What backend to store state in. Options: %s",
 			strings.Join(validStorageBackends, ","),
 		),
-		"badger",
+		"sqlite",
 	)
 
 	cfg.AddPersistentFlag(
 		Command,
-		persistenceBadgerMemory,
-		"badger-in-memory",
-		"Put badger database in memory, will not survive restarts",
+		persistenceSQLiteMemory,
+		"sqlite-in-memory",
+		"Put sqlite database in memory, will not survive restarts",
 		true,
 	)
 	cfg.AddPersistentFlag(
-		Command, persistenceBadgerDBPath, "badger-dbpath", "Path to store the badger database", "",
+		Command, persistenceSQLiteDBPath, "sqlite-dbpath", "Path to store the sqlite database", "",
 	)
 }
 
@@ -340,9 +340,9 @@ var Command = &cobra.Command{
 		}
 
 		switch viper.GetString(persistenceBackend) {
-		case "badger":
-			mem := viper.GetBool(persistenceBadgerMemory)
-			path := viper.GetString(persistenceBadgerDBPath)
+		case "sqlite":
+			mem := viper.GetBool(persistenceSQLiteMemory)
+			path := viper.GetString(persistenceSQLiteDBPath)
 			if mem && path != "" {
 				return fmt.Errorf("in-memory database is mutually exclusive with a database path")
 			}
@@ -400,8 +400,8 @@ var Command = &cobra.Command{
 			ControlVerifyClientCertificates: viper.GetBool(controlVerifyClientCertificates),
 			ControlClientCACert:             viper.GetString(controlClientCACert),
 			PersistenceBackend:              viper.GetString(persistenceBackend),
-			BadgerMemoryDB:                  viper.GetBool(persistenceBadgerMemory),
-			BadgerDBPath:                    viper.GetString(persistenceBadgerDBPath),
+			SQLiteMemoryDB:                  viper.GetBool(persistenceSQLiteMemory),
+			SQLiteDBPath:                    viper.GetString(persistenceSQLiteDBPath),
 		}
 		ctx, ok := viper.Get("initCTX").(context.Context)
 		if !ok {
@@ -457,9 +457,9 @@ type command struct {
 	// Persistence settings
 	PersistenceBackend string
 
-	// Badger backend settings.
-	BadgerMemoryDB bool
-	BadgerDBPath   string
+	// SQLite backend settings.
+	SQLiteMemoryDB bool
+	SQLiteDBPath   string
 }
 
 // Run starts the server.
@@ -530,6 +530,7 @@ func (c *command) setupServices(ctx context.Context, //nolint:cyclop
 	if err != nil {
 		return nil, []*http.Server{}, grpcConnections, err
 	}
+	defer func() { _ = store.Close() }()
 	httpClient := &shared.HTTPRequester{}
 	reconciler := statemachine.NewReconciler(ctx, httpClient, store)
 	reconciler.Run()

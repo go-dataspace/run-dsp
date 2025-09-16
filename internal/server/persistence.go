@@ -23,10 +23,19 @@ import (
 )
 
 func (c *command) getStorageProvider(ctx context.Context) (persistence.StorageProvider, error) {
+	var provider persistence.StorageProvider
+	var err error
 	switch c.PersistenceBackend {
 	case "sqlite":
-		return sqlite.New(ctx, c.BadgerMemoryDB, c.BadgerDBPath)
+		provider, err = sqlite.New(ctx, c.SQLiteMemoryDB, c.SQLiteDBPath)
 	default:
 		return nil, fmt.Errorf("invalid backend: %s", c.PersistenceBackend)
 	}
+	if err != nil {
+		return nil, err
+	}
+	if err := provider.Migrate(); err != nil {
+		return nil, err
+	}
+	return provider, nil
 }

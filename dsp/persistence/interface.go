@@ -31,6 +31,8 @@ import (
 type StorageProvider interface {
 	// Migrate runs any pending migrations..
 	Migrate() error
+	// Close runs clean up
+	Close() error
 	ContractSaver
 	AgreementSaver
 	TransferSaver
