@@ -13,13 +13,13 @@ CREATE TABLE IF NOT EXISTS contract_negotiations (
     provider_pid TEXT NULL, -- Note: sqlite has no UUID field, or varchar, so this becomes TEXT.
     consumer_pid TEXT NULL,
     agreement_id TEXT NULL,
+    offer TEXT, -- This is the JSON representation of the ODRL offer.
     state TEXT,
     callback_url TEXT,
     self_url TEXT,
     role TEXT,
     auto_accept BOOLEAN, -- Note: sqlite doesn't have boolean, this actually becomes a NUMERIC field.
     requester_info TEXT, -- For now, this should be just the JSON representation of the requester info.
-    trace_info TEXT, -- For now, this should be just the JSON representation of the trace info.
     locked BOOLEAN,
     FOREIGN KEY(agreement_id) REFERENCES agreements(id)
 );
