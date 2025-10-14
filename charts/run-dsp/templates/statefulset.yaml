@@ -1,0 +1,138 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "helm.fullname" . }}
+  labels:
+    {{- include "helm.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "helm.selectorLabels" . | nindent 6 }}
+  serviceName: {{ include "helm.fullname" . }}
+  {{- if .Values.persistence.enabled }}
+  volumeClaimTemplates:
+    - metadata:
+        name: {{ include "helm.fullname" .}}-db
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        {{- with .Values.persistence.storageClass }}
+        storageClassName: {{ . | quote }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ .Values.persistence.storage | quote }}
+  {{- end }}
+  template:
+    metadata:
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+      {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- include "helm.labels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "helm.fullname" . }}-config
+        {{- include "run-dsp.remoteVolumes" (merge .Values.provider.tls (dict "name" "provider")) | nindent 8 }}
+        {{- include "run-dsp.remoteVolumes" (merge .Values.contractService.tls (dict "name" "contractservice")) | nindent 8 }}
+        {{- include "run-dsp.remoteVolumes" (merge .Values.authnService.tls (dict "name" "authnservice")) | nindent 8}}
+        {{- if not .Values.control.tls.insecure }}
+        {{- with .Values.control.tls.certSecret }}
+        - name: control-tls
+          secret:
+            secretName: {{ . | required "No certificate secret supplied" | quote }}
+        {{- end }}
+        {{- end }}
+        {{- if .Values.control.tls.verifyClientCerts.enabled }}
+        {{- with .Values.control.tls.verifyClientCerts.caCert }}
+        - name: control-client-ca
+          configMap:
+            name: {{ .configMap | required "Need client cert CA set" | quote }}
+        {{- end }}
+        {{- end }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: {{ .Chart.Name }}
+          {{- with .Values.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args: ["server", "--config", "/config/config.toml"]
+          ports:
+            - name: dsp
+              containerPort: 8080
+              protocol: TCP
+            - name: control
+              containerPort: 8081
+              protocol: TCP
+            {{- if .Values.metrics.enabled }}
+            - name: metrics
+              containerPort: 8082
+              protocol: TCP
+            {{- end }}
+          volumeMounts:
+          - name: config
+            mountPath: "/config"
+            readOnly: true
+          {{- if .Values.persistence.enabled }}
+          - name: {{ include "helm.fullname" . }}-db
+            mountPath: "/store"
+            readOnly: true
+          {{- end -}}
+          {{- include "run-dsp.remoteVolumeMounts" (merge .Values.provider.tls (dict "name" "provider")) | nindent 10 }}
+          {{- include "run-dsp.remoteVolumeMounts" (merge .Values.contractService.tls (dict "name" "contractservice")) | nindent 10 }}
+          {{- include "run-dsp.remoteVolumeMounts" (merge .Values.authnService.tls (dict "name" "authnservice")) | nindent 10 }}
+          {{- if not .Values.control.tls.insecure }}
+          {{- with .Values.control.tls.certSecret }}
+          - name: control-tls
+            mountPath: /certs/control/svc
+            readOnly: true
+          {{- end }}
+          {{- end }}
+          {{- if .Values.control.tls.verifyClientCerts.enabled }}
+          {{- with .Values.control.tls.verifyClientCerts.caCert }}
+          - name: control-client-ca
+            mountPath: /certs/control/clientCA
+            readOnly: true
+          {{- end }}
+          {{- end }}
+          {{- with .Values.livenessProbe }}
+          livenessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.readinessProbe }}
+          readinessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

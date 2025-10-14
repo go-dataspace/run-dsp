@@ -1,0 +1,67 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "helm.fullname" . }}-config
+  labels:
+    {{- include "helm.labels" . | nindent 4 }}
+data:
+  run-dsp.toml: |
+    humanReadable = {{ .Values.log.humanReadable }}
+    level = {{ .Values.log.level | quote }}
+
+    [server]
+    prometheusEnabled = {{ .Values.metrics.enabled }}
+    prometheusAddress = "0.0.0.0"
+    prometheusPort = 8082
+
+    [server.tracing]
+    enabled = {{ .Values.tracing.enabled }}
+    endPointUrl = {{ .Values.tracing.endPoint | quote }}
+    grpc = {{ .Values.tracing.gRPC }}
+    serviceName = {{ .Values.tracing.serviceName | quote }}
+
+    [server.dsp]
+    address = "0.0.0.0"
+    port = 8080
+    {{- if eq .Values.dataspace.url "ingress" }}
+    externalURL = "http{{ if .Values.ingress.tlsSecret }}s{{ end }}://{{ .Values.ingress.host }}"
+    {{- else }}
+    externalURL = "http://{{ include "helm.fullname" . }}.{{ .Release.Namespace }}:8080"
+    {{- end }}
+
+    [server.provider]
+    address = {{ .Values.provider.address | quote }}
+    {{- include "run-dsp.tlsconf" (merge .Values.provider.tls (dict "name" "provider")) | nindent 4}}
+
+    [server.contractService]
+    address = {{ .Values.contractService.address | quote }}
+    {{- include "run-dsp.tlsconf" (merge .Values.contractService.tls (dict "name" "contractservice")) | nindent 4}}
+
+    [server.authnService]
+    address = {{ .Values.authnService.address | quote }}
+    {{- include "run-dsp.tlsconf" (merge .Values.contractService.tls (dict "name" "authnservice")) | nindent 4}}
+
+    [server.control]
+    address = "0.0.0.0"
+    port = 8081
+    externalAddress = "{{ include "helm.fullname" . }}.{{ .Release.Namespace }}:8081"
+    insecure = {{ .Values.control.tls.insecure }}
+    {{- if not .Values.control.tls.insecure }}
+    cert = "/certs/control/svc/tls.crt"
+    certKey = "/certs/control/svc/tls.key"
+    verifyClientCerts = {{ .Values.control.tls.verifyClientCerts.enabled }}
+    {{- if .Values.control.tls.verifyClientCerts.enabled }}
+    clientCACert = "/certs/control/clientCA/{{ .Values.control.tls.verifyClientCerts.caCert.key }}"
+    {{- end }}
+    {{- end }}
+
+    [server.persistence]
+    backend = "badger"
+
+    [server.persistence.badger]
+    {{- if .Values.persistence.enabled }}
+    memory = false
+    dbPath = "/store/run-dsp.db"
+    {{- else }}
+    memory = true
+    {{- end }}
