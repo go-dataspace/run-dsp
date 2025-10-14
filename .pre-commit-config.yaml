@@ -9,6 +9,7 @@ repos:
       - id: check-json
         exclude: ^.vscode/
       - id: check-yaml
+        exclude: ^charts/
       - id: check-added-large-files
       - id: check-toml
       - id: detect-private-key

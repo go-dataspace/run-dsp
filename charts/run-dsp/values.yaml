@@ -1,0 +1,194 @@
+# Default values for helm.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+# This sets the container image more information can be found here: https://kubernetes.io/docs/concepts/containers/images/
+image:
+  repository: codeberg.org/go-dataspace/run-dsp
+  # This sets the pull policy for images.
+  pullPolicy: IfNotPresent
+  # Overrides the image tag whose default is the chart appVersion.
+  tag: "v0.0.19"
+
+# This is for the secrets for pulling an image from a private repository more information can be found here: https://kubernetes.io/docs/tasks/configure-pod-container/pull-image-private-registry/
+imagePullSecrets: []
+# This is to override the chart name.
+nameOverride: ""
+fullnameOverride: ""
+
+# This is for setting Kubernetes Annotations to a Pod.
+# For more information checkout: https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/
+podAnnotations: {}
+# This is for setting Kubernetes Labels to a Pod.
+# For more information checkout: https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/
+podLabels: {}
+
+podSecurityContext: {}
+  # fsGroup: 2000
+
+securityContext: {}
+  # capabilities:
+  #   drop:
+  #   - ALL
+  # readOnlyRootFilesystem: true
+  # runAsNonRoot: true
+  # runAsUser: 1000
+
+resources: {}
+  # We usually recommend not to specify default resources and to leave this as a conscious
+  # choice for the user. This also increases chances charts run on environments with little
+  # resources, such as Minikube. If you do want to specify resources, uncomment the following
+  # lines, adjust them as necessary, and remove the curly braces after 'resources:'.
+  # limits:
+  #   cpu: 100m
+  #   memory: 128Mi
+  # requests:
+  #   cpu: 100m
+  #   memory: 128Mi
+
+# Service configuration
+service:
+  # The type of the dataspace service.
+  type: ClusterIP
+
+# Ingress configuration
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+    # kubernetes.io/ingress.class: nginx
+    # kubernetes.io/tls-acme: "true"
+  # The address to expose the dataspace listener with.
+  host: dataspace-address.example.org
+  # The secret containing the TLS certificate for this host.
+  tlsSecret: ""
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}
+
+# RUN-DSP specific settings
+# Log settings
+log:
+  # Do we want colourised, human-readable logs instead of JSON logs.
+  humanReadable: false
+  # Minimum level to log.
+  level: "info"
+
+# Settings for the dataspace component
+dataspace:
+  # URL that RUN-DSP is reachable for dataspace participants, valid choices are ingress and service.
+  url: "service"
+
+# Provider settings
+provider:
+  # The address to the provider.
+  address: "provider:9090"
+
+  # TLS settings for the provider.
+  tls:
+    # Disables TLS for provider communications.
+    insecure: false
+
+    # Provider CA certificate.
+    caCert:
+      # The config map containing the CA cert.
+      configMap: ""
+      # The key for the config map.
+      key: "ca.crt"
+
+    # TLS Secret that contains certificate/key pair to connect to the provider,
+    # None used if left empty
+    clientCertSecret: ""
+
+# Contract service settings
+contractService:
+  # The address to the contract service.
+  address: "provider:9090"
+
+  # TLS settings for the contract service.
+  tls:
+    # Disables TLS for contract service communications.
+    insecure: false
+
+    # Contract service CA certificate.
+    caCert:
+      # The config map containing the CA cert.
+      configMap: ""
+      # The key for the config map.
+      key: "ca.crt"
+
+    # TLS Secret that contains certificate/key pair to connect to the provider,
+    # None used if left empty
+    clientCertSecret: ""
+
+# Authentication service settings
+authnService:
+  # The address to the authentication service.
+  address: "authn:9090"
+
+  # TLS settings for the authentication service.
+  tls:
+    # Disables TLS for authentication service communications.
+    insecure: false
+
+    # Contract service CA certificate.
+    caCert:
+      # The config map containing the CA cert.
+      configMap: ""
+      # The key for the config map.
+      key: "ca.crt"
+
+    # TLS Secret that contains certificate/key pair to connect to the provider,
+    # None used if left empty
+    clientCertSecret: ""
+
+# Control component settings
+control:
+  # Service configuration
+  service:
+    # The type of the dataspace service.
+    type: ClusterIP
+
+  # TLS settings for the control service.
+  tls:
+    # Don't enable TLS at all.
+    insecure: false
+
+    # The TLS secret containing the certificate and its key.
+    certSecret: ""
+
+    verifyClientCerts:
+      enabled: false
+      # Client CA settings, uses the global CA if not set.
+      caCert:
+        # The config map containing the CA cert.
+        configMap: ""
+        # The key for the config map.
+        key: "ca.crt"
+
+# Persistence settings
+persistence:
+  # Do we want data to persist, if set to false, will use an in-memory database.
+  enabled: false
+  # How much storage to request.
+  storage: "1Gi"
+  # Storage class to use, will use default if empty.
+  storageClass: ""
+
+# Prometheus settings
+metrics:
+  enabled: true
+
+# OpenTelemetry tracing settings
+tracing:
+  # Enable tracing
+  enabled: false
+  # Service name to use for tracing
+  serviceName: run-dsp
+  # Endpoint to send tracing data
+  endPoint: "http://localhost:4318/v1/traces"
+  # Endpoint uses gRPC instead of http
+  gRPC: false
