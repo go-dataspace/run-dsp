@@ -100,7 +100,7 @@ Set up TLS volumes for for remote connections.
 {{- end -}}
 
 {{/*
-Set up TLS settings for config settions
+Set up TLS settings for config sections
 */}}
 {{- define "run-dsp.tlsconf" -}}
 {{- $name := .name -}}
