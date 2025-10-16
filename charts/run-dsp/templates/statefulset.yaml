@@ -73,7 +73,7 @@ spec:
           {{- end }}
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
-          args: ["server", "--config", "/config/config.toml"]
+          args: ["server", "--config", "/config/run-dsp.toml"]
           ports:
             - name: dsp
               containerPort: 8080
