@@ -106,7 +106,7 @@ provider:
 # Contract service settings
 contractService:
   # The address to the contract service.
-  address: "provider:9090"
+  address: "contractservice:9090"
 
   # TLS settings for the contract service.
   tls:
