@@ -46,7 +46,10 @@ func CheckConnectAddr(address string) error {
 
 // CheckFilesExist checks if the given files exist, and are not directories.
 func CheckFilesExist(files ...string) error {
-	for _, f := range files {
+	for i, f := range files {
+		if f == "" {
+			return fmt.Errorf("provided file name is empty. i == %d", i)
+		}
 		s, err := os.Stat(f)
 		if err != nil {
 			return fmt.Errorf("could not read %s: %w", f, err)

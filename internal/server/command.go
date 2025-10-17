@@ -268,25 +268,24 @@ var Command = &cobra.Command{
 		}
 
 		if !viper.GetBool(providerInsecure) {
+			if viper.GetString(providerCACert) == "" {
+				return errors.New("provider service CA cert path is empty")
+			}
+			if viper.GetString(providerClientCert) == "" {
+				return errors.New("provider service cert path is empty")
+			}
+			if viper.GetString(providerClientCertKey) == "" {
+				return errors.New("provider service cert key path is empty")
+			}
+
 			err = cfg.CheckFilesExist(
 				viper.GetString(providerCACert),
+				viper.GetString(providerClientCert),
+				viper.GetString(providerClientCertKey),
 			)
 			if err != nil {
 				return err
 			}
-			if viper.GetString(providerClientCert) != "" {
-				if viper.GetString(providerClientCertKey) == "" {
-					return errors.New("provider client cert set but no provider client key set")
-				}
-				err = cfg.CheckFilesExist(
-					viper.GetString(providerClientCert),
-					viper.GetString(providerClientCertKey),
-				)
-				if err != nil {
-					return err
-				}
-			}
-
 		}
 
 		if viper.GetBool(contractServiceEnabled) {
@@ -296,6 +295,15 @@ var Command = &cobra.Command{
 			}
 
 			if !viper.GetBool(contractServiceInsecure) {
+				if viper.GetString(contractServiceCACert) == "" {
+					return errors.New("contract service CA cert path is empty")
+				}
+				if viper.GetString(contractServiceClientCert) == "" {
+					return errors.New("contract service cert path is empty")
+				}
+				if viper.GetString(contractServiceClientCertKey) == "" {
+					return errors.New("contract service cert key path is empty")
+				}
 				err = cfg.CheckFilesExist(
 					viper.GetString(contractServiceCACert),
 					viper.GetString(contractServiceClientCert),
@@ -303,18 +311,6 @@ var Command = &cobra.Command{
 				)
 				if err != nil {
 					return err
-				}
-				if viper.GetString(contractServiceClientCert) != "" {
-					if viper.GetString(contractServiceClientCertKey) == "" {
-						return errors.New("contractService client cert set but no contractService client key set")
-					}
-					err = cfg.CheckFilesExist(
-						viper.GetString(contractServiceClientCert),
-						viper.GetString(contractServiceClientCertKey),
-					)
-					if err != nil {
-						return err
-					}
 				}
 			}
 		}
@@ -324,6 +320,12 @@ var Command = &cobra.Command{
 			return err
 		}
 		if !viper.GetBool(controlInsecure) {
+			if viper.GetString(controlCert) == "" {
+				return errors.New("control cert path is empty")
+			}
+			if viper.GetString(controlCertKey) == "" {
+				return errors.New("control cert key path is empty")
+			}
 			err = cfg.CheckFilesExist(
 				viper.GetString(controlCert),
 				viper.GetString(controlCertKey),
@@ -332,6 +334,9 @@ var Command = &cobra.Command{
 				return err
 			}
 			if viper.GetBool(controlVerifyClientCertificates) {
+				if viper.GetString(controlClientCACert) == "" {
+					return errors.New("control CA cert path is empty")
+				}
 				err = cfg.CheckFilesExist(viper.GetString(controlClientCACert))
 				if err != nil {
 					return err

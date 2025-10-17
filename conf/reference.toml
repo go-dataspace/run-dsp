@@ -33,11 +33,21 @@ caCert = "/path/to/ca.crt"                          # Path to the CA certificate
 clientCert = "/path/to/client.crt"                  # Client certificate to authenticate with to the provider. ($SERVER.PROVIDER.CLIENTCERT)
 clientCertKey = "/path/to/client.key"               # Key to the above mentioned certificate. ($SERVER.PROVIDER.CLIENTCERTKEY)
 
+## AuthN service gRPC settings
+[server.authnService]
+enabled = true                                      # Enable using an authn service. ($SERVER.AUTHNSERVICE.ENABLED)
+address = "127.0.0.1:9093"                          # The address of the authn service. ($SERVER.AUTHNSERVICE.ADDRESS)
+insecure = false                                    # Disable TLS when connecting to the authn service. ($SERVER.AUTHNERVICE.INSECURE)
+caCert = "/path/to/ca.crt"                          # Path to the CA certificate of the CA that issued the server certificate of the authn service. ($SERVER.AUTHNSERVICE.CACERT)
+clientCert = "/path/to/client.crt"                  # Client certificate to authenticate with to the authn service. ($SERVER.AUTHNSERVICE.CLIENTCERT)
+clientCertKey = "/path/to/client.key"               # Key to the above mentioned certificate. ($SERVER.AUTHNSERVICE.CLIENTCERTKEY)
+
 ## Contract service gRPC settings
 [server.contractService]
+enabled = true                                      # Enable using a contract service. ($SERVER.CONTRACTSERVICE.ENABLED)
 address = "127.0.0.1:9092"                          # The address of the contract service. ($SERVER.CONTRACTSERVICE.ADDRESS)
 insecure = false                                    # Disable TLS when connecting to the contract service. ($SERVER.CONTRACTSERVICE.INSECURE)
-caCert = "/path/to/ca.crt"                          # Path to the CA certificate of the CA that issued the server certificate of the contract service. ($SERVER.CONTACTSERVICE.CACERT)
+caCert = "/path/to/ca.crt"                          # Path to the CA certificate of the CA that issued the server certificate of the contract service. ($SERVER.CONTRACTSERVICE.CACERT)
 clientCert = "/path/to/client.crt"                  # Client certificate to authenticate with to the contract service. ($SERVER.CONTRACTSERVICE.CLIENTCERT)
 clientCertKey = "/path/to/client.key"               # Key to the above mentioned certificate. ($SERVER.CONTRACTSERVICE.CLIENTCERTKEY)
 
