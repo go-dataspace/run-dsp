@@ -295,9 +295,6 @@ var Command = &cobra.Command{
 			}
 
 			if !viper.GetBool(contractServiceInsecure) {
-				if viper.GetString(contractServiceCACert) == "" {
-					return errors.New("contract service CA cert path is empty")
-				}
 				if viper.GetString(contractServiceClientCert) == "" {
 					return errors.New("contract service cert path is empty")
 				}
@@ -305,13 +302,21 @@ var Command = &cobra.Command{
 					return errors.New("contract service cert key path is empty")
 				}
 				err = cfg.CheckFilesExist(
-					viper.GetString(contractServiceCACert),
 					viper.GetString(contractServiceClientCert),
 					viper.GetString(contractServiceClientCertKey),
 				)
 				if err != nil {
 					return err
 				}
+				if viper.GetString(contractServiceCACert) != "" {
+					err = cfg.CheckFilesExist(
+						viper.GetString(contractServiceCACert),
+					)
+					if err != nil {
+						return err
+					}
+				}
+
 			}
 		}
 
