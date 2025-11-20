@@ -23,6 +23,30 @@ If release name contains chart name it will be used as a full name.
 {{- end }}
 {{- end }}
 
+{{- define "helm.providerAddress" -}}
+{{- if .Values.provider.address -}}
+{{- .Values.provider.address -}}
+{{- else -}}
+{{- printf "%s-%s.%s:%s" .Release.Name "rdsp-s3" .Release.Namespace "9090" -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "helm.contractServiceAddress" -}}
+{{- if .Values.contractService.address -}}
+{{- .Values.contractService.address -}}
+{{- else -}}
+{{- printf "%s-%s.%s:%s" .Release.Name "reference-contract-service" .Release.Namespace "9092" -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "helm.authnServiceAddress" -}}
+{{- if .Values.authnService.address -}}
+{{- .Values.authnService.address -}}
+{{- else -}}
+{{- printf "%s-%s.%s:%s" .Release.Name "reference-authn-service" .Release.Namespace "9093" -}}
+{{- end -}}
+{{- end -}}
+
 {{/*
 Create chart name and version as used by the chart label.
 */}}
@@ -62,56 +86,16 @@ Create the name of the service account to use
 {{- end }}
 
 {{/*
-Set up TLS volumes for for remote connections.
-*/}}
-{{- define "run-dsp.remoteVolumes" -}}
-{{- $name := .name -}}
-{{- if not .insecure -}}
-{{- with .caCert.configMap -}}
-- name: {{ $name }}-ca
-  configMap:
-    name: {{ . | quote }}
-{{- end }}
-{{- with .clientCertSecret }}
-- name: {{ $name }}-client-tls
-  secret:
-    secretName: {{ . | quote }}
-{{- end -}}
-{{- end -}}
-{{- end -}}
-
-{{/*
-Set up TLS volumes for for remote connections.
-*/}}
-{{- define "run-dsp.remoteVolumeMounts" -}}
-{{- $name := .name -}}
-{{- if not .insecure -}}
-{{- with .caCert.configMap -}}
-- name: {{ $name }}-ca
-  mountPath: /certs/{{ $name }}/ca
-  readOnly: true
-{{- end }}
-{{- with .clientCertSecret }}
-- name: {{ $name }}-client-tls
-  mountPath: /certs/{{ $name }}/client
-  readOnly: true
-{{- end -}}
-{{- end -}}
-{{- end -}}
-
-{{/*
-Set up TLS settings for config sections
+Set up TLS settings for client config sections
 */}}
 {{- define "run-dsp.tlsconf" -}}
 {{- $name := .name -}}
 insecure = {{ .insecure }}
 {{- if not .insecure }}
 {{- if .caCert.configMap }}
-caCert = "/certs/{{ $name }}/ca/{{ .caCert.key }}"
+caCert = "/certs/ca/{{ .caCert.key }}"
 {{- end }}
-{{- with .clientCertSecret }}
-clientCert = "/certs/{{ $name }}/client/tls.crt"
-clientCertKey = "/certs/{{ $name }}/client/tls.key"
-{{- end }}
+clientCert = "/certs/client/tls.crt"
+clientCertKey = "/certs/client/tls.key"
 {{- end }}
 {{- end }}

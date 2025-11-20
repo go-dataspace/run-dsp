@@ -30,28 +30,28 @@ data:
     {{- end }}
 
     [server.provider]
-    address = {{ .Values.provider.address | quote }}
-    {{- include "run-dsp.tlsconf" (merge .Values.provider.tls (dict "name" "provider")) | nindent 4}}
+    address = {{ include "helm.providerAddress" . | quote }}
+    {{- include "run-dsp.tlsconf" (merge .Values.global.tls (dict "name" "provider")) | nindent 4}}
 
     [server.contractService]
-    address = {{ .Values.contractService.address | quote }}
-    {{- include "run-dsp.tlsconf" (merge .Values.contractService.tls (dict "name" "contractservice")) | nindent 4}}
+    address = {{ include "helm.contractServiceAddress" . | quote }}
+    {{- include "run-dsp.tlsconf" (merge .Values.global.tls (dict "name" "contractservice")) | nindent 4}}
 
     [server.authnService]
-    address = {{ .Values.authnService.address | quote }}
-    {{- include "run-dsp.tlsconf" (merge .Values.contractService.tls (dict "name" "authnservice")) | nindent 4}}
+    address = {{ include "helm.authnServiceAddress" . | quote }}
+    {{- include "run-dsp.tlsconf" (merge .Values.global.tls (dict "name" "authnservice")) | nindent 4}}
 
     [server.control]
     address = "0.0.0.0"
     port = 8081
     externalAddress = "{{ include "helm.fullname" . }}.{{ .Release.Namespace }}:8081"
-    insecure = {{ .Values.control.tls.insecure }}
-    {{- if not .Values.control.tls.insecure }}
-    cert = "/certs/control/svc/tls.crt"
-    certKey = "/certs/control/svc/tls.key"
-    verifyClientCerts = {{ .Values.control.tls.verifyClientCerts.enabled }}
-    {{- if .Values.control.tls.verifyClientCerts.enabled }}
-    clientCACert = "/certs/control/clientCA/{{ .Values.control.tls.verifyClientCerts.caCert.key }}"
+    insecure = {{ .Values.global.tls.insecure }}
+    {{- if not .Values.global.tls.insecure }}
+    cert = "/certs/control/tls.crt"
+    certKey = "/certs/control/tls.key"
+    verifyClientCerts = {{ .Values.global.tls.verifyClientCerts }}
+    {{- if .Values.global.tls.verifyClientCerts }}
+    clientCACert = "/certs/ca/{{ .Values.global.tls.caCert.key }}"
     {{- end }}
     {{- end }}
 

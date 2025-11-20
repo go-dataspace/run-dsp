@@ -2,6 +2,26 @@
 # This is a YAML-formatted file.
 # Declare variables to be passed into your templates.
 
+# Global section used between the RUN-DSP family helm charts.
+global:
+    # TLS settings.
+    tls:
+      # Disables TLS.
+      insecure: false
+      verifyClientCerts: false
+
+      # TLS Secret that contains certificate/key pair to connect services,
+      # None used if left empty
+      runDspClientCertSecret: ""
+      controlServiceCertSecret: ""
+
+      # CA certificate.
+      caCert:
+        # The config map containing the CA cert.
+        configMap: ""
+        # The key for the config map.
+        key: "ca.crt"
+
 # This sets the container image more information can be found here: https://kubernetes.io/docs/concepts/containers/images/
 image:
   repository: codeberg.org/go-dataspace/run-dsp
@@ -87,63 +107,15 @@ provider:
   # The address to the provider.
   address: "provider:9090"
 
-  # TLS settings for the provider.
-  tls:
-    # Disables TLS for provider communications.
-    insecure: false
-
-    # Provider CA certificate.
-    caCert:
-      # The config map containing the CA cert.
-      configMap: ""
-      # The key for the config map.
-      key: "ca.crt"
-
-    # TLS Secret that contains certificate/key pair to connect to the provider,
-    # None used if left empty
-    clientCertSecret: ""
-
 # Contract service settings
 contractService:
   # The address to the contract service.
   address: "contractservice:9090"
 
-  # TLS settings for the contract service.
-  tls:
-    # Disables TLS for contract service communications.
-    insecure: false
-
-    # Contract service CA certificate.
-    caCert:
-      # The config map containing the CA cert.
-      configMap: ""
-      # The key for the config map.
-      key: "ca.crt"
-
-    # TLS Secret that contains certificate/key pair to connect to the provider,
-    # None used if left empty
-    clientCertSecret: ""
-
 # Authentication service settings
 authnService:
   # The address to the authentication service.
   address: "authn:9090"
-
-  # TLS settings for the authentication service.
-  tls:
-    # Disables TLS for authentication service communications.
-    insecure: false
-
-    # Contract service CA certificate.
-    caCert:
-      # The config map containing the CA cert.
-      configMap: ""
-      # The key for the config map.
-      key: "ca.crt"
-
-    # TLS Secret that contains certificate/key pair to connect to the provider,
-    # None used if left empty
-    clientCertSecret: ""
 
 # Control component settings
 control:
@@ -151,23 +123,6 @@ control:
   service:
     # The type of the dataspace service.
     type: ClusterIP
-
-  # TLS settings for the control service.
-  tls:
-    # Don't enable TLS at all.
-    insecure: false
-
-    # The TLS secret containing the certificate and its key.
-    certSecret: ""
-
-    verifyClientCerts:
-      enabled: false
-      # Client CA settings, uses the global CA if not set.
-      caCert:
-        # The config map containing the CA cert.
-        configMap: ""
-        # The key for the config map.
-        key: "ca.crt"
 
 # Persistence settings
 persistence:

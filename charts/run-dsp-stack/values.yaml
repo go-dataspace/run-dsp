@@ -1,0 +1,51 @@
+# Global section used between the RUN-DSP family helm charts.
+global:
+    # TLS settings.
+    tls:
+      # Disables TLS.
+      insecure: false
+      verifyClientCerts: false
+
+      # TLS Secret that contains certificate/key pair to connect services,
+      # None used if left empty
+      runDspClientCertSecret: ""
+      controlServiceCertSecret: ""
+      authnServiceCertSecret: ""
+      contractServiceCertSecret: ""
+      providerServiceCertSecret: ""
+
+      # CA certificate.
+      caCert:
+        # The config map containing the CA cert.
+        configMap: ""
+        # The key for the config map.
+        key: "ca.crt"
+
+run-dsp:
+  provider:
+    address: ""
+  contractService:
+    address: ""
+  authnService:
+    address: ""
+
+# rdsp-s3:
+#   s3:
+#     baseURL: minio-hl.excds.lab.dataspace.fun
+#     bucket: run-dsp-provider1
+#     credentials:
+#       accessKey: MzI4YTcyZmJjNDcwNTc5
+#       secretKey: ZWVkMDAyODFhMmNhY2I1YjU2OWMwZTRjOTU5ODE1
+#   ingress:
+#     enabled: true
+#     className: nginx
+#     annotations:
+#       cert-manager.io/cluster-issuer: letsencrypt-prod
+#       nginx.ingress.kubernetes.io/limit-rps: "30"
+#       nginx.ingress.kubernetes.io/ssl-redirect: "true"
+#     host: stack-s3-provider.excds.lab.dataspace.fun
+#     tlsSecret: stack-s3-provider
+#   grpc:
+#     tls:
+#       insecure: true
+#       # certSecret: "test-cert-secret"

@@ -1,0 +1,6 @@
+[client]
+address = "127.0.0.1:8081"
+insecure = false
+caCert = "__PWD__/ca.crt"
+clientCert = "__PWD__/tls.crt"
+clientCertKey = "__PWD__/tls.key"

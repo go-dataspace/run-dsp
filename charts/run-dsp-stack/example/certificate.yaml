@@ -1,0 +1,17 @@
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: helmtest-cert
+spec:
+  dnsNames:
+  - stacktest-rdsp-s3.run-dsp-testing
+  ipAddresses:
+  - "127.0.0.1"
+  isCA: false
+  issuerRef:
+    kind: ClusterIssuer
+    name: ca-issuer-helmtest
+  secretName: helmtest-cert-secret
+  usages:
+  - client auth
+  - server auth

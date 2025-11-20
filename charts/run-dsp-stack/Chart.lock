@@ -1,0 +1,15 @@
+dependencies:
+- name: run-dsp
+  repository: https://helm.go-dataspace.eu/charts
+  version: 0.0.1
+- name: reference-authn-service
+  repository: https://helm.go-dataspace.eu/charts
+  version: 0.0.1
+- name: reference-contract-service
+  repository: https://helm.go-dataspace.eu/charts
+  version: 0.0.1
+- name: rdsp-s3
+  repository: https://helm.go-dataspace.eu/charts
+  version: 0.0.1
+digest: sha256:a0892f971f4d10ea1e05b93735d1222c93b419e22e3abea80a1ef386007003a1
+generated: "2025-11-20T19:03:34.614416527+01:00"

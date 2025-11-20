@@ -1,0 +1,31 @@
+# Global section used between the RUN-DSP family helm charts.
+global:
+    # TLS settings.
+    tls:
+      # Disables TLS.
+      insecure: false
+      verifyClientCerts: true
+
+      # TLS Secret that contains certificate/key pair to connect services,
+      # None used if left empty
+      runDspClientCertSecret: "helmtest-cert-secret"
+      controlServiceCertSecret: "helmtest-cert-secret"
+      authnServiceCertSecret: "helmtest-cert-secret"
+      providerServiceCertSecret: "helmtest-cert-secret"
+      contractServiceCertSecret: "helmtest-cert-secret"
+      controlClientCertSecret: "helmtest-cert-secret"
+
+      # CA certificate.
+      caCert:
+        # The config map containing the CA cert.
+        configMap: "helmtest-ca-configmap"
+        # The key for the config map.
+        key: "ca.crt"
+
+rdsp-s3:
+  s3:
+    baseURL: <S3 API endpoint>
+    bucket: <your bucket>
+    credentials:
+      accessKey: <your access key>
+      secretKey: <your secret key>
