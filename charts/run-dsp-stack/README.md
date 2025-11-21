@@ -17,7 +17,12 @@ For this deployment you will need to have
 
 ## Example setup
 
-First let's setup a namespace:
+In this example we will be using these name conventions:
+
+- k8s namespace: run-dsp-testing
+- helm release name: stacktest
+
+First let's setup the namespace:
 
 `kubectl create namespace run-dsp-testing`
 
@@ -48,7 +53,7 @@ spec:
   - stacktest-rdsp-s3.run-dsp-testing
   ipAddresses:
   - "127.0.0.1"
-    isCA: false
+  isCA: false
   issuerRef:
     kind: ClusterIssuer
     name: ca-issuer-helmtest
@@ -105,10 +110,7 @@ First add the chart repository :
 
 And then install the chart:
 
-`helm install -n run-dsp-testing --debug stacktest go-dataspace/run-dsp-stack -f example/stack_values.yaml`
-
-
-`helm install --debug billybokhylla go-dataspace/run-dsp-stack -f example/stack_values.yaml`
+`helm install -n run-dsp-testing stacktest go-dataspace/run-dsp-stack -f example/stack_values.yaml`
 
 Using `kubectl get -n run-dsp-testing all` we should get something similar to
 
