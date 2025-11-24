@@ -4,7 +4,10 @@ metadata:
   name: helmtest-cert
 spec:
   dnsNames:
+  - stacktest-reference-authn-service.run-dsp-testing
+  - stacktest-reference-contract-service.run-dsp-testing
   - stacktest-rdsp-s3.run-dsp-testing
+  - stacktest-run-dsp.run-dsp-testing
   ipAddresses:
   - "127.0.0.1"
   isCA: false

@@ -4,12 +4,12 @@ dependencies:
   version: 0.0.1
 - name: reference-authn-service
   repository: https://helm.go-dataspace.eu/charts
-  version: 0.0.1
+  version: 0.0.2
 - name: reference-contract-service
   repository: https://helm.go-dataspace.eu/charts
-  version: 0.0.1
+  version: 0.0.4
 - name: rdsp-s3
   repository: https://helm.go-dataspace.eu/charts
   version: 0.0.1
-digest: sha256:a0892f971f4d10ea1e05b93735d1222c93b419e22e3abea80a1ef386007003a1
-generated: "2025-11-20T19:03:34.614416527+01:00"
+digest: sha256:f7ecda3a072aa7a4b075a67e816d0a6f0c30d15fa8bc146b72fd0dc1d1896ed2
+generated: "2025-11-24T14:42:41.752435539+01:00"
