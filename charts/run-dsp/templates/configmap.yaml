@@ -34,10 +34,12 @@ data:
     {{- include "run-dsp.tlsconf" (merge .Values.global.tls (dict "name" "provider")) | nindent 4}}
 
     [server.contractService]
+    enabled = true
     address = {{ include "helm.contractServiceAddress" . | quote }}
     {{- include "run-dsp.tlsconf" (merge .Values.global.tls (dict "name" "contractservice")) | nindent 4}}
 
     [server.authnService]
+    enabled = true
     address = {{ include "helm.authnServiceAddress" . | quote }}
     {{- include "run-dsp.tlsconf" (merge .Values.global.tls (dict "name" "authnservice")) | nindent 4}}
 
