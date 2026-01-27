@@ -18,7 +18,11 @@ package authforwarder
 
 import (
 	"context"
+	"fmt"
 	"net/http"
+
+	"go-dataspace.eu/ctxslog"
+	dsrpc "go-dataspace.eu/run-dsrpc/gen/go/dsp/v1alpha2"
 )
 
 type contextKeyType string
@@ -39,12 +43,24 @@ func HTTPMiddleware(next http.Handler) http.Handler {
 // AuthRoundTripper is a http client "middleware" that extracts the auth middleware out of the
 // context and injects it into the request.
 type AuthRoundTripper struct {
-	Proxied http.RoundTripper
+	Proxied      http.RoundTripper
+	AuthNService dsrpc.AuthNServiceClient
 }
 
 // Roundtrip does the actual injection.
 func (art AuthRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
-	authVal := ExtractAuthorization(req.Context())
-	req.Header.Add("Authorization", authVal)
+	ctxslog.Warn(req.Context(), "Doing request", "method", req.Method, "url", req.URL.String())
+	if art.AuthNService != nil {
+		authVal, err := art.AuthNService.Sign(req.Context(), &dsrpc.SignRequest{
+			RequestInfo: &dsrpc.RequestInfo{
+				Method: req.Method,
+				Url:    req.URL.String(),
+			},
+		})
+		if err != nil {
+			return nil, fmt.Errorf("could not sign outgoing request: %w", err)
+		}
+		req.Header.Add("Authorization", authVal.GetAuthenticationHeaderValue())
+	}
 	return art.Proxied.RoundTrip(req)
 }

@@ -16,7 +16,7 @@ require (
 	github.com/spf13/viper v1.20.0
 	github.com/stretchr/testify v1.11.1
 	go-dataspace.eu/ctxslog v0.0.5
-	go-dataspace.eu/run-dsrpc v0.0.18-alpha2
+	go-dataspace.eu/run-dsrpc v0.0.20-alpha2
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.62.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.38.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.38.0

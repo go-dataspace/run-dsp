@@ -16,7 +16,7 @@ package contract
 
 type state int
 
-//go:generate goenums contract_state.go
+//go:generate goenums state.go
 const (
 	initial    state = iota // INITIAL
 	requested               // dspace:REQUESTED

@@ -39,6 +39,10 @@ func NewAuthNMiddleware(authNService dsrpc.AuthNServiceClient) func(http.Handler
 			if authNService != nil && authContents != "" {
 				verifyResponse, err := authNService.Verify(req.Context(), &dsrpc.VerifyRequest{
 					AuthenticationHeaderValue: authContents,
+					RequestInfo: &dsrpc.RequestInfo{
+						Method: req.Method,
+						Url:    req.URL.String(),
+					},
 				})
 				if err != nil {
 					http.Error(w, "Unauthorized", http.StatusUnauthorized)

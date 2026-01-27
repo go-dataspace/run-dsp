@@ -540,7 +540,17 @@ func (c *command) setupServices(ctx context.Context, //nolint:cyclop
 	if err != nil {
 		return nil, []*http.Server{}, grpcConnections, err
 	}
-	httpClient := &shared.HTTPRequester{}
+	authnService, authnConn, err := c.getAuthNService(ctx, clMetrics)
+	if err != nil {
+		return nil, []*http.Server{}, grpcConnections, err
+	}
+	if authnConn != nil {
+		grpcConnections = append(grpcConnections, authnConn)
+	}
+	httpClient := &shared.HTTPRequester{
+		Client:       nil,
+		AuthNService: authnService,
+	}
 	reconciler := statemachine.NewReconciler(ctx, httpClient, store)
 	reconciler.Run()
 	selfURL := cloneURL(c.ExternalURL)
@@ -551,13 +561,6 @@ func (c *command) setupServices(ctx context.Context, //nolint:cyclop
 	}
 	if csConn != nil {
 		grpcConnections = append(grpcConnections, csConn)
-	}
-	authnService, authnConn, err := c.getAuthNService(ctx, clMetrics)
-	if err != nil {
-		return nil, []*http.Server{}, grpcConnections, err
-	}
-	if authnConn != nil {
-		grpcConnections = append(grpcConnections, authnConn)
 	}
 
 	ctlSVC := control.New(httpClient, store, reconciler, provider, contractService, selfURL)

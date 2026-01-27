@@ -24,6 +24,7 @@ import (
 
 	"go-dataspace.eu/ctxslog"
 	"go-dataspace.eu/run-dsp/internal/authforwarder"
+	dsrpc "go-dataspace.eu/run-dsrpc/gen/go/dsp/v1alpha2"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/propagation"
 )
@@ -35,12 +36,16 @@ type Requester interface {
 }
 
 type HTTPRequester struct {
-	Client *http.Client
+	Client       *http.Client
+	AuthNService dsrpc.AuthNServiceClient
 }
 
 func (hr *HTTPRequester) setDefaultClient() {
 	hr.Client = &http.Client{
-		Transport: authforwarder.AuthRoundTripper{Proxied: http.DefaultTransport},
+		Transport: authforwarder.AuthRoundTripper{
+			Proxied:      http.DefaultTransport,
+			AuthNService: hr.AuthNService,
+		},
 	}
 }
 
