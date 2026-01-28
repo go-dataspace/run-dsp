@@ -21,7 +21,6 @@ import (
 	"fmt"
 	"net/http"
 
-	"go-dataspace.eu/ctxslog"
 	dsrpc "go-dataspace.eu/run-dsrpc/gen/go/dsp/v1alpha2"
 )
 
@@ -49,7 +48,6 @@ type AuthRoundTripper struct {
 
 // Roundtrip does the actual injection.
 func (art AuthRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
-	ctxslog.Warn(req.Context(), "Doing request", "method", req.Method, "url", req.URL.String())
 	if art.AuthNService != nil {
 		authVal, err := art.AuthNService.Sign(req.Context(), &dsrpc.SignRequest{
 			RequestInfo: &dsrpc.RequestInfo{
