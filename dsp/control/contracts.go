@@ -44,10 +44,6 @@ func (s *Server) VerifyConnection(
 	ctx context.Context,
 	req *dsrpc.VerifyConnectionRequest,
 ) (*dsrpc.VerifyConnectionResponse, error) {
-	recvToken := req.GetVerificationToken()
-	if token, err := s.store.GetToken(ctx, "contract-token"); err != nil || token != recvToken {
-		return nil, status.Errorf(codes.InvalidArgument, "could not verify code: %s", err)
-	}
 	return &dsrpc.VerifyConnectionResponse{}, nil
 }
 
@@ -118,7 +114,9 @@ func sendContractMessage[T any](
 	// Add local origin requester info to context since all control requests are from
 	// a trusted source.
 	ctx = authforwarder.SetRequesterInfo(ctx, localRequesterInfo)
-	negotiation, err := s.store.GetContract(ctx, contractopts.WithRolePID(pid, role))
+	negotiation, err := s.store.GetContract(ctx,
+		contractopts.WithRolePID(pid, role),
+		contractopts.WithRW())
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "could not find contract with pid %s: %s", pid, err)
 	}

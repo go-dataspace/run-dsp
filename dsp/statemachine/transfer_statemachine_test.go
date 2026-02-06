@@ -36,7 +36,7 @@ import (
 var agreementID = uuid.MustParse("e1c68180-de68-428d-9853-7d4dd3c66904")
 
 func TestTransferTermination(t *testing.T) { //nolint:funlen
-	t.Parallel()
+	ctx := t.Context()
 
 	agreement := odrl.Agreement{
 		PolicyClass: odrl.PolicyClass{},
@@ -44,11 +44,13 @@ func TestTransferTermination(t *testing.T) { //nolint:funlen
 		Timestamp:   time.Time{},
 	}
 	logger := logging.New("error", true)
-	ctx := ctxslog.Inject(t.Context(), logger)
+	ctx = ctxslog.Inject(ctx, logger)
 	ctx, done := context.WithCancel(ctx)
 	defer done()
 
-	store, err := sqlite.New(ctx, true, "")
+	store, err := sqlite.New(ctx, true, true, "")
+	assert.Nil(t, err)
+	err = store.Migrate(ctx)
 	assert.Nil(t, err)
 	requester := &MockRequester{}
 

@@ -15,9 +15,8 @@
 package contract
 
 import (
-	"bytes"
 	"context"
-	"encoding/gob"
+	"encoding/json"
 	"fmt"
 	"net/url"
 	"slices"
@@ -26,6 +25,7 @@ import (
 	"github.com/google/uuid"
 	"go-dataspace.eu/ctxslog"
 	"go-dataspace.eu/run-dsp/dsp/constants"
+	"go-dataspace.eu/run-dsp/dsp/persistence/backends/sqlite/models"
 	"go-dataspace.eu/run-dsp/dsp/shared"
 	"go-dataspace.eu/run-dsp/odrl"
 	dsrpc "go-dataspace.eu/run-dsrpc/gen/go/dsp/v1alpha2"
@@ -81,20 +81,11 @@ type Negotiation struct {
 	traceInfo shared.TraceInfo
 
 	requesterInfo *dsrpc.RequesterInfo
-}
 
-type storableNegotiation struct {
-	ProviderPID   uuid.UUID
-	ConsumerPID   uuid.UUID
-	State         State
-	Offer         odrl.Offer
-	Agreement     *odrl.Agreement
-	Callback      *url.URL
-	Self          *url.URL
-	Role          constants.DataspaceRole
-	AutoAccept    bool
-	RequesterInfo *dsrpc.RequesterInfo
-	TraceInfo     shared.TraceInfo
+	// Internal database state, not used for anything except to keep track in the db.
+	// Might be shown in debug info.
+	internal_id int64
+	locked      bool
 }
 
 func New(
@@ -124,28 +115,6 @@ func New(
 	return neg
 }
 
-func FromBytes(b []byte) (*Negotiation, error) {
-	var sn storableNegotiation
-	r := bytes.NewReader(b)
-	dec := gob.NewDecoder(r)
-	if err := dec.Decode(&sn); err != nil {
-		return nil, fmt.Errorf("could not decode bytes into storableNegotiation: %w", err)
-	}
-	return &Negotiation{
-		providerPID:   sn.ProviderPID,
-		consumerPID:   sn.ConsumerPID,
-		state:         sn.State,
-		offer:         sn.Offer,
-		agreement:     sn.Agreement,
-		callback:      sn.Callback,
-		self:          sn.Self,
-		role:          sn.Role,
-		autoAccept:    sn.AutoAccept,
-		requesterInfo: sn.RequesterInfo,
-		traceInfo:     sn.TraceInfo,
-	}, nil
-}
-
 // GenerateStorageKey generates a key for a contract negotiation.
 func GenerateStorageKey(id uuid.UUID, role constants.DataspaceRole) []byte {
 	return []byte("negotiation-" + id.String() + "-" + strconv.Itoa(int(role)))
@@ -163,6 +132,11 @@ func (cn *Negotiation) GetSelf() *url.URL                      { return cn.self 
 func (cn *Negotiation) GetContract() *Negotiation              { return cn }
 func (cn *Negotiation) GetRequesterInfo() *dsrpc.RequesterInfo { return cn.requesterInfo }
 
+// For internal DB state, might not be used with certain storage backend, here ONLY FOR DISPLAY
+// AND TESTING.
+func (cn *Negotiation) GetInternalID() int64 { return cn.internal_id }
+func (cn *Negotiation) GetLocked() bool      { return cn.locked }
+
 func (cn *Negotiation) GetTraceInfo() shared.TraceInfo { return cn.traceInfo }
 func (cn *Negotiation) GetLocalPID() uuid.UUID {
 	switch cn.role {
@@ -179,7 +153,7 @@ func (cn *Negotiation) GetLocalPID() uuid.UUID {
 // The suffix argument will append a prefix to the keys.
 func (cn *Negotiation) GetLogFields(suffix string) []any {
 	return []any{
-		"role" + suffix, constants.GetRoleName(cn.role),
+		"role" + suffix, cn.role.String(),
 		"consumerPID" + suffix, cn.GetConsumerPID().String(),
 		"providerPID" + suffix, cn.GetProviderPID().String(),
 		"state" + suffix, cn.GetState().String(),
@@ -262,30 +236,6 @@ func (cn *Negotiation) SetReadOnly()  { cn.ro = true }
 func (cn *Negotiation) SetInitial()   { cn.initial = true }
 func (cn *Negotiation) UnsetInitial() { cn.initial = false }
 
-// ToBytes returns a binary representation of the negotiation, one that is compatible with the FromBytes
-// function.
-func (cn *Negotiation) ToBytes() ([]byte, error) {
-	s := storableNegotiation{
-		ProviderPID:   cn.providerPID,
-		ConsumerPID:   cn.consumerPID,
-		State:         cn.state,
-		Offer:         cn.offer,
-		Agreement:     cn.agreement,
-		Callback:      cn.callback,
-		Self:          cn.self,
-		Role:          cn.role,
-		AutoAccept:    cn.autoAccept,
-		RequesterInfo: cn.requesterInfo,
-		TraceInfo:     cn.traceInfo,
-	}
-	var buf bytes.Buffer
-	enc := gob.NewEncoder(&buf)
-	if err := enc.Encode(s); err != nil {
-		return nil, fmt.Errorf("could not encode negotiation: %w", err)
-	}
-	return buf.Bytes(), nil
-}
-
 // GetContractNegotiation returns a ContractNegotiation message.
 func (cn *Negotiation) GetContractNegotiation() shared.ContractNegotiation {
 	return shared.ContractNegotiation{
@@ -305,4 +255,148 @@ func (cn *Negotiation) panicRO() {
 
 func (cn *Negotiation) modify() {
 	cn.modified = true
+}
+
+// FromModel converts a ContractNegotiation model to a Negotiation.
+//
+//nolint:cyclop,funlen // It's not worth simplifying this at this time.
+func FromModel(neg models.ContractNegotiation, ro bool) (*Negotiation, error) {
+	ppid := uuid.UUID{}
+	cpid := uuid.UUID{}
+	var err error
+	if neg.ProviderPID != nil {
+		ppid, err = uuid.Parse(*neg.ProviderPID)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if neg.ConsumerPID != nil {
+		cpid, err = uuid.Parse(*neg.ConsumerPID)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	state, err := ParseState(neg.State)
+	if err != nil {
+		return nil, err
+	}
+
+	var offer odrl.Offer
+	if err := json.Unmarshal([]byte(neg.Offer), &offer); err != nil {
+		return nil, err
+	}
+
+	var agreement *odrl.Agreement
+	if neg.Agreement != nil {
+		var a odrl.Agreement
+		if err := json.Unmarshal([]byte(neg.Agreement.ODRL), &a); err != nil {
+			return nil, err
+		}
+		agreement = &a
+	}
+
+	callback, err := url.Parse(neg.CallbackURL)
+	if err != nil {
+		return nil, err
+	}
+
+	self, err := url.Parse(neg.SelfURL)
+	if err != nil {
+		return nil, err
+	}
+
+	role, err := constants.ParseRole(neg.Role)
+	if err != nil {
+		return nil, err
+	}
+
+	var traceInfo shared.TraceInfo
+	if neg.TraceInfo != "" {
+		if err := json.Unmarshal([]byte(neg.TraceInfo), &traceInfo); err != nil {
+			return nil, err
+		}
+	}
+
+	var requesterInfo *dsrpc.RequesterInfo
+	if neg.RequesterInfo != nil {
+		var ri dsrpc.RequesterInfo
+		if err := json.Unmarshal([]byte(*neg.RequesterInfo), &ri); err != nil {
+			return nil, err
+		}
+		requesterInfo = &ri
+	}
+
+	return &Negotiation{
+		providerPID:   ppid,
+		consumerPID:   cpid,
+		state:         state,
+		offer:         offer,
+		agreement:     agreement,
+		callback:      callback,
+		self:          self,
+		role:          role,
+		autoAccept:    neg.AutoAccept,
+		initial:       false,
+		modified:      false,
+		traceInfo:     traceInfo,
+		requesterInfo: requesterInfo,
+		ro:            ro,
+		internal_id:   neg.ID,
+		locked:        neg.Locked,
+	}, nil
+}
+
+// ToModel converts this negotation to its model counterpart.
+func (cn *Negotiation) ToModel() (models.ContractNegotiation, error) {
+	empty_urn := uuid.UUID{}.URN()
+	pp := (*string)(nil)
+	if provider_pid := cn.providerPID.URN(); provider_pid != empty_urn {
+		pp = &provider_pid
+	}
+	cp := (*string)(nil)
+	if consumer_pid := cn.consumerPID.URN(); consumer_pid != empty_urn {
+		cp = &consumer_pid
+	}
+
+	ai := (*string)(nil)
+	if cn.agreement != nil {
+		ai = &cn.agreement.ID
+	}
+
+	offer, err := json.Marshal(cn.offer)
+	if err != nil {
+		return models.ContractNegotiation{}, err
+	}
+
+	var reqInfo *string
+	if cn.requesterInfo != nil {
+		ri, err := json.Marshal(cn.requesterInfo)
+		if err != nil {
+			return models.ContractNegotiation{}, err
+		}
+		ri2 := string(ri)
+		reqInfo = &ri2
+	}
+
+	traceInfo, err := json.Marshal(cn.traceInfo)
+	if err != nil {
+		return models.ContractNegotiation{}, err
+	}
+	return models.ContractNegotiation{
+		ID:            cn.internal_id,
+		ProviderPID:   pp,
+		ConsumerPID:   cp,
+		AgreementID:   ai,
+		Offer:         string(offer),
+		State:         cn.state.String(),
+		CallbackURL:   cn.callback.String(),
+		SelfURL:       cn.self.String(),
+		Role:          cn.role.String(),
+		AutoAccept:    cn.autoAccept,
+		RequesterInfo: reqInfo,
+		TraceInfo:     string(traceInfo),
+		Locked:        false, // If we're saving, this always should be false
+	}, nil
 }

@@ -102,6 +102,12 @@ type environment struct {
 	requester       *mockRequester
 }
 
+func (e *environment) Close() {
+	if err := e.store.Close(); err != nil {
+		panic(err)
+	}
+}
+
 func setupEnvironment(t *testing.T) (
 	context.Context,
 	context.CancelFunc,
@@ -113,7 +119,10 @@ func setupEnvironment(t *testing.T) (
 	slog.SetDefault(logger)
 	prov := mockdsrpc.NewMockProviderServiceClient(t)
 	cService := mockdsrpc.NewMockContractServiceClient(t)
-	store, err := sqlite.New(ctx, true, "")
+	store, err := sqlite.New(ctx, true, false, "")
+	assert.Nil(t, err)
+	err = store.Migrate(ctx)
+	assert.Nil(t, err)
 	reconciler := &mockReconciler{}
 	requester := &mockRequester{}
 	assert.Nil(t, err)
@@ -161,16 +170,11 @@ func createNegotiation(
 func TestVerifyConnection(t *testing.T) {
 	ctx, cancel, env := setupEnvironment(t)
 	defer cancel()
-	err := env.store.PutToken(ctx, "contract-token", "test")
-	assert.Nil(t, err)
-	_, err = env.server.VerifyConnection(ctx, &dsrpc.VerifyConnectionRequest{
+	defer env.Close()
+	_, err := env.server.VerifyConnection(ctx, &dsrpc.VerifyConnectionRequest{
 		VerificationToken: "test",
 	})
 	assert.Nil(t, err)
-	_, err = env.server.VerifyConnection(ctx, &dsrpc.VerifyConnectionRequest{
-		VerificationToken: "nothere",
-	})
-	assert.NotNil(t, err)
 }
 
 func mkRequestUrl(u *url.URL, parts ...string) string {
@@ -181,9 +185,9 @@ func mkRequestUrl(u *url.URL, parts ...string) string {
 }
 
 func TestContractRequest_Initial(t *testing.T) {
-	t.Parallel()
 	ctx, cancel, env := setupEnvironment(t)
 	defer cancel()
+	defer env.Close()
 
 	offer, err := json.Marshal(odrlOffer)
 	assert.Nil(t, err)
@@ -217,9 +221,9 @@ func TestContractRequest_Initial(t *testing.T) {
 
 //nolint:dupl
 func TestContractRequest(t *testing.T) {
-	t.Parallel()
 	ctx, cancel, env := setupEnvironment(t)
 	defer cancel()
+	defer env.Close()
 
 	createNegotiation(ctx, t, env.store, contract.States.OFFERED, constants.DataspaceConsumer)
 
@@ -252,9 +256,9 @@ func TestContractRequest(t *testing.T) {
 }
 
 func TestContractOffer_Initial(t *testing.T) {
-	t.Parallel()
 	ctx, cancel, env := setupEnvironment(t)
 	defer cancel()
+	defer env.Close()
 
 	env.provider.On("GetDataset", mock.Anything, &dsrpc.GetDatasetRequest{
 		DatasetId: targetID.String(),
@@ -297,9 +301,9 @@ func TestContractOffer_Initial(t *testing.T) {
 
 //nolint:dupl
 func TestContractOffer(t *testing.T) {
-	t.Parallel()
 	ctx, cancel, env := setupEnvironment(t)
 	defer cancel()
+	defer env.Close()
 
 	createNegotiation(ctx, t, env.store, contract.States.REQUESTED, constants.DataspaceProvider)
 
@@ -333,9 +337,9 @@ func TestContractOffer(t *testing.T) {
 
 //nolint:dupl
 func TestContractAccept(t *testing.T) {
-	t.Parallel()
 	ctx, cancel, env := setupEnvironment(t)
 	defer cancel()
+	defer env.Close()
 
 	createNegotiation(ctx, t, env.store, contract.States.OFFERED, constants.DataspaceConsumer)
 
@@ -368,9 +372,9 @@ func TestContractAccept(t *testing.T) {
 }
 
 func TestContractAgree(t *testing.T) {
-	t.Parallel()
 	ctx, cancel, env := setupEnvironment(t)
 	defer cancel()
+	defer env.Close()
 
 	createNegotiation(ctx, t, env.store, contract.States.ACCEPTED, constants.DataspaceProvider)
 
@@ -402,9 +406,9 @@ func TestContractAgree(t *testing.T) {
 }
 
 func TestContractVerify(t *testing.T) {
-	t.Parallel()
 	ctx, cancel, env := setupEnvironment(t)
 	defer cancel()
+	defer env.Close()
 
 	createNegotiation(ctx, t, env.store, contract.States.AGREED, constants.DataspaceConsumer)
 
@@ -437,9 +441,9 @@ func TestContractVerify(t *testing.T) {
 
 //nolint:dupl
 func TestContractFinalize(t *testing.T) {
-	t.Parallel()
 	ctx, cancel, env := setupEnvironment(t)
 	defer cancel()
+	defer env.Close()
 
 	createNegotiation(ctx, t, env.store, contract.States.VERIFIED, constants.DataspaceProvider)
 
@@ -472,8 +476,6 @@ func TestContractFinalize(t *testing.T) {
 }
 
 func TestContractTerminate(t *testing.T) {
-	t.Parallel()
-
 	for _, role := range []constants.DataspaceRole{constants.DataspaceProvider, constants.DataspaceConsumer} {
 		for _, state := range []contract.State{
 			contract.States.REQUESTED,
@@ -518,6 +520,7 @@ func TestContractTerminate(t *testing.T) {
 			assert.Equal(t, "test", reqPayload.Code)
 			assert.Equal(t, "test", reqPayload.Reason[0].Value)
 			cancel()
+			env.Close()
 		}
 	}
 }

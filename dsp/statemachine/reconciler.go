@@ -319,7 +319,7 @@ func (c *HTTPReconciler) setTransferState(
 		return fmt.Errorf("can't save transfer request: %w", err)
 	}
 	transfersCounter.WithLabelValues(
-		constants.GetRoleName(role),
+		role.String(),
 		ts.String(),
 		tr.GetCallback().String(),
 	).Inc()
@@ -350,7 +350,7 @@ func (c *HTTPReconciler) setContractState(
 		return fmt.Errorf("can't save contract: %w", err)
 	}
 	contractsCounter.WithLabelValues(
-		constants.GetRoleName(role),
+		role.String(),
 		cs.String(),
 		con.GetCallback().String(),
 	).Inc()

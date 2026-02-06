@@ -29,8 +29,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 	"go-dataspace.eu/run-dsp/dsp"
 	"go-dataspace.eu/run-dsp/dsp/constants"
 	"go-dataspace.eu/run-dsp/dsp/contract"
@@ -103,6 +103,12 @@ type environment struct {
 	reconciler      *mockReconciler
 }
 
+func (e *environment) Close() {
+	if err := e.store.Close(); err != nil {
+		panic(err)
+	}
+}
+
 func mockAuthMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		requesterInfo := &dsrpc.RequesterInfo{
@@ -114,11 +120,13 @@ func mockAuthMiddleware(next http.Handler) http.Handler {
 	})
 }
 
-func setupEnvironment(t *testing.T, autoAccept bool) (
+//nolint:unparam // This is sometimes set to true when debugging tests.
+func setupEnvironment(t *testing.T, autoAccept, debugDB bool) (
 	context.Context,
 	context.CancelFunc,
 	*environment,
 ) {
+	t.Helper()
 	ctx, cancel := context.WithCancel(t.Context())
 	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
 	slog.SetDefault(logger)
@@ -129,9 +137,11 @@ func setupEnvironment(t *testing.T, autoAccept bool) (
 		// Only used in the initial requests as we don't set the negotiation there.
 		cService = mockdsrpc.NewMockContractServiceClient(t)
 	}
-	store, err := sqlite.New(ctx, true, "")
+	store, err := sqlite.New(ctx, true, debugDB, "")
+	require.Nil(t, err)
+	err = store.Migrate(ctx)
+	require.Nil(t, err)
 	reconciler := &mockReconciler{}
-	assert.Nil(t, err)
 	pingResponse := &dsrpc.PingResponse{
 		ProviderName:        "bla",
 		ProviderDescription: "bla",
@@ -154,10 +164,10 @@ func setupEnvironment(t *testing.T, autoAccept bool) (
 func fetchAndDecode[T any](ctx context.Context, t *testing.T, method, url string, body io.Reader) T {
 	t.Helper()
 	req, err := http.NewRequestWithContext(ctx, method, url, body)
-	assert.Nil(t, err)
+	require.Nil(t, err)
 	resp, err := http.DefaultClient.Do(req)
-	assert.Nil(t, err)
-	assert.Equal(t, http.StatusOK, resp.StatusCode)
+	require.Nilf(t, err, "got error: %s", err)
+	require.Equal(t, http.StatusOK, resp.StatusCode)
 	defer func() { _ = resp.Body.Close() }()
 	return decode[T](t, resp.Body)
 }
@@ -165,7 +175,7 @@ func fetchAndDecode[T any](ctx context.Context, t *testing.T, method, url string
 func decode[T any](t *testing.T, body io.Reader) T {
 	var thing T
 	err := json.NewDecoder(body).Decode(&thing)
-	assert.Nil(t, err)
+	require.Nil(t, err)
 	return thing
 }
 
@@ -173,7 +183,7 @@ func encode[T any](t *testing.T, thing T) io.Reader {
 	t.Helper()
 	b := &bytes.Buffer{}
 	err := json.NewEncoder(b).Encode(thing)
-	assert.Nil(t, err)
+	require.Nil(t, err)
 	return b
 }
 
@@ -202,22 +212,22 @@ func createNegotiation(
 		requesterInfo,
 	)
 	err := store.PutContract(ctx, neg)
-	assert.Nil(t, err)
+	require.Nil(t, err)
 }
 
 func TestNegotiationStatus(t *testing.T) {
-	t.Parallel()
-	ctx, cancel, env := setupEnvironment(t, false)
+	ctx, cancel, env := setupEnvironment(t, false, false)
 	defer cancel()
+	defer env.Close()
 	createNegotiation(ctx, t, env.store, contract.States.OFFERED, constants.DataspaceProvider, false, &dsrpc.RequesterInfo{
 		AuthenticationStatus: dsrpc.AuthenticationStatus_AUTHENTICATION_STATUS_LOCAL_ORIGIN,
 	})
 	u := env.server.URL + fmt.Sprintf("/negotiations/%s", staticProviderPID.String())
 	status := fetchAndDecode[shared.ContractNegotiation](ctx, t, http.MethodGet, u, nil)
-	assert.Equal(t, "dspace:ContractNegotiation", status.Type)
-	assert.Equal(t, staticConsumerPID.URN(), status.ConsumerPID)
-	assert.Equal(t, staticProviderPID.URN(), status.ProviderPID)
-	assert.Equal(t, contract.States.OFFERED.String(), status.State)
+	require.Equal(t, "dspace:ContractNegotiation", status.Type)
+	require.Equal(t, staticConsumerPID.URN(), status.ConsumerPID)
+	require.Equal(t, staticProviderPID.URN(), status.ProviderPID)
+	require.Equal(t, contract.States.OFFERED.String(), status.State)
 }
 
 func mkRequestUrl(u *url.URL, parts ...string) string {
@@ -229,10 +239,8 @@ func mkRequestUrl(u *url.URL, parts ...string) string {
 
 //nolint:funlen
 func TestNegotiationProviderInitialRequest(t *testing.T) {
-	t.Parallel()
-	for _, autoAccept := range []bool{true, false} {
-		ctx, cancel, env := setupEnvironment(t, autoAccept)
-		defer cancel()
+	for _, autoAccept := range []bool{true, true} {
+		ctx, cancel, env := setupEnvironment(t, autoAccept, false)
 
 		env.provider.On("GetDataset", mock.Anything, &dsrpc.GetDatasetRequest{
 			DatasetId: targetID.String(),
@@ -258,31 +266,31 @@ func TestNegotiationProviderInitialRequest(t *testing.T) {
 			CallbackAddress: callBack.String(),
 		})
 		status := fetchAndDecode[shared.ContractNegotiation](ctx, t, http.MethodPost, u, body)
-		assert.Equal(t, "dspace:ContractNegotiation", status.Type)
-		assert.Equal(t, staticConsumerPID.URN(), status.ConsumerPID)
-		assert.NotEqual(t, uuid.UUID{}, status.ProviderPID)
-		assert.Equal(t, contract.States.REQUESTED.String(), status.State)
+		require.Equal(t, "dspace:ContractNegotiation", status.Type)
+		require.Equal(t, staticConsumerPID.URN(), status.ConsumerPID)
+		require.NotEqual(t, uuid.UUID{}, status.ProviderPID)
+		require.Equal(t, contract.States.REQUESTED.String(), status.State)
 
 		providerPID := uuid.MustParse(status.ProviderPID)
 		negotiation, err := env.store.GetContract(
 			ctx,
 			contractopts.WithRolePID(providerPID, constants.DataspaceProvider),
 		)
-		assert.Nil(t, err)
-		assert.Equal(t, staticConsumerPID, negotiation.GetConsumerPID())
-		assert.Equal(t, providerPID, negotiation.GetProviderPID())
-		assert.Equal(t, contract.States.REQUESTED, negotiation.GetState())
-		assert.Equal(t, odrlOffer, negotiation.GetOffer())
-		assert.Equal(t, callBack.String(), negotiation.GetCallback().String())
+		require.Nil(t, err)
+		require.Equal(t, staticConsumerPID, negotiation.GetConsumerPID())
+		require.Equal(t, providerPID, negotiation.GetProviderPID())
+		require.Equal(t, contract.States.REQUESTED, negotiation.GetState())
+		require.Equal(t, odrlOffer, negotiation.GetOffer())
+		require.Equal(t, callBack.String(), negotiation.GetCallback().String())
 
 		if autoAccept {
-			assert.NotNil(t, env.reconciler.e)
+			require.NotNil(t, env.reconciler.e)
 			pid := env.reconciler.e.EntityID
-			assert.Equal(t, statemachine.ReconciliationContract, env.reconciler.e.Type)
-			assert.Equal(t, constants.DataspaceProvider, env.reconciler.e.Role)
-			assert.Equal(t, contract.States.OFFERED.String(), env.reconciler.e.TargetState)
-			assert.Equal(t, http.MethodPost, env.reconciler.e.Method)
-			assert.Equal(
+			require.Equal(t, statemachine.ReconciliationContract, env.reconciler.e.Type)
+			require.Equal(t, constants.DataspaceProvider, env.reconciler.e.Role)
+			require.Equal(t, contract.States.OFFERED.String(), env.reconciler.e.TargetState)
+			require.Equal(t, http.MethodPost, env.reconciler.e.Method)
+			require.Equal(
 				t,
 				mkRequestUrl(callBack, "negotiations", staticConsumerPID.String(), "offers"),
 				env.reconciler.e.URL.String(),
@@ -290,21 +298,21 @@ func TestNegotiationProviderInitialRequest(t *testing.T) {
 
 			var reqPayload shared.ContractOfferMessage
 			err = json.Unmarshal(env.reconciler.e.Body, &reqPayload)
-			assert.Nil(t, err)
-			assert.Equal(t, odrlOffer.MessageOffer, reqPayload.Offer)
-			assert.Equal(t, pid.URN(), reqPayload.ProviderPID)
-			assert.Equal(t, staticConsumerPID.URN(), reqPayload.ConsumerPID)
-			assert.Equal(t, mkRequestUrl(selfURL), reqPayload.CallbackAddress)
+			require.Nil(t, err)
+			require.Equal(t, odrlOffer.MessageOffer, reqPayload.Offer)
+			require.Equal(t, pid.URN(), reqPayload.ProviderPID)
+			require.Equal(t, staticConsumerPID.URN(), reqPayload.ConsumerPID)
+			require.Equal(t, mkRequestUrl(selfURL), reqPayload.CallbackAddress)
 		}
+		cancel()
+		env.Close()
 	}
 }
 
 //nolint:dupl
 func TestNegotiationProviderRequest(t *testing.T) {
-	t.Parallel()
 	for _, autoAccept := range []bool{true, false} {
-		ctx, cancel, env := setupEnvironment(t, false)
-		defer cancel()
+		ctx, cancel, env := setupEnvironment(t, false, false)
 
 		createNegotiation(ctx, t, env.store, contract.States.OFFERED, constants.DataspaceProvider, autoAccept,
 			&dsrpc.RequesterInfo{
@@ -327,28 +335,28 @@ func TestNegotiationProviderRequest(t *testing.T) {
 			CallbackAddress: callBack.String(),
 		})
 		status := fetchAndDecode[shared.ContractNegotiation](ctx, t, http.MethodPost, u, body)
-		assert.Equal(t, "dspace:ContractNegotiation", status.Type)
-		assert.Equal(t, staticConsumerPID.URN(), status.ConsumerPID)
-		assert.Equal(t, staticProviderPID.URN(), status.ProviderPID)
-		assert.Equal(t, contract.States.REQUESTED.String(), status.State)
+		require.Equal(t, "dspace:ContractNegotiation", status.Type)
+		require.Equal(t, staticConsumerPID.URN(), status.ConsumerPID)
+		require.Equal(t, staticProviderPID.URN(), status.ProviderPID)
+		require.Equal(t, contract.States.REQUESTED.String(), status.State)
 
 		negotiation, err := env.store.GetContract(
 			ctx,
 			contractopts.WithRolePID(staticProviderPID, constants.DataspaceProvider),
 		)
-		assert.Nil(t, err)
-		assert.Equal(t, staticConsumerPID, negotiation.GetConsumerPID())
-		assert.Equal(t, staticProviderPID, negotiation.GetProviderPID())
-		assert.Equal(t, contract.States.REQUESTED, negotiation.GetState())
-		assert.Equal(t, odrlOffer, negotiation.GetOffer())
-		assert.Equal(t, callBack.String(), negotiation.GetCallback().String())
+		require.Nil(t, err)
+		require.Equal(t, staticConsumerPID, negotiation.GetConsumerPID())
+		require.Equal(t, staticProviderPID, negotiation.GetProviderPID())
+		require.Equal(t, contract.States.REQUESTED, negotiation.GetState())
+		require.Equal(t, odrlOffer, negotiation.GetOffer())
+		require.Equal(t, callBack.String(), negotiation.GetCallback().String())
 		if autoAccept {
-			assert.NotNil(t, env.reconciler.e)
-			assert.Equal(t, statemachine.ReconciliationContract, env.reconciler.e.Type)
-			assert.Equal(t, constants.DataspaceProvider, env.reconciler.e.Role)
-			assert.Equal(t, contract.States.AGREED.String(), env.reconciler.e.TargetState)
-			assert.Equal(t, http.MethodPost, env.reconciler.e.Method)
-			assert.Equal(
+			require.NotNil(t, env.reconciler.e)
+			require.Equal(t, statemachine.ReconciliationContract, env.reconciler.e.Type)
+			require.Equal(t, constants.DataspaceProvider, env.reconciler.e.Role)
+			require.Equal(t, contract.States.AGREED.String(), env.reconciler.e.TargetState)
+			require.Equal(t, http.MethodPost, env.reconciler.e.Method)
+			require.Equal(
 				t,
 				mkRequestUrl(callBack, "negotiations", staticConsumerPID.String(), "agreement"),
 				env.reconciler.e.URL.String(),
@@ -356,18 +364,18 @@ func TestNegotiationProviderRequest(t *testing.T) {
 
 			var reqPayload shared.ContractAgreementMessage
 			err = json.Unmarshal(env.reconciler.e.Body, &reqPayload)
-			assert.Nil(t, err)
-			assert.Equal(t, staticProviderPID.URN(), reqPayload.ProviderPID)
-			assert.Equal(t, staticConsumerPID.URN(), reqPayload.ConsumerPID)
+			require.Nil(t, err)
+			require.Equal(t, staticProviderPID.URN(), reqPayload.ProviderPID)
+			require.Equal(t, staticConsumerPID.URN(), reqPayload.ConsumerPID)
 		}
+		cancel()
+		env.Close()
 	}
 }
 
 func TestNegotiationProviderEventAccepted(t *testing.T) { //nolint:funlen
-	t.Parallel()
 	for _, autoAccept := range []bool{true, false} {
-		ctx, cancel, env := setupEnvironment(t, false)
-		defer cancel()
+		ctx, cancel, env := setupEnvironment(t, false, false)
 
 		createNegotiation(ctx, t, env.store, contract.States.OFFERED, constants.DataspaceProvider, autoAccept,
 			&dsrpc.RequesterInfo{
@@ -394,30 +402,30 @@ func TestNegotiationProviderEventAccepted(t *testing.T) { //nolint:funlen
 			EventType:   contract.States.ACCEPTED.String(),
 		})
 		status := fetchAndDecode[shared.ContractNegotiation](ctx, t, http.MethodPost, u, body)
-		assert.Equal(t, "dspace:ContractNegotiation", status.Type)
-		assert.Equal(t, staticConsumerPID.URN(), status.ConsumerPID)
-		assert.Equal(t, staticProviderPID.URN(), status.ProviderPID)
-		assert.Equal(t, contract.States.ACCEPTED.String(), status.State)
+		require.Equal(t, "dspace:ContractNegotiation", status.Type)
+		require.Equal(t, staticConsumerPID.URN(), status.ConsumerPID)
+		require.Equal(t, staticProviderPID.URN(), status.ProviderPID)
+		require.Equal(t, contract.States.ACCEPTED.String(), status.State)
 
 		negotiation, err := env.store.GetContract(
 			ctx,
 			contractopts.WithRolePID(staticProviderPID, constants.DataspaceProvider),
 		)
-		assert.Nil(t, err)
-		assert.Equal(t, staticConsumerPID, negotiation.GetConsumerPID())
-		assert.Equal(t, staticProviderPID, negotiation.GetProviderPID())
-		assert.Equal(t, contract.States.ACCEPTED, negotiation.GetState())
-		assert.Equal(t, odrlOffer, negotiation.GetOffer())
-		assert.Equal(t, callBack.String(), negotiation.GetCallback().String())
+		require.Nil(t, err)
+		require.Equal(t, staticConsumerPID, negotiation.GetConsumerPID())
+		require.Equal(t, staticProviderPID, negotiation.GetProviderPID())
+		require.Equal(t, contract.States.ACCEPTED, negotiation.GetState())
+		require.Equal(t, odrlOffer, negotiation.GetOffer())
+		require.Equal(t, callBack.String(), negotiation.GetCallback().String())
 
 		//nolint:dupl
 		if autoAccept {
-			assert.NotNil(t, env.reconciler.e)
-			assert.Equal(t, statemachine.ReconciliationContract, env.reconciler.e.Type)
-			assert.Equal(t, constants.DataspaceProvider, env.reconciler.e.Role)
-			assert.Equal(t, contract.States.AGREED.String(), env.reconciler.e.TargetState)
-			assert.Equal(t, http.MethodPost, env.reconciler.e.Method)
-			assert.Equal(
+			require.NotNil(t, env.reconciler.e)
+			require.Equal(t, statemachine.ReconciliationContract, env.reconciler.e.Type)
+			require.Equal(t, constants.DataspaceProvider, env.reconciler.e.Role)
+			require.Equal(t, contract.States.AGREED.String(), env.reconciler.e.TargetState)
+			require.Equal(t, http.MethodPost, env.reconciler.e.Method)
+			require.Equal(
 				t,
 				mkRequestUrl(callBack, "negotiations", staticConsumerPID.String(), "agreement"),
 				env.reconciler.e.URL.String(),
@@ -425,18 +433,18 @@ func TestNegotiationProviderEventAccepted(t *testing.T) { //nolint:funlen
 
 			var reqPayload shared.ContractAgreementMessage
 			err = json.Unmarshal(env.reconciler.e.Body, &reqPayload)
-			assert.Nil(t, err)
-			assert.Equal(t, staticProviderPID.URN(), reqPayload.ProviderPID)
-			assert.Equal(t, staticConsumerPID.URN(), reqPayload.ConsumerPID)
+			require.Nil(t, err)
+			require.Equal(t, staticProviderPID.URN(), reqPayload.ProviderPID)
+			require.Equal(t, staticConsumerPID.URN(), reqPayload.ConsumerPID)
 		}
+		cancel()
+		env.Close()
 	}
 }
 
 func TestNegotiationProviderAgreementVerification(t *testing.T) { //nolint:funlen
-	t.Parallel()
 	for _, autoAccept := range []bool{true, false} {
-		ctx, cancel, env := setupEnvironment(t, false)
-		defer cancel()
+		ctx, cancel, env := setupEnvironment(t, false, false)
 
 		createNegotiation(ctx, t, env.store, contract.States.AGREED, constants.DataspaceProvider, autoAccept,
 			&dsrpc.RequesterInfo{
@@ -463,30 +471,30 @@ func TestNegotiationProviderAgreementVerification(t *testing.T) { //nolint:funle
 			ProviderPID: staticProviderPID.URN(),
 		})
 		status := fetchAndDecode[shared.ContractNegotiation](ctx, t, http.MethodPost, u, body)
-		assert.Equal(t, "dspace:ContractNegotiation", status.Type)
-		assert.Equal(t, staticConsumerPID.URN(), status.ConsumerPID)
-		assert.Equal(t, staticProviderPID.URN(), status.ProviderPID)
-		assert.Equal(t, contract.States.VERIFIED.String(), status.State)
+		require.Equal(t, "dspace:ContractNegotiation", status.Type)
+		require.Equal(t, staticConsumerPID.URN(), status.ConsumerPID)
+		require.Equal(t, staticProviderPID.URN(), status.ProviderPID)
+		require.Equal(t, contract.States.VERIFIED.String(), status.State)
 
 		negotiation, err := env.store.GetContract(
 			ctx,
 			contractopts.WithRolePID(staticProviderPID, constants.DataspaceProvider),
 		)
-		assert.Nil(t, err)
-		assert.Equal(t, staticConsumerPID, negotiation.GetConsumerPID())
-		assert.Equal(t, staticProviderPID, negotiation.GetProviderPID())
-		assert.Equal(t, contract.States.VERIFIED, negotiation.GetState())
-		assert.Equal(t, odrlOffer, negotiation.GetOffer())
-		assert.Equal(t, callBack.String(), negotiation.GetCallback().String())
+		require.Nil(t, err)
+		require.Equal(t, staticConsumerPID, negotiation.GetConsumerPID())
+		require.Equal(t, staticProviderPID, negotiation.GetProviderPID())
+		require.Equal(t, contract.States.VERIFIED, negotiation.GetState())
+		require.Equal(t, odrlOffer, negotiation.GetOffer())
+		require.Equal(t, callBack.String(), negotiation.GetCallback().String())
 
 		//nolint:dupl
 		if autoAccept {
-			assert.NotNil(t, env.reconciler.e)
-			assert.Equal(t, statemachine.ReconciliationContract, env.reconciler.e.Type)
-			assert.Equal(t, constants.DataspaceProvider, env.reconciler.e.Role)
-			assert.Equal(t, contract.States.FINALIZED.String(), env.reconciler.e.TargetState)
-			assert.Equal(t, http.MethodPost, env.reconciler.e.Method)
-			assert.Equal(
+			require.NotNil(t, env.reconciler.e)
+			require.Equal(t, statemachine.ReconciliationContract, env.reconciler.e.Type)
+			require.Equal(t, constants.DataspaceProvider, env.reconciler.e.Role)
+			require.Equal(t, contract.States.FINALIZED.String(), env.reconciler.e.TargetState)
+			require.Equal(t, http.MethodPost, env.reconciler.e.Method)
+			require.Equal(
 				t,
 				mkRequestUrl(callBack, "negotiations", staticConsumerPID.String(), "events"),
 				env.reconciler.e.URL.String(),
@@ -494,19 +502,19 @@ func TestNegotiationProviderAgreementVerification(t *testing.T) { //nolint:funle
 
 			var reqPayload shared.ContractNegotiationEventMessage
 			err = json.Unmarshal(env.reconciler.e.Body, &reqPayload)
-			assert.Nil(t, err)
-			assert.Equal(t, staticProviderPID.URN(), reqPayload.ProviderPID)
-			assert.Equal(t, staticConsumerPID.URN(), reqPayload.ConsumerPID)
-			assert.Equal(t, contract.States.FINALIZED.String(), reqPayload.EventType)
+			require.Nil(t, err)
+			require.Equal(t, staticProviderPID.URN(), reqPayload.ProviderPID)
+			require.Equal(t, staticConsumerPID.URN(), reqPayload.ConsumerPID)
+			require.Equal(t, contract.States.FINALIZED.String(), reqPayload.EventType)
 		}
+		cancel()
+		env.Close()
 	}
 }
 
 func TestNegotiationConsumerInitialOffer(t *testing.T) {
-	t.Parallel()
 	for _, autoAccept := range []bool{true, false} {
-		ctx, cancel, env := setupEnvironment(t, autoAccept)
-		defer cancel()
+		ctx, cancel, env := setupEnvironment(t, autoAccept, false)
 
 		u := env.server.URL + "/negotiations/offers"
 
@@ -515,7 +523,6 @@ func TestNegotiationConsumerInitialOffer(t *testing.T) {
 				"OfferReceived", mock.Anything, mock.Anything,
 			).Return(&dsrpc.ContractServiceOfferReceivedResponse{}, nil)
 		}
-
 		body := encode(t, shared.ContractOfferMessage{
 			Context:         shared.GetDSPContext(),
 			Type:            "dspace:ContractOfferMessage",
@@ -524,31 +531,31 @@ func TestNegotiationConsumerInitialOffer(t *testing.T) {
 			CallbackAddress: callBack.String(),
 		})
 		status := fetchAndDecode[shared.ContractNegotiation](ctx, t, http.MethodPost, u, body)
-		assert.Equal(t, "dspace:ContractNegotiation", status.Type)
-		assert.Equal(t, staticProviderPID.URN(), status.ProviderPID)
-		assert.NotEqual(t, uuid.UUID{}, status.ConsumerPID)
-		assert.Equal(t, contract.States.OFFERED.String(), status.State)
+		require.Equal(t, "dspace:ContractNegotiation", status.Type)
+		require.Equal(t, staticProviderPID.URN(), status.ProviderPID)
+		require.NotEqual(t, uuid.UUID{}, status.ConsumerPID)
+		require.Equal(t, contract.States.OFFERED.String(), status.State)
 
 		consumerPID := uuid.MustParse(status.ConsumerPID)
 		negotiation, err := env.store.GetContract(
 			ctx,
 			contractopts.WithRolePID(consumerPID, constants.DataspaceConsumer),
 		)
-		assert.Nil(t, err)
-		assert.Equal(t, consumerPID, negotiation.GetConsumerPID())
-		assert.Equal(t, staticProviderPID, negotiation.GetProviderPID())
-		assert.Equal(t, contract.States.OFFERED, negotiation.GetState())
-		assert.Equal(t, odrlOffer, negotiation.GetOffer())
-		assert.Equal(t, callBack.String(), negotiation.GetCallback().String())
+		require.Nil(t, err)
+		require.Equal(t, consumerPID, negotiation.GetConsumerPID())
+		require.Equal(t, staticProviderPID, negotiation.GetProviderPID())
+		require.Equal(t, contract.States.OFFERED, negotiation.GetState())
+		require.Equal(t, odrlOffer, negotiation.GetOffer())
+		require.Equal(t, callBack.String(), negotiation.GetCallback().String())
 
 		if autoAccept {
-			assert.NotNil(t, env.reconciler.e)
+			require.NotNil(t, env.reconciler.e)
 			pid := env.reconciler.e.EntityID
-			assert.Equal(t, statemachine.ReconciliationContract, env.reconciler.e.Type)
-			assert.Equal(t, constants.DataspaceConsumer, env.reconciler.e.Role)
-			assert.Equal(t, contract.States.REQUESTED.String(), env.reconciler.e.TargetState)
-			assert.Equal(t, http.MethodPost, env.reconciler.e.Method)
-			assert.Equal(t, mkRequestUrl(
+			require.Equal(t, statemachine.ReconciliationContract, env.reconciler.e.Type)
+			require.Equal(t, constants.DataspaceConsumer, env.reconciler.e.Role)
+			require.Equal(t, contract.States.REQUESTED.String(), env.reconciler.e.TargetState)
+			require.Equal(t, http.MethodPost, env.reconciler.e.Method)
+			require.Equal(t, mkRequestUrl(
 				callBack,
 				"negotiations",
 				staticProviderPID.String(),
@@ -557,21 +564,21 @@ func TestNegotiationConsumerInitialOffer(t *testing.T) {
 
 			var reqPayload shared.ContractRequestMessage
 			err = json.Unmarshal(env.reconciler.e.Body, &reqPayload)
-			assert.Nil(t, err)
-			assert.Equal(t, odrlOffer.MessageOffer, reqPayload.Offer)
-			assert.Equal(t, pid.URN(), reqPayload.ConsumerPID)
-			assert.Equal(t, staticProviderPID.URN(), reqPayload.ProviderPID)
-			assert.Equal(t, mkRequestUrl(selfURL, "callback"), reqPayload.CallbackAddress)
+			require.Nil(t, err)
+			require.Equal(t, odrlOffer.MessageOffer, reqPayload.Offer)
+			require.Equal(t, pid.URN(), reqPayload.ConsumerPID)
+			require.Equal(t, staticProviderPID.URN(), reqPayload.ProviderPID)
+			require.Equal(t, mkRequestUrl(selfURL, "callback"), reqPayload.CallbackAddress)
 		}
+		cancel()
+		env.Close()
 	}
 }
 
 //nolint:dupl
 func TestNegotiationConsumerOffer(t *testing.T) { //nolint:funlen
-	t.Parallel()
 	for _, autoAccept := range []bool{true, false} {
-		ctx, cancel, env := setupEnvironment(t, false)
-		defer cancel()
+		ctx, cancel, env := setupEnvironment(t, false, false)
 
 		createNegotiation(ctx, t, env.store, contract.States.REQUESTED, constants.DataspaceConsumer, autoAccept,
 			&dsrpc.RequesterInfo{
@@ -595,29 +602,29 @@ func TestNegotiationConsumerOffer(t *testing.T) { //nolint:funlen
 			CallbackAddress: callBack.String(),
 		})
 		status := fetchAndDecode[shared.ContractNegotiation](ctx, t, http.MethodPost, u, body)
-		assert.Equal(t, "dspace:ContractNegotiation", status.Type)
-		assert.Equal(t, staticConsumerPID.URN(), status.ConsumerPID)
-		assert.Equal(t, staticProviderPID.URN(), status.ProviderPID)
-		assert.Equal(t, contract.States.OFFERED.String(), status.State)
+		require.Equal(t, "dspace:ContractNegotiation", status.Type)
+		require.Equal(t, staticConsumerPID.URN(), status.ConsumerPID)
+		require.Equal(t, staticProviderPID.URN(), status.ProviderPID)
+		require.Equal(t, contract.States.OFFERED.String(), status.State)
 
 		negotiation, err := env.store.GetContract(
 			ctx,
 			contractopts.WithRolePID(staticConsumerPID, constants.DataspaceConsumer),
 		)
-		assert.Nil(t, err)
-		assert.Equal(t, staticConsumerPID, negotiation.GetConsumerPID())
-		assert.Equal(t, staticProviderPID, negotiation.GetProviderPID())
-		assert.Equal(t, contract.States.OFFERED, negotiation.GetState())
-		assert.Equal(t, odrlOffer, negotiation.GetOffer())
-		assert.Equal(t, callBack.String(), negotiation.GetCallback().String())
+		require.Nil(t, err)
+		require.Equal(t, staticConsumerPID, negotiation.GetConsumerPID())
+		require.Equal(t, staticProviderPID, negotiation.GetProviderPID())
+		require.Equal(t, contract.States.OFFERED, negotiation.GetState())
+		require.Equal(t, odrlOffer, negotiation.GetOffer())
+		require.Equal(t, callBack.String(), negotiation.GetCallback().String())
 
 		if autoAccept {
-			assert.NotNil(t, env.reconciler.e)
-			assert.Equal(t, statemachine.ReconciliationContract, env.reconciler.e.Type)
-			assert.Equal(t, constants.DataspaceConsumer, env.reconciler.e.Role)
-			assert.Equal(t, contract.States.ACCEPTED.String(), env.reconciler.e.TargetState)
-			assert.Equal(t, http.MethodPost, env.reconciler.e.Method)
-			assert.Equal(t, mkRequestUrl(
+			require.NotNil(t, env.reconciler.e)
+			require.Equal(t, statemachine.ReconciliationContract, env.reconciler.e.Type)
+			require.Equal(t, constants.DataspaceConsumer, env.reconciler.e.Role)
+			require.Equal(t, contract.States.ACCEPTED.String(), env.reconciler.e.TargetState)
+			require.Equal(t, http.MethodPost, env.reconciler.e.Method)
+			require.Equal(t, mkRequestUrl(
 				callBack,
 				"negotiations",
 				staticProviderPID.String(),
@@ -626,22 +633,21 @@ func TestNegotiationConsumerOffer(t *testing.T) { //nolint:funlen
 
 			var reqPayload shared.ContractNegotiationEventMessage
 			err = json.Unmarshal(env.reconciler.e.Body, &reqPayload)
-			assert.Nil(t, err)
-			assert.Equal(t, staticConsumerPID.URN(), reqPayload.ConsumerPID)
-			assert.Equal(t, staticProviderPID.URN(), reqPayload.ProviderPID)
-			assert.Equal(t, contract.States.ACCEPTED.String(), reqPayload.EventType)
+			require.Nil(t, err)
+			require.Equal(t, staticConsumerPID.URN(), reqPayload.ConsumerPID)
+			require.Equal(t, staticProviderPID.URN(), reqPayload.ProviderPID)
+			require.Equal(t, contract.States.ACCEPTED.String(), reqPayload.EventType)
 		}
+		cancel()
+		env.Close()
 	}
 }
 
 //nolint:funlen
 func TestNegotiationConsumerAgreement(t *testing.T) {
-	t.Parallel()
 	for _, autoAccept := range []bool{true, false} {
-		ctx, cancel, env := setupEnvironment(t, false)
-		defer cancel()
-
 		for _, s := range []contract.State{contract.States.REQUESTED, contract.States.ACCEPTED} {
+			ctx, cancel, env := setupEnvironment(t, false, false)
 			createNegotiation(ctx, t, env.store, s, constants.DataspaceConsumer, autoAccept, &dsrpc.RequesterInfo{
 				AuthenticationStatus: dsrpc.AuthenticationStatus_AUTHENTICATION_STATUS_LOCAL_ORIGIN,
 			})
@@ -669,30 +675,30 @@ func TestNegotiationConsumerAgreement(t *testing.T) {
 			})
 
 			status := fetchAndDecode[shared.ContractNegotiation](ctx, t, http.MethodPost, u, body)
-			assert.Equal(t, "dspace:ContractNegotiation", status.Type)
-			assert.Equal(t, staticConsumerPID.URN(), status.ConsumerPID)
-			assert.Equal(t, staticProviderPID.URN(), status.ProviderPID)
-			assert.Equal(t, contract.States.AGREED.String(), status.State)
+			require.Equal(t, "dspace:ContractNegotiation", status.Type)
+			require.Equal(t, staticConsumerPID.URN(), status.ConsumerPID)
+			require.Equal(t, staticProviderPID.URN(), status.ProviderPID)
+			require.Equal(t, contract.States.AGREED.String(), status.State)
 
 			negotiation, err := env.store.GetContract(
 				ctx,
 				contractopts.WithRolePID(staticConsumerPID, constants.DataspaceConsumer),
 			)
-			assert.Nil(t, err)
-			assert.Equal(t, staticConsumerPID, negotiation.GetConsumerPID())
-			assert.Equal(t, staticProviderPID, negotiation.GetProviderPID())
-			assert.Equal(t, contract.States.AGREED, negotiation.GetState())
-			assert.Equal(t, odrlOffer, negotiation.GetOffer())
-			assert.Equal(t, &odrlAgreement, negotiation.GetAgreement())
-			assert.Equal(t, callBack.String(), negotiation.GetCallback().String())
+			require.Nil(t, err)
+			require.Equal(t, staticConsumerPID, negotiation.GetConsumerPID())
+			require.Equal(t, staticProviderPID, negotiation.GetProviderPID())
+			require.Equal(t, contract.States.AGREED, negotiation.GetState())
+			require.Equal(t, odrlOffer, negotiation.GetOffer())
+			require.Equal(t, &odrlAgreement, negotiation.GetAgreement())
+			require.Equal(t, callBack.String(), negotiation.GetCallback().String())
 
 			if autoAccept {
-				assert.NotNil(t, env.reconciler.e)
-				assert.Equal(t, statemachine.ReconciliationContract, env.reconciler.e.Type)
-				assert.Equal(t, constants.DataspaceConsumer, env.reconciler.e.Role)
-				assert.Equal(t, contract.States.VERIFIED.String(), env.reconciler.e.TargetState)
-				assert.Equal(t, http.MethodPost, env.reconciler.e.Method)
-				assert.Equal(t, mkRequestUrl(
+				require.NotNil(t, env.reconciler.e)
+				require.Equal(t, statemachine.ReconciliationContract, env.reconciler.e.Type)
+				require.Equal(t, constants.DataspaceConsumer, env.reconciler.e.Role)
+				require.Equal(t, contract.States.VERIFIED.String(), env.reconciler.e.TargetState)
+				require.Equal(t, http.MethodPost, env.reconciler.e.Method)
+				require.Equal(t, mkRequestUrl(
 					callBack,
 					"negotiations",
 					staticProviderPID.String(),
@@ -702,23 +708,23 @@ func TestNegotiationConsumerAgreement(t *testing.T) {
 
 				var reqPayload shared.ContractAgreementVerificationMessage
 				err = json.Unmarshal(env.reconciler.e.Body, &reqPayload)
-				assert.Nil(t, err)
-				assert.Equal(t, staticConsumerPID.URN(), reqPayload.ConsumerPID)
-				assert.Equal(t, staticProviderPID.URN(), reqPayload.ProviderPID)
+				require.Nil(t, err)
+				require.Equal(t, staticConsumerPID.URN(), reqPayload.ConsumerPID)
+				require.Equal(t, staticProviderPID.URN(), reqPayload.ProviderPID)
 			}
+			cancel()
+			env.Close()
 		}
 	}
 }
 
 func TestNegotiationConsumerEventFinalized(t *testing.T) {
-	t.Parallel()
 	for _, autoAccept := range []bool{true, false} {
-		ctx, cancel, env := setupEnvironment(t, false)
-		defer cancel()
+		ctx, cancel, env := setupEnvironment(t, false, false)
 
 		if !autoAccept {
 			odrl, err := json.Marshal(odrlOffer)
-			assert.Nil(t, err)
+			require.Nil(t, err)
 			env.contractService.EXPECT().FinalizationReceived(
 				mock.Anything, &dsrpc.ContractServiceFinalizationReceivedRequest{
 					Pid: staticConsumerPID.String(),
@@ -745,27 +751,27 @@ func TestNegotiationConsumerEventFinalized(t *testing.T) {
 		})
 
 		status := fetchAndDecode[shared.ContractNegotiation](ctx, t, http.MethodPost, u, body)
-		assert.Equal(t, "dspace:ContractNegotiation", status.Type)
-		assert.Equal(t, staticConsumerPID.URN(), status.ConsumerPID)
-		assert.Equal(t, staticProviderPID.URN(), status.ProviderPID)
-		assert.Equal(t, contract.States.FINALIZED.String(), status.State)
+		require.Equal(t, "dspace:ContractNegotiation", status.Type)
+		require.Equal(t, staticConsumerPID.URN(), status.ConsumerPID)
+		require.Equal(t, staticProviderPID.URN(), status.ProviderPID)
+		require.Equal(t, contract.States.FINALIZED.String(), status.State)
 
 		negotiation, err := env.store.GetContract(
 			ctx,
 			contractopts.WithRolePID(staticConsumerPID, constants.DataspaceConsumer),
 		)
-		assert.Nil(t, err)
-		assert.Equal(t, staticConsumerPID, negotiation.GetConsumerPID())
-		assert.Equal(t, staticProviderPID, negotiation.GetProviderPID())
-		assert.Equal(t, contract.States.FINALIZED, negotiation.GetState())
-		assert.Equal(t, odrlOffer, negotiation.GetOffer())
-		assert.Equal(t, callBack.String(), negotiation.GetCallback().String())
+		require.Nil(t, err)
+		require.Equal(t, staticConsumerPID, negotiation.GetConsumerPID())
+		require.Equal(t, staticProviderPID, negotiation.GetProviderPID())
+		require.Equal(t, contract.States.FINALIZED, negotiation.GetState())
+		require.Equal(t, odrlOffer, negotiation.GetOffer())
+		require.Equal(t, callBack.String(), negotiation.GetCallback().String())
+		cancel()
+		env.Close()
 	}
 }
 
 func TestNegotiationTermination(t *testing.T) {
-	t.Parallel()
-
 	for _, autoAccept := range []bool{true, false} {
 		for _, r := range []constants.DataspaceRole{constants.DataspaceConsumer, constants.DataspaceProvider} {
 			for _, s := range []contract.State{
@@ -775,8 +781,7 @@ func TestNegotiationTermination(t *testing.T) {
 				contract.States.AGREED,
 				contract.States.VERIFIED,
 			} {
-				ctx, cancel, env := setupEnvironment(t, false)
-				defer cancel()
+				ctx, cancel, env := setupEnvironment(t, false, false)
 				u := env.server.URL + "/negotiations/" + pidMap[r].String() + "/termination"
 				createNegotiation(ctx, t, env.store, s, r, autoAccept, &dsrpc.RequesterInfo{
 					AuthenticationStatus: dsrpc.AuthenticationStatus_AUTHENTICATION_STATUS_LOCAL_ORIGIN,
@@ -785,7 +790,6 @@ func TestNegotiationTermination(t *testing.T) {
 				if r == constants.DataspaceProvider {
 					pid = staticProviderPID.String()
 				}
-
 				if !autoAccept {
 					env.contractService.EXPECT().TerminationReceived(
 						mock.Anything, &dsrpc.ContractServiceTerminationReceivedRequest{
@@ -808,21 +812,23 @@ func TestNegotiationTermination(t *testing.T) {
 					}},
 				})
 				status := fetchAndDecode[shared.ContractNegotiation](ctx, t, http.MethodPost, u, body)
-				assert.Equal(t, "dspace:ContractNegotiation", status.Type)
-				assert.Equal(t, staticConsumerPID.URN(), status.ConsumerPID)
-				assert.Equal(t, staticProviderPID.URN(), status.ProviderPID)
-				assert.Equal(t, contract.States.TERMINATED.String(), status.State)
+				require.Equal(t, "dspace:ContractNegotiation", status.Type)
+				require.Equal(t, staticConsumerPID.URN(), status.ConsumerPID)
+				require.Equal(t, staticProviderPID.URN(), status.ProviderPID)
+				require.Equal(t, contract.States.TERMINATED.String(), status.State)
 
 				negotiation, err := env.store.GetContract(
 					ctx,
 					contractopts.WithRolePID(pidMap[r], r),
 				)
-				assert.Nil(t, err)
-				assert.Equal(t, staticConsumerPID, negotiation.GetConsumerPID())
-				assert.Equal(t, staticProviderPID, negotiation.GetProviderPID())
-				assert.Equal(t, contract.States.TERMINATED, negotiation.GetState())
-				assert.Equal(t, odrlOffer, negotiation.GetOffer())
-				assert.Equal(t, callBack.String(), negotiation.GetCallback().String())
+				require.Nil(t, err)
+				require.Equal(t, staticConsumerPID, negotiation.GetConsumerPID())
+				require.Equal(t, staticProviderPID, negotiation.GetProviderPID())
+				require.Equal(t, contract.States.TERMINATED, negotiation.GetState())
+				require.Equal(t, odrlOffer, negotiation.GetOffer())
+				require.Equal(t, callBack.String(), negotiation.GetCallback().String())
+				cancel()
+				env.Close()
 			}
 		}
 	}

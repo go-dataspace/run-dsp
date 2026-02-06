@@ -24,7 +24,18 @@ const (
 	DataspaceProvider
 )
 
-func GetRoleName(r DataspaceRole) string {
+func ParseRole(s string) (DataspaceRole, error) {
+	switch s {
+	case "Consumer":
+		return DataspaceConsumer, nil
+	case "Provider":
+		return DataspaceProvider, nil
+	default:
+		return 255, fmt.Errorf("not a valid role: %s", s)
+	}
+}
+
+func (r DataspaceRole) String() string {
 	switch r {
 	case DataspaceConsumer:
 		return "Consumer"

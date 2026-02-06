@@ -30,13 +30,12 @@ import (
 // StorageProvider is an interface that combines the *Saver interfaces.
 type StorageProvider interface {
 	// Migrate runs any pending migrations..
-	Migrate() error
+	Migrate(ctx context.Context) error
 	// Close runs clean up
 	Close() error
 	ContractSaver
 	AgreementSaver
 	TransferSaver
-	TokenSaver
 }
 
 // ContractSaver is an interface for storing/retrieving dataspace contracts.
@@ -78,14 +77,4 @@ type TransferSaver interface {
 	PutTransfer(context.Context, *transfer.Request) error
 	// ReleaseTransfer will release any lock the transferhas
 	ReleaseTransfer(context.Context, *transfer.Request) error
-}
-
-// TokenSaver saves a token to a key, no locking necessary as a token is immutable.
-type TokenSaver interface {
-	// GetToken retrieves a token by key.
-	GetToken(context.Context, string) (string, error)
-	// DelToken deletes a token by key.
-	DelToken(context.Context, string) error
-	// PutToken stores a key/token combination.
-	PutToken(context.Context, string, string) error
 }

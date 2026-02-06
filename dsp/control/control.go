@@ -576,6 +576,7 @@ func (s *Server) SignalTransferResume(
 	panic("not implemented") // TODO: Implement
 }
 
+//nolint:funlen // TODO: Clean this up.
 func (s *Server) InitiatePushTransfer(ctx context.Context, r *dsrpc.InitiatePushTransferRequest) (
 	*dsrpc.InitiatePushTransferResponse, error,
 ) {
@@ -634,7 +635,6 @@ func (s *Server) InitiatePushTransfer(ctx context.Context, r *dsrpc.InitiatePush
 		}
 		return nil, err
 	}
-
 	transferInit := statemachine.GetTransferRequestNegotiation(transferReq, s.provider, s.reconciler)
 	tApply, err := transferInit.Send(ctx)
 	if err != nil {

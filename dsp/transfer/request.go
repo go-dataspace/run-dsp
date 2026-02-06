@@ -15,9 +15,8 @@
 package transfer
 
 import (
-	"bytes"
 	"context"
-	"encoding/gob"
+	"encoding/json"
 	"fmt"
 	"net/url"
 	"slices"
@@ -26,6 +25,7 @@ import (
 	"github.com/google/uuid"
 	"go-dataspace.eu/ctxslog"
 	"go-dataspace.eu/run-dsp/dsp/constants"
+	"go-dataspace.eu/run-dsp/dsp/persistence/backends/sqlite/models"
 	"go-dataspace.eu/run-dsp/dsp/shared"
 	"go-dataspace.eu/run-dsp/odrl"
 	dsrpc "go-dataspace.eu/run-dsrpc/gen/go/dsp/v1alpha2"
@@ -62,6 +62,32 @@ const (
 	DirectionPush
 )
 
+func ParseDirection(s string) (Direction, error) {
+	switch s {
+	case "UNKNOWN":
+		return DirectionUnknown, nil
+	case "PULL":
+		return DirectionPull, nil
+	case "PUSH":
+		return DirectionPush, nil
+	default:
+		return 255, fmt.Errorf("invalid direction: %s", s)
+	}
+}
+
+func (d Direction) String() string {
+	switch d {
+	case DirectionUnknown:
+		return "UNKNOWN"
+	case DirectionPull:
+		return "PULL"
+	case DirectionPush:
+		return "PUSH"
+	default:
+		panic(fmt.Sprintf("unexpected transfer.Direction: %#v", d))
+	}
+}
+
 // Request represents a transfer request and its state.
 type Request struct {
 	state             State
@@ -80,22 +106,11 @@ type Request struct {
 	ro        bool
 	modified  bool
 	traceInfo shared.TraceInfo
-}
 
-type storableRequest struct {
-	State             State
-	ProviderPID       uuid.UUID
-	ConsumerPID       uuid.UUID
-	AgreementID       uuid.UUID
-	Target            string
-	Format            string
-	Callback          *url.URL
-	Self              *url.URL
-	Role              constants.DataspaceRole
-	PublishInfo       *dsrpc.PublishInfo
-	RequesterInfo     *dsrpc.RequesterInfo
-	TransferDirection Direction
-	TraceInfo         shared.TraceInfo
+	// Internal database state, not used for anything except to keep track in the db.
+	// Might be shown in debug info.
+	internal_id int64
+	locked      bool
 }
 
 func New(
@@ -135,30 +150,6 @@ func New(
 	return t
 }
 
-func FromBytes(b []byte) (*Request, error) {
-	var sr storableRequest
-	r := bytes.NewReader(b)
-	dec := gob.NewDecoder(r)
-	if err := dec.Decode(&sr); err != nil {
-		return nil, fmt.Errorf("could not decode bytes into storableRequest: %w", err)
-	}
-	return &Request{
-		state:             sr.State,
-		providerPID:       sr.ProviderPID,
-		consumerPID:       sr.ConsumerPID,
-		agreementID:       sr.AgreementID,
-		target:            sr.Target,
-		format:            sr.Format,
-		callback:          sr.Callback,
-		self:              sr.Self,
-		role:              sr.Role,
-		publishInfo:       sr.PublishInfo,
-		requesterInfo:     sr.RequesterInfo,
-		transferDirection: sr.TransferDirection,
-		traceInfo:         sr.TraceInfo,
-	}, nil
-}
-
 func GenerateKey(id uuid.UUID, role constants.DataspaceRole) []byte {
 	return []byte(TransferPrefix + id.String() + "-" + strconv.Itoa(int(role)))
 }
@@ -182,7 +173,7 @@ func (tr *Request) GetTransferDirection() Direction {
 
 func (tr *Request) GetLogFields(suffix string) []any {
 	return []any{
-		"role" + suffix, constants.GetRoleName(tr.role),
+		"role" + suffix, tr.role.String(),
 		"consumerPID" + suffix, tr.GetConsumerPID().String(),
 		"providerPID" + suffix, tr.GetProviderPID().String(),
 		"agreementID" + suffix, tr.GetAgreementID(),
@@ -241,30 +232,6 @@ func (tr *Request) StorageKey() []byte {
 // Property setters.
 func (tr *Request) SetReadOnly() { tr.ro = true }
 
-func (tr *Request) ToBytes() ([]byte, error) {
-	s := storableRequest{
-		State:             tr.state,
-		ProviderPID:       tr.providerPID,
-		ConsumerPID:       tr.consumerPID,
-		AgreementID:       tr.agreementID,
-		Target:            tr.target,
-		Format:            tr.format,
-		Callback:          tr.callback,
-		Self:              tr.self,
-		Role:              tr.role,
-		PublishInfo:       tr.publishInfo,
-		RequesterInfo:     tr.requesterInfo,
-		TransferDirection: tr.transferDirection,
-		TraceInfo:         tr.traceInfo,
-	}
-	var buf bytes.Buffer
-	enc := gob.NewEncoder(&buf)
-	if err := enc.Encode(s); err != nil {
-		return nil, fmt.Errorf("could not encode negotiation: %w", err)
-	}
-	return buf.Bytes(), nil
-}
-
 func (tr *Request) GetTransferProcess() shared.TransferProcess {
 	return shared.TransferProcess{
 		Context:     shared.GetDSPContext(),
@@ -283,4 +250,135 @@ func (tr *Request) panicRO() {
 
 func (tr *Request) modify() {
 	tr.modified = true
+}
+
+// FromModel convers a TransferREquest model to a Request.
+//
+//nolint:cyclop,funlen // It's not worth simplifying this at this time.
+func FromModel(req models.TransferRequest, ro bool) (*Request, error) {
+	state, err := ParseState(req.State)
+	if err != nil {
+		return nil, err
+	}
+
+	ppid, err := uuid.Parse(*req.ProviderPID)
+	if err != nil {
+		return nil, err
+	}
+
+	cpid, err := uuid.Parse(*req.ConsumerPID)
+	if err != nil {
+		return nil, err
+	}
+
+	agreement_id, err := uuid.Parse(req.Agreement.ID)
+	if err != nil {
+		return nil, err
+	}
+
+	callback, err := url.Parse(req.CallbackURL)
+	if err != nil {
+		return nil, err
+	}
+
+	self, err := url.Parse(req.SelfURL)
+	if err != nil {
+		return nil, err
+	}
+
+	role, err := constants.ParseRole(req.Role)
+	if err != nil {
+		return nil, err
+	}
+
+	var publishInfo *dsrpc.PublishInfo
+	if req.PublishInfo != nil {
+		if err := json.Unmarshal([]byte(*req.PublishInfo), publishInfo); err != nil {
+			return nil, err
+		}
+	}
+
+	var traceInfo shared.TraceInfo
+	if err := json.Unmarshal([]byte(req.TraceInfo), &traceInfo); err != nil {
+		return nil, err
+	}
+
+	var requesterInfo dsrpc.RequesterInfo
+	if err := json.Unmarshal([]byte(req.RequesterInfo), &requesterInfo); err != nil {
+		return nil, err
+	}
+
+	direction, err := ParseDirection(req.Direction)
+	if err != nil {
+		return nil, err
+	}
+	return &Request{
+		state:             state,
+		providerPID:       ppid,
+		consumerPID:       cpid,
+		agreementID:       agreement_id,
+		target:            req.Target,
+		format:            req.Format,
+		callback:          callback,
+		self:              self,
+		role:              role,
+		publishInfo:       publishInfo,
+		requesterInfo:     &requesterInfo,
+		transferDirection: direction,
+		ro:                !req.Locked,
+		modified:          false,
+		traceInfo:         traceInfo,
+		internal_id:       req.ID,
+		locked:            req.Locked,
+	}, nil
+}
+
+// ToModel converts this request to its model counterpart.
+func (tr *Request) ToModel() (models.TransferRequest, error) {
+	empty_urn := uuid.UUID{}.URN()
+	pp := (*string)(nil)
+	if provider_pid := tr.providerPID.URN(); provider_pid != empty_urn {
+		pp = &provider_pid
+	}
+	cp := (*string)(nil)
+	if consumer_pid := tr.consumerPID.URN(); consumer_pid != empty_urn {
+		cp = &consumer_pid
+	}
+
+	var pi *string
+	if tr.GetPublishInfo() != nil {
+		b, err := json.Marshal(tr.publishInfo)
+		if err != nil {
+			return models.TransferRequest{}, err
+		}
+		s := string(b)
+		pi = &s
+	}
+
+	reqInfo, err := json.Marshal(tr.requesterInfo)
+	if err != nil {
+		return models.TransferRequest{}, err
+	}
+
+	traceInfo, err := json.Marshal(tr.traceInfo)
+	if err != nil {
+		return models.TransferRequest{}, err
+	}
+	return models.TransferRequest{
+		ID:            tr.internal_id,
+		ProviderPID:   pp,
+		ConsumerPID:   cp,
+		AgreementID:   tr.agreementID.URN(),
+		Target:        tr.target,
+		Format:        tr.format,
+		PublishInfo:   pi,
+		Direction:     tr.transferDirection.String(),
+		State:         tr.state.String(),
+		CallbackURL:   tr.callback.String(),
+		SelfURL:       tr.self.String(),
+		Role:          tr.role.String(),
+		RequesterInfo: string(reqInfo),
+		TraceInfo:     string(traceInfo),
+		Locked:        false,
+	}, nil
 }

@@ -77,7 +77,7 @@ func transferError(
 		"dspCode", dspCode,
 		"reason", reason,
 		"err", err,
-		"role", constants.GetRoleName(transfer.GetRole()),
+		"role", transfer.GetRole().String(),
 		"localPID", transfer.GetLocalPID(),
 		"direction", transfer.GetTransferDirection(),
 	)

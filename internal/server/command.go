@@ -17,10 +17,8 @@ package server
 
 import (
 	"context"
-	"crypto/rand"
 	"crypto/tls"
 	"crypto/x509"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -572,7 +570,7 @@ func (c *command) setupServices(ctx context.Context, //nolint:cyclop
 	}
 
 	if contractService != nil {
-		err = c.configureContractService(ctx, store, contractService)
+		err = c.configureContractService(ctx, contractService)
 		if err != nil {
 			return nil, []*http.Server{}, grpcConnections, err
 		}
@@ -662,30 +660,17 @@ func setupMetrics() (*grpcprom.ServerMetrics, *grpcprom.ClientMetrics) {
 
 func (c *command) configureContractService(
 	ctx context.Context,
-	store persistence.StorageProvider,
 	contractService dsrpc.ContractServiceClient,
 ) error {
-	token, err := createToken(ctx, store)
-	if err != nil {
-		return err
-	}
-	_, err = contractService.Configure(ctx, &dsrpc.ContractServiceConfigureRequest{
+	// Token is deprecated and is not checked anymore, fully remove in a future release.
+	_, err := contractService.Configure(ctx, &dsrpc.ContractServiceConfigureRequest{
 		ConnectorAddress:  c.ControlExternalAddr,
-		VerificationToken: token,
+		VerificationToken: "noop",
 	})
 	if err != nil {
 		return err
 	}
 	return nil
-}
-
-func createToken(ctx context.Context, store persistence.StorageProvider) (string, error) {
-	token := generateToken()
-	err := store.PutToken(ctx, "contract-token", token)
-	if err != nil {
-		return "", err
-	}
-	return token, nil
 }
 
 func (c *command) startControl(
@@ -913,13 +898,4 @@ func cloneURL(u *url.URL) *url.URL {
 		panic(fmt.Sprintf("failed to clone URL %s: %s", u.String(), err))
 	}
 	return cu
-}
-
-func generateToken() string {
-	b := make([]byte, 256)
-	_, err := rand.Read(b)
-	if err != nil {
-		panic(err)
-	}
-	return hex.EncodeToString(b)
 }

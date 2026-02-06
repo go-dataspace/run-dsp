@@ -2,155 +2,169 @@ package sqlite
 
 import (
 	"context"
-	"encoding/json"
+	"database/sql"
 	"errors"
 	"fmt"
 	"net/url"
+	"time"
 
 	"github.com/google/uuid"
+	"github.com/uptrace/bun"
+	"go-dataspace.eu/ctxslog"
 	"go-dataspace.eu/run-dsp/dsp/constants"
 	"go-dataspace.eu/run-dsp/dsp/contract"
-	agreementopts "go-dataspace.eu/run-dsp/dsp/persistence/options/agreement"
+	"go-dataspace.eu/run-dsp/dsp/persistence/backends/sqlite/models"
 	contractopts "go-dataspace.eu/run-dsp/dsp/persistence/options/contract"
-	"go-dataspace.eu/run-dsp/odrl"
-	dsrpc "go-dataspace.eu/run-dsrpc/gen/go/dsp/v1alpha2"
 )
 
-func (p *Provider) GetContract(ctx context.Context, opts ...contractopts.NegotiationOption) (*contract.Negotiation, error) {
-	builder := newContractBuilder(opts...)
-	query, args := builder.Build()
-	row := p.handle.QueryRowContext(ctx, query, args...)
-	return p.rowToNegotiation(ctx, row, builder.RW)
-}
+func (p *Provider) GetContract(
+	ctx context.Context,
+	opts ...contractopts.NegotiationOption,
+) (*contract.Negotiation, error) {
+	params := newNegotiationParamBuilder(opts...)
+	if params.RW {
+		return p.getContractLocked(ctx, params)
+	}
 
-func (p *Provider) GetContracts(ctx context.Context, opts ...contractopts.NegotiationOption) ([]*contract.Negotiation, error) {
-	builder := newContractBuilder(opts...)
-	query, args := builder.Build()
-	rows, err := p.handle.QueryContext(ctx, query, args...)
+	var cn models.ContractNegotiation
+	var ok bool
+	qb := p.h.NewSelect().Model(&cn).Relation("Agreement")
+	qb, ok = params.GetWhereGroup(qb.QueryBuilder(), nil).Unwrap().(*bun.SelectQuery)
+	if !ok {
+		// This should never happen, but if it does, best to crash and burn.
+		panic("could not unwrap query")
+	}
+	err := qb.Scan(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("couldn't run contract negotiation query: %w", err)
+		return nil, err
 	}
-	defer func() { _ = rows.Close() }()
+	return contract.FromModel(cn, true)
+}
 
-	negotiations := make([]*contract.Negotiation, 0)
-	for rows.Next() {
-		negotiation, err := p.rowToNegotiation(ctx, rows, builder.RW)
-		if err != nil {
-			return nil, fmt.Errorf("could not scan row: %w", err)
-		}
-		negotiations = append(negotiations, negotiation)
+//nolint:dupl // The duplication here makes the code simpler.
+func (p *Provider) GetContracts(ctx context.Context,
+	opts ...contractopts.NegotiationOption,
+) ([]*contract.Negotiation, error) {
+	params := newNegotiationParamBuilder(opts...)
+	if params.RW {
+		return nil, errors.New("can't get multiple records in read-write mode")
 	}
-	return negotiations, nil
-}
 
-func (p *Provider) PutContract(ctx context.Context, contract *contract.Negotiation) error {
-	return errors.New("Not implemented")
-}
-
-func (p *Provider) ReleaseContract(ctx context.Context, contract *contract.Negotiation) error {
-	return errors.New("Not implemented")
-}
-
-type rowScanner interface {
-	Scan(dest ...any) error
-}
-
-func (p *Provider) rowToNegotiation(ctx context.Context, row rowScanner, rw bool) (*contract.Negotiation, error) {
-	var provider_pid, consumer_pid, agreement_id *string
-	var offer, state, callback_url, self_url, role string
-	var requester_info string
-	var auto_accept bool
-	if err := row.Scan(
-		provider_pid, consumer_pid, agreement_id,
-		&offer, &state, &callback_url, &self_url, &role,
-		&auto_accept, &requester_info,
-	); err != nil {
-		return nil, fmt.Errorf("could not find row: %w", err)
+	var cns []models.ContractNegotiation
+	var ok bool
+	qb := p.h.NewSelect().Model(&cns).Relation("Agreement")
+	qb, ok = params.GetWhereGroup(qb.QueryBuilder(), nil).Unwrap().(*bun.SelectQuery)
+	if !ok {
+		// This should never happen, but if it does, best to crash and burn.
+		panic("could not unwrap query")
 	}
-	var agreement *odrl.Agreement
-	if agreement_id != nil {
-		agreement_uuid, err := uuid.Parse(*agreement_id)
-		if err != nil {
-			return nil, fmt.Errorf("contract negotiation had unparsable agreement UUID: %s: %w", *agreement_id, err)
-		}
-		// TODO: This should be converted to a JOIN for performance reasons.
-		agreement, err = p.GetAgreement(ctx, agreementopts.WithAgreementID(agreement_uuid))
+	err := qb.Scan(ctx)
+	if err != nil {
+		return nil, err
+	}
+	negs := make([]*contract.Negotiation, len(cns))
+	for i, cn := range cns {
+		negs[i], err = contract.FromModel(cn, true)
 		if err != nil {
 			return nil, err
 		}
 	}
-
-	return newContractNegotiation(
-		ctx, provider_pid, consumer_pid, agreement,
-		offer, state, callback_url, self_url, role, requester_info,
-		auto_accept, rw,
-	)
+	return negs, err
 }
 
-func newContractNegotiation(
+func (p *Provider) getContractLocked(
 	ctx context.Context,
-	providerPIDString, consumerPIDString *string,
-	agreement *odrl.Agreement,
-	offerJSON, stateString, callbackString, selfString, roleString, requesterInfoString string,
-	auto_accept, rw bool,
+	params *negotiationParamBuilder,
 ) (*contract.Negotiation, error) {
-	providerPID := uuid.UUID{}
-	if providerPIDString != nil {
-		var err error
-		providerPID, err = uuid.Parse(*providerPIDString)
-		if err != nil {
-			return nil, fmt.Errorf("contract negotiation had unparsable provider UUID: %s: %w", *providerPIDString, err)
-		}
+	var ok bool
+	// First check if there's any records at all.
+	qb := p.h.NewSelect().Model((*models.ContractNegotiation)(nil))
+	qb, ok = params.GetWhereGroup(qb.QueryBuilder(), nil).Unwrap().(*bun.SelectQuery)
+	if !ok {
+		// This should never happen, but if it does, best to crash and burn.
+		panic("could not unwrap query")
 	}
-	consumerPID := uuid.UUID{}
-	if consumerPIDString != nil {
-		var err error
-		consumerPID, err = uuid.Parse(*consumerPIDString)
-		if err != nil {
-			return nil, fmt.Errorf("contract negotiation had unparsable consumer UUID: %s: %w", *consumerPIDString, err)
-		}
-	}
-	var offer odrl.Offer
-	if err := json.Unmarshal([]byte(offerJSON), &offer); err != nil {
-		return nil, fmt.Errorf("contract negotiation had unparsable odrl.Offer: %s: %w", offerJSON, err)
-	}
-	state, err := contract.ParseState(stateString)
+	count, err := qb.Count(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("contract negotiation had unparsable state: %s: %w", stateString, err)
+		return nil, err
 	}
-	callbackURL, err := url.Parse(callbackString)
-	if err != nil {
-		return nil, fmt.Errorf("contract negotiation had unparsable callback URL: %s: %w", callbackString, err)
-	}
-	selfURL, err := url.Parse(selfString)
-	if err != nil {
-		return nil, fmt.Errorf("contract negotiation had unparsable self URL: %s: %w", selfString, err)
-	}
-	var role constants.DataspaceRole
-	switch roleString {
-	case "consumer":
-		role = constants.DataspaceConsumer
-	case "provider":
-		role = constants.DataspaceProvider
-	default:
-		return nil, fmt.Errorf("contract negotiation had unparsable role: %s", roleString)
-	}
-	var requesterInfo dsrpc.RequesterInfo
-	if err := json.Unmarshal([]byte(requesterInfoString), &requesterInfo); err != nil {
-		return nil, fmt.Errorf("contract negotiation had unparsable requester info: %s: %w", requesterInfoString, err)
-	}
-	neg := contract.New(ctx, providerPID, consumerPID, state, offer, callbackURL, selfURL, role, auto_accept, &requesterInfo)
-	if !rw {
-		neg.SetReadOnly()
+	if count != 1 {
+		// TODO: Make persistence specific errors.
+		return nil, fmt.Errorf("found non-1 amount of instances: %d", count)
 	}
 
-	if agreement != nil {
-		neg.SetAgreement(agreement)
+	var cn models.ContractNegotiation
+	for range p.lockTimeout {
+		qb := p.h.NewUpdate().Model(&cn).Set("locked = ?", true)
+		f := false
+		var ok bool
+		qb, ok = params.GetWhereGroup(qb.QueryBuilder(), &f).Unwrap().(*bun.UpdateQuery)
+		if !ok {
+			// This should never happen, but if it does, best to crash and burn.
+			panic("could not unwrap query")
+		}
+		err := qb.Returning("*").Scan(ctx)
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				ctxslog.Debug(ctx, "Could not acquire lock, sleeping...")
+				time.Sleep(1 * time.Second)
+				continue
+			}
+			return nil, err
+		}
+
+		// As UPDATE ... RETURNING does not support JOINS we have to do this manually.
+		if cn.AgreementID != nil {
+			var ag models.Agreement
+			err = p.h.NewSelect().Model(&ag).Where("id = ?", cn.AgreementID).Scan(ctx)
+			if err != nil {
+				return nil, err
+			}
+			cn.Agreement = &ag
+		}
+		return contract.FromModel(cn, false)
 	}
-	return neg, nil
+	return nil, fmt.Errorf("could not acquire lock")
 }
 
-type contractBuilder struct {
+func (p *Provider) PutContract(ctx context.Context, contract *contract.Negotiation) error {
+	model, err := contract.ToModel()
+	if err != nil {
+		return err
+	}
+	_, err = p.h.NewInsert().
+		Model(&model).
+		On("CONFLICT (id) DO UPDATE").
+		Set(`
+			provider_pid = EXCLUDED.provider_pid,
+			consumer_pid = EXCLUDED.consumer_pid,
+			agreement_id = EXCLUDED.agreement_id,
+			offer = EXCLUDED.offer,
+			state = EXCLUDED.state,
+			callback_url = EXCLUDED.callback_url,
+			self_url = EXCLUDED.self_url,
+			auto_accept = EXCLUDED.auto_accept,
+			requester_info = EXCLUDED.requester_info,
+			trace_info = EXCLUDED.trace_info,
+			locked = EXCLUDED.locked
+		`).Exec(ctx)
+	return err
+}
+
+func (p *Provider) ReleaseContract(ctx context.Context, contract *contract.Negotiation) error {
+	model, err := contract.ToModel()
+	if err != nil {
+		return err
+	}
+	_, err = p.h.NewUpdate().
+		Model(&model).
+		Set("locked = ?", false).
+		WherePK().
+		Exec(ctx)
+	return err
+}
+
+type negotiationParamBuilder struct {
 	consumerPID *uuid.UUID
 	providerPID *uuid.UUID
 	agreementID *uuid.UUID
@@ -160,52 +174,45 @@ type contractBuilder struct {
 	RW          bool
 }
 
-func newContractBuilder(opts ...contractopts.NegotiationOption) *contractBuilder {
-	builder := &contractBuilder{}
+func newNegotiationParamBuilder(opts ...contractopts.NegotiationOption) *negotiationParamBuilder {
+	builder := &negotiationParamBuilder{}
 	for _, opt := range opts {
 		opt(builder)
 	}
 	return builder
 }
 
-func (qb *contractBuilder) SetConsumerPID(pid uuid.UUID)      { qb.consumerPID = &pid }
-func (qb *contractBuilder) SetProviderPID(pid uuid.UUID)      { qb.providerPID = &pid }
-func (qb *contractBuilder) SetAgreementID(id uuid.UUID)       { qb.agreementID = &id }
-func (qb *contractBuilder) SetCallback(u *url.URL)            { qb.callback = u }
-func (qb *contractBuilder) SetRole(r constants.DataspaceRole) { qb.role = &r }
-func (qb *contractBuilder) SetState(s contract.State)         { qb.state = &s }
-func (qb *contractBuilder) SetRW()                            { qb.RW = true }
+func (cb *negotiationParamBuilder) SetConsumerPID(pid uuid.UUID)      { cb.consumerPID = &pid }
+func (cb *negotiationParamBuilder) SetProviderPID(pid uuid.UUID)      { cb.providerPID = &pid }
+func (cb *negotiationParamBuilder) SetAgreementID(id uuid.UUID)       { cb.agreementID = &id }
+func (cb *negotiationParamBuilder) SetCallback(u *url.URL)            { cb.callback = u }
+func (cb *negotiationParamBuilder) SetRole(r constants.DataspaceRole) { cb.role = &r }
+func (cb *negotiationParamBuilder) SetState(s contract.State)         { cb.state = &s }
+func (cb *negotiationParamBuilder) SetRW()                            { cb.RW = true }
 
-func (qb *contractBuilder) Build() (string, []any) {
-	args := make([]any, 0)
-	queryString := `
-	SELECT
-		provider_pid, consumer_pid, agreement_pid, offer,
-	 	state, callback_url, self_url, role, auto_accept,
-		requester_info, trace_info
-	FROM contract_negotations
-	WHERE
-	locked=false`
-
-	if qb.consumerPID != nil {
-		queryString += "AND consumer_pid=?"
-		args = append(args, qb.consumerPID.String())
-	}
-	if qb.providerPID != nil {
-		queryString += "AND provider_pid=?"
-		args = append(args, qb.providerPID.String())
-	}
-	if qb.agreementID != nil {
-		queryString += "AND agreement_id=?"
-		args = append(args, qb.agreementID.String())
-	}
-	if qb.callback != nil {
-		queryString += "AND callback_url=?"
-		args = append(args, qb.callback.String())
-	}
-	if qb.role != nil {
-		queryString += "AND role=?"
-		args = append(args, qb.callback.String())
-	}
-	return queryString, args
+func (cb negotiationParamBuilder) GetWhereGroup(qb bun.QueryBuilder, locked *bool) bun.QueryBuilder {
+	return qb.WhereGroup(" AND ", func(qb bun.QueryBuilder) bun.QueryBuilder {
+		if locked != nil {
+			qb = qb.Where("locked = ?", *locked)
+		}
+		if cb.consumerPID != nil {
+			qb = qb.Where("consumer_pid = ?", cb.consumerPID.URN())
+		}
+		if cb.providerPID != nil {
+			qb = qb.Where("provider_pid = ?", cb.providerPID.URN())
+		}
+		if cb.agreementID != nil {
+			qb = qb.Where("agreement_id = ?", cb.agreementID.URN())
+		}
+		if cb.callback != nil {
+			qb = qb.Where("callback_url = ?", cb.callback.String())
+		}
+		if cb.role != nil {
+			qb = qb.Where("role = ?", cb.role.String())
+		}
+		if cb.state != nil {
+			qb = qb.Where("state = ?", cb.state.String())
+		}
+		return qb
+	})
 }

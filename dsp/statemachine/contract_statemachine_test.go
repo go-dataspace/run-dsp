@@ -68,8 +68,6 @@ var (
 
 //nolint:funlen
 func TestTermination(t *testing.T) {
-	t.Parallel()
-
 	offer := odrl.Offer{
 		MessageOffer: odrl.MessageOffer{
 			PolicyClass: odrl.PolicyClass{
@@ -86,7 +84,9 @@ func TestTermination(t *testing.T) {
 	ctx, done := context.WithCancel(ctx)
 	defer done()
 
-	store, err := sqlite.New(ctx, true, "")
+	store, err := sqlite.New(ctx, true, false, "")
+	assert.Nil(t, err)
+	err = store.Migrate(ctx)
 	assert.Nil(t, err)
 
 	requester := &MockRequester{}

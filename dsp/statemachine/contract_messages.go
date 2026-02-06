@@ -77,7 +77,7 @@ func makeRequestFunction(
 		ctxslog.Debug(ctx, "Adding entry to reconciler",
 			"entityID", id.String(),
 			"entityType", recType,
-			"role", constants.GetRoleName(role),
+			"role", role.String(),
 			"destinationState", destinationState,
 		)
 		reconciler.Add(ReconciliationEntry{

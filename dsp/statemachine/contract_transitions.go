@@ -113,7 +113,11 @@ func (cn *ContractNegotiationInitial) processContractOffer(
 	if err := cn.SetState(contract.States.OFFERED); err != nil {
 		return ctx, nil, ctxslog.ReturnError(ctx, "could not set state", err)
 	}
-	cn.SetConsumerPID(uuid.New())
+	// We now only set this if it's nil, as we want to set it as soon as possible in the handler as well.
+	var emptyUUID uuid.UUID
+	if cn.GetConsumerPID() == emptyUUID {
+		cn.SetConsumerPID(uuid.New())
+	}
 	cn.SetInitial()
 
 	offer, err := json.Marshal(cn.GetOffer())

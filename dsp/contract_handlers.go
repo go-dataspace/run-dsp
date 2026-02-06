@@ -138,7 +138,7 @@ func (dh *dspHandlers) providerContractRequestHandler(w http.ResponseWriter, req
 	}
 	negotiation := contract.New(
 		ctx,
-		uuid.UUID{},
+		uuid.New(),
 		consumerPID,
 		contract.States.INITIAL,
 		odrl.Offer{MessageOffer: contractReq.Offer},
@@ -186,6 +186,7 @@ func progressContractState[T any](
 	return processMessage(dh, w, req, role, pid, msg)
 }
 
+// TODO: Clean this function up.
 func processMessage[T any](
 	dh *dspHandlers,
 	w http.ResponseWriter,
@@ -214,13 +215,11 @@ func processMessage[T any](
 		dh.contractService,
 		dh.reconciler,
 	)
-
 	ctx, apply, err := pState.Recv(ctx, msg)
 	if err != nil {
 		return contractError(ctx, fmt.Sprintf("invalid request: %s", err),
 			http.StatusBadRequest, "400", "Invalid request", pState.GetContract())
 	}
-
 	if contract.AutoAccept() || (dh.contractService == nil || reflect.ValueOf(dh.contractService).IsNil()) {
 		ctx = ctxslog.With(ctx, pState.GetContract().GetLogFields("_send")...)
 		transition := statemachine.GetContractNegotiation(
@@ -236,7 +235,6 @@ func processMessage[T any](
 			)
 		}
 	}
-
 	err = storeNegotiation(ctx, dh.store, pState.GetContract())
 	if err != nil {
 		return err
@@ -249,7 +247,6 @@ func processMessage[T any](
 	if err := shared.EncodeValid(w, req, http.StatusOK, pState.GetContractNegotiation()); err != nil {
 		ctxslog.Err(ctx, "Couldn't serve response", err)
 	}
-
 	return nil
 }
 

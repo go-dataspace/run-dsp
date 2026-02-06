@@ -3,63 +3,77 @@ package sqlite
 import (
 	"context"
 	"database/sql"
-	"embed"
-	"errors"
 	"fmt"
 
-	_ "github.com/mattn/go-sqlite3"
-
-	"github.com/golang-migrate/migrate/v4"
-	"github.com/golang-migrate/migrate/v4/database/sqlite3"
-	"github.com/golang-migrate/migrate/v4/source/iofs"
+	"github.com/uptrace/bun"
+	"github.com/uptrace/bun/dialect/sqlitedialect"
+	"github.com/uptrace/bun/driver/sqliteshim"
+	"github.com/uptrace/bun/extra/bundebug"
+	"github.com/uptrace/bun/migrate"
+	"go-dataspace.eu/ctxslog"
+	"go-dataspace.eu/run-dsp/dsp/persistence/backends/sqlite/migrations"
 )
 
 // Provider is a StorageProvider instance for the sqlite backend.
 type Provider struct {
-	handle *sql.DB
+	h           *bun.DB
+	s           *sql.DB
+	lockTimeout int
 }
 
-//go:embed migrations/*.sql
-var migrations embed.FS
-
 // New returns a provider instance, or an error if it failed to create/open a database.
-func New(ctx context.Context, inMemory bool, dbPath string) (*Provider, error) {
-	dbPath = "file:" + dbPath
+func New(ctx context.Context, inMemory, debug bool, dbPath string) (*Provider, error) {
 	if inMemory {
-		dbPath = "file:memfile.db?cache=shared&mode=memory"
+		dbPath = "file::memory:?cache=shared"
 	}
-	db, err := sql.Open("sqlite3", dbPath)
+	sqlDB, err := sql.Open(sqliteshim.DriverName(), dbPath)
 	if err != nil {
 		return nil, err
 	}
-	if err := db.Ping(); err != nil {
-		return nil, fmt.Errorf("couldn't ping database: %w", err)
+
+	db := bun.NewDB(sqlDB, sqlitedialect.New())
+	if debug {
+		db.AddQueryHook(bundebug.NewQueryHook(bundebug.WithVerbose(true)))
 	}
-	return &Provider{handle: db}, nil
+	return &Provider{h: db, s: sqlDB, lockTimeout: 60}, nil
+}
+
+// Sets the lock timeout, only intended for tests.
+func (p *Provider) SetLockTimeout(secs int) {
+	p.lockTimeout = secs
 }
 
 // Migrate runs the latest migrations.
-func (p *Provider) Migrate() error {
-	d, err := iofs.New(migrations, "migrations")
-	if err != nil {
-		return fmt.Errorf("couldn't initialise iofs: %w", err)
+func (p *Provider) Migrate(ctx context.Context) error {
+	migrator := migrate.NewMigrator(p.h, migrations.Migrations)
+	if err := migrator.Init(ctx); err != nil {
+		return err
 	}
-	s, err := sqlite3.WithInstance(p.handle, &sqlite3.Config{})
-	if err != nil {
-		return fmt.Errorf("couldn't initialise sqlite migration instance: %w", err)
+
+	if err := migrator.Lock(ctx); err != nil {
+		return err
 	}
-	m, err := migrate.NewWithInstance("iofs", d, "sqlite", s)
+	defer func() {
+		if err := migrator.Unlock(ctx); err != nil {
+			panic(fmt.Sprintf("Could not unlock migrator and database: %s", err))
+		}
+	}()
+
+	group, err := migrator.Migrate(ctx)
 	if err != nil {
-		return fmt.Errorf("couldn't initalise migration: %w", err)
+		return err
 	}
-	err = m.Up()
-	if errors.Is(err, migrate.ErrNoChange) {
+
+	if group.IsZero() {
+		ctxslog.Info(ctx, "No migrations to perform")
 		return nil
 	}
-	return err
+
+	ctxslog.Info(ctx, "Migration complete", "group", group.String())
+	return nil
 }
 
 // Close closes the handle.
 func (p *Provider) Close() error {
-	return p.handle.Close()
+	return p.s.Close()
 }
