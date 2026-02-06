@@ -229,7 +229,6 @@ func initialiseRecords(ctx context.Context, t *testing.T, p *sqlite.Provider) {
 func TestPutAndGetNegotiations(t *testing.T) {
 	r := require.New(t)
 	ctx, p := setupEnv(t, false)
-	defer r.Nil(p.Close())
 	initialiseRecords(ctx, t, p)
 
 	for _, params := range allNegotiations {
@@ -241,12 +240,12 @@ func TestPutAndGetNegotiations(t *testing.T) {
 			negotiationsEqual(t, existing, new)
 		})
 	}
+	r.Nil(p.Close())
 }
 
 func TestPutAndMutateStateNegotiations(t *testing.T) {
 	r := require.New(t)
 	ctx, p := setupEnv(t, false)
-	defer require.Nil(t, p.Close())
 	initialiseRecords(ctx, t, p)
 
 	for _, params := range allNegotiations {
@@ -265,12 +264,12 @@ func TestPutAndMutateStateNegotiations(t *testing.T) {
 			negotiationsEqual(t, existing, new)
 		})
 	}
+	require.Nil(t, p.Close())
 }
 
 func TestPutDuplicateNegotiations(t *testing.T) {
 	r := require.New(t)
 	ctx, p := setupEnv(t, false)
-	defer r.Nil(p.Close())
 	initialiseRecords(ctx, t, p)
 
 	for _, params := range allNegotiations {
@@ -279,12 +278,12 @@ func TestPutDuplicateNegotiations(t *testing.T) {
 			r.Error(p.PutContract(ctx, existing))
 		})
 	}
+	r.Nil(p.Close())
 }
 
 func TestGetLockedNegotiations(t *testing.T) {
 	r := require.New(t)
 	ctx, p := setupEnv(t, false)
-	defer r.Nil(p.Close())
 	p.SetLockTimeout(1)
 	initialiseRecords(ctx, t, p)
 
@@ -298,4 +297,5 @@ func TestGetLockedNegotiations(t *testing.T) {
 			r.Error(err)
 		})
 	}
+	r.Nil(p.Close())
 }

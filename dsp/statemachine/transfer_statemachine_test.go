@@ -48,7 +48,7 @@ func TestTransferTermination(t *testing.T) { //nolint:funlen
 	ctx, done := context.WithCancel(ctx)
 	defer done()
 
-	store, err := sqlite.New(ctx, true, true, "")
+	store, err := sqlite.New(ctx, true, false, "")
 	assert.Nil(t, err)
 	err = store.Migrate(ctx)
 	assert.Nil(t, err)

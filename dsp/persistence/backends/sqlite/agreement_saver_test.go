@@ -51,9 +51,9 @@ func TestPutAndGetAgreement(t *testing.T) {
 		PolicyClass: odrl.PolicyClass{},
 	}
 	ctx, p := setupEnv(t, false)
-	defer require.Nil(t, p.Close())
 	require.Nil(t, p.PutAgreement(ctx, &agreement))
 	newAgreement, err := p.GetAgreement(ctx, agreementopts.WithAgreementID(agreementID))
 	require.Nil(t, err)
 	require.Equal(t, &agreement, newAgreement)
+	require.Nil(t, p.Close())
 }
