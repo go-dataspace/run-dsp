@@ -171,6 +171,11 @@ func (tr *Request) GetTransferDirection() Direction {
 	return tr.transferDirection
 }
 
+// For internal DB state, might not be used with certain storage backend, here ONLY FOR DISPLAY
+// AND TESTING.
+func (tr *Request) GetInternalID() int64 { return tr.internal_id }
+func (tr *Request) GetLocked() bool      { return tr.locked }
+
 func (tr *Request) GetLogFields(suffix string) []any {
 	return []any{
 		"role" + suffix, tr.role.String(),
@@ -293,9 +298,11 @@ func FromModel(req models.TransferRequest, ro bool) (*Request, error) {
 
 	var publishInfo *dsrpc.PublishInfo
 	if req.PublishInfo != nil {
-		if err := json.Unmarshal([]byte(*req.PublishInfo), publishInfo); err != nil {
+		var pi dsrpc.PublishInfo
+		if err := json.Unmarshal([]byte(*req.PublishInfo), &pi); err != nil {
 			return nil, err
 		}
+		publishInfo = &pi
 	}
 
 	var traceInfo shared.TraceInfo
@@ -303,9 +310,13 @@ func FromModel(req models.TransferRequest, ro bool) (*Request, error) {
 		return nil, err
 	}
 
-	var requesterInfo dsrpc.RequesterInfo
-	if err := json.Unmarshal([]byte(req.RequesterInfo), &requesterInfo); err != nil {
-		return nil, err
+	var requesterInfo *dsrpc.RequesterInfo
+	if req.RequesterInfo != nil {
+		var ri dsrpc.RequesterInfo
+		if err := json.Unmarshal([]byte(*req.RequesterInfo), &ri); err != nil {
+			return nil, err
+		}
+		requesterInfo = &ri
 	}
 
 	direction, err := ParseDirection(req.Direction)
@@ -323,7 +334,7 @@ func FromModel(req models.TransferRequest, ro bool) (*Request, error) {
 		self:              self,
 		role:              role,
 		publishInfo:       publishInfo,
-		requesterInfo:     &requesterInfo,
+		requesterInfo:     requesterInfo,
 		transferDirection: direction,
 		ro:                !req.Locked,
 		modified:          false,
@@ -355,9 +366,14 @@ func (tr *Request) ToModel() (models.TransferRequest, error) {
 		pi = &s
 	}
 
-	reqInfo, err := json.Marshal(tr.requesterInfo)
-	if err != nil {
-		return models.TransferRequest{}, err
+	var ri *string
+	if tr.GetRequesterInfo() != nil {
+		reqInfo, err := json.Marshal(tr.requesterInfo)
+		if err != nil {
+			return models.TransferRequest{}, err
+		}
+		r := string(reqInfo)
+		ri = &r
 	}
 
 	traceInfo, err := json.Marshal(tr.traceInfo)
@@ -377,7 +393,7 @@ func (tr *Request) ToModel() (models.TransferRequest, error) {
 		CallbackURL:   tr.callback.String(),
 		SelfURL:       tr.self.String(),
 		Role:          tr.role.String(),
-		RequesterInfo: string(reqInfo),
+		RequesterInfo: ri,
 		TraceInfo:     string(traceInfo),
 		Locked:        false,
 	}, nil

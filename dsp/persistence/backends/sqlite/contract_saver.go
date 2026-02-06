@@ -128,6 +128,12 @@ func (p *Provider) getContractLocked(
 }
 
 func (p *Provider) PutContract(ctx context.Context, contract *contract.Negotiation) error {
+	if contract.ReadOnly() {
+		panic("trying to save a read only model, this is certainly a bug")
+	}
+	if !contract.Modified() {
+		return nil
+	}
 	model, err := contract.ToModel()
 	if err != nil {
 		return err

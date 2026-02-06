@@ -25,7 +25,7 @@ func (p *Provider) GetTransfer(ctx context.Context, opts ...transferopts.Request
 
 	var tr models.TransferRequest
 	var ok bool
-	qb := p.h.NewSelect().Model(&tr).Relation("agreements")
+	qb := p.h.NewSelect().Model(&tr).Relation("Agreement")
 	qb, ok = params.GetWhereGroup(qb.QueryBuilder(), nil).Unwrap().(*bun.SelectQuery)
 	if !ok {
 		// This should never happen, but if it does, best to crash and burn.
@@ -117,6 +117,12 @@ func (p *Provider) getTransferLocked(ctx context.Context, params *transferParamB
 }
 
 func (p *Provider) PutTransfer(ctx context.Context, req *transfer.Request) error {
+	if req.ReadOnly() {
+		panic("trying to save a read only model, this is certainly a bug")
+	}
+	if !req.Modified() {
+		return nil
+	}
 	model, err := req.ToModel()
 	if err != nil {
 		return err
@@ -137,7 +143,7 @@ func (p *Provider) PutTransfer(ctx context.Context, req *transfer.Request) error
 			self_url = EXCLUDED.self_url,
 			requester_info = EXCLUDED.requester_info,
 			trace_info = EXCLUDED.trace_info,
-			locked = EXCLUDED.locked,
+			locked = EXCLUDED.locked
 		`).Exec(ctx)
 	return err
 }
@@ -193,7 +199,7 @@ func (cb transferParamBuilder) GetWhereGroup(qb bun.QueryBuilder, locked *bool) 
 			qb = qb.Where("consumer_pid = ?", cb.consumerPID.URN())
 		}
 		if cb.providerPID != nil {
-			qb = qb.Where("provider_pid = ?", cb.consumerPID.URN())
+			qb = qb.Where("provider_pid = ?", cb.providerPID.URN())
 		}
 		if cb.agreementID != nil {
 			qb = qb.Where("agreement_id = ?", cb.agreementID.URN())

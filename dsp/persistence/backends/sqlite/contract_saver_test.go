@@ -11,12 +11,15 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+//
+//nolint:dupl
 package sqlite_test
 
 import (
 	"context"
 	"fmt"
 	"net/url"
+	"slices"
 	"testing"
 	"time"
 
@@ -115,20 +118,8 @@ var (
 		offer:       odrlOffer,
 		agreement:   nil,
 		role:        constants.DataspaceProvider,
-		callback:    callBack,
-		self:        selfURL,
-		autoAccept:  false,
-	}
-	negotiationRequestedProvider = negotiationParams{
-		name:        "requested provider",
-		consumerPID: uuid.MustParse("c871dd75-1bf2-4ba3-8504-cba3b1415214"),
-		providerPID: uuid.MustParse("26a1b947-abbe-4119-832a-82b878695494"),
-		state:       contract.States.REQUESTED,
-		offer:       odrlOffer,
-		agreement:   nil,
-		role:        constants.DataspaceProvider,
-		callback:    callBack,
-		self:        selfURL,
+		callback:    selfURL,
+		self:        callBack,
 		autoAccept:  false,
 	}
 	negotiationRequestedConsumer = negotiationParams{
@@ -143,16 +134,16 @@ var (
 		self:        selfURL,
 		autoAccept:  false,
 	}
-	negotiationVerifiedProvider = negotiationParams{
-		name:        "verified provider",
-		consumerPID: uuid.MustParse("c374702b-830f-48fd-914d-c651ab79fcc7"),
-		providerPID: uuid.MustParse("588db935-fbf3-442b-94f6-4ac9da025dcc"),
-		state:       contract.States.VERIFIED,
+	negotiationRequestedProvider = negotiationParams{
+		name:        "requested provider",
+		consumerPID: uuid.MustParse("c871dd75-1bf2-4ba3-8504-cba3b1415214"),
+		providerPID: uuid.MustParse("26a1b947-abbe-4119-832a-82b878695494"),
+		state:       contract.States.REQUESTED,
 		offer:       odrlOffer,
-		agreement:   &odrlAgreement,
+		agreement:   nil,
 		role:        constants.DataspaceProvider,
-		callback:    callBack,
-		self:        selfURL,
+		callback:    selfURL,
+		self:        callBack,
 		autoAccept:  false,
 	}
 	negotiationVerifiedConsumer = negotiationParams{
@@ -165,6 +156,18 @@ var (
 		role:        constants.DataspaceConsumer,
 		callback:    callBack,
 		self:        selfURL,
+		autoAccept:  false,
+	}
+	negotiationVerifiedProvider = negotiationParams{
+		name:        "verified provider",
+		consumerPID: uuid.MustParse("c374702b-830f-48fd-914d-c651ab79fcc7"),
+		providerPID: uuid.MustParse("588db935-fbf3-442b-94f6-4ac9da025dcc"),
+		state:       contract.States.VERIFIED,
+		offer:       odrlOffer,
+		agreement:   &odrlAgreement,
+		role:        constants.DataspaceProvider,
+		callback:    selfURL,
+		self:        callBack,
 		autoAccept:  false,
 	}
 
@@ -223,6 +226,10 @@ func initialiseRecords(ctx context.Context, t *testing.T, p *sqlite.Provider) {
 			r.Nil(p.PutAgreement(ctx, params.agreement))
 		}
 		r.Nil(p.PutContract(ctx, neg))
+	}
+	for _, params := range allRequests {
+		req := paramsToRequest(ctx, t, params)
+		r.Nil(p.PutTransfer(ctx, req))
 	}
 }
 
@@ -296,6 +303,54 @@ func TestGetLockedNegotiations(t *testing.T) {
 			_, err = p.GetContract(ctx, contractopts.WithRolePID(params.RolePID(), params.role), contractopts.WithRW())
 			r.Error(err)
 		})
+	}
+	r.Nil(p.Close())
+}
+
+func TestGetRequestedNegotiations(t *testing.T) {
+	r := require.New(t)
+	ctx, p := setupEnv(t, false)
+	p.SetLockTimeout(1)
+	initialiseRecords(ctx, t, p)
+
+	negotiations, err := p.GetContracts(ctx, contractopts.WithState(contract.States.REQUESTED))
+	r.Nil(err)
+	r.Equal(2, len(negotiations))
+	r.True(slices.ContainsFunc(negotiations, func(n *contract.Negotiation) bool {
+		return negotiationRequestedConsumer.consumerPID == n.GetConsumerPID()
+	}))
+	r.True(slices.ContainsFunc(negotiations, func(n *contract.Negotiation) bool {
+		return negotiationRequestedProvider.providerPID == n.GetProviderPID()
+	}))
+	r.Nil(p.Close())
+}
+
+func TestGetCallbackNegotiations(t *testing.T) {
+	r := require.New(t)
+	ctx, p := setupEnv(t, false)
+	p.SetLockTimeout(1)
+	initialiseRecords(ctx, t, p)
+
+	negotiations, err := p.GetContracts(ctx, contractopts.WithCallback(selfURL))
+	r.Nil(err)
+	r.Equal(3, len(negotiations))
+	for _, neg := range negotiations {
+		r.Equal(selfURL, neg.GetCallback())
+	}
+	r.Nil(p.Close())
+}
+
+func TestGetRoleNegotiations(t *testing.T) {
+	r := require.New(t)
+	ctx, p := setupEnv(t, false)
+	p.SetLockTimeout(1)
+	initialiseRecords(ctx, t, p)
+
+	negotiations, err := p.GetContracts(ctx, contractopts.WithRole(constants.DataspaceConsumer))
+	r.Nil(err)
+	r.Equal(3, len(negotiations))
+	for _, neg := range negotiations {
+		r.Equal(constants.DataspaceConsumer, neg.GetRole())
 	}
 	r.Nil(p.Close())
 }

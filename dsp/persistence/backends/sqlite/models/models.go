@@ -110,7 +110,7 @@ type TransferRequest struct {
 
 	Role string `bun:",notnull"`
 
-	RequesterInfo string `bun:",notnull"`
+	RequesterInfo *string
 	TraceInfo     string `bun:",notnull"`
 
 	Locked bool `bun:",notnull"`
