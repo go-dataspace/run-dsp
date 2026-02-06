@@ -77,7 +77,10 @@ func (tr *TransferRequestNegotiationInitial) Recv(
 				return nil, fmt.Errorf("could not find target: %w", err)
 			}
 		}
-		tr.SetProviderPID(uuid.New())
+		var emptyUUID uuid.UUID
+		if tr.GetTransferRequest().GetProviderPID() == emptyUUID {
+			tr.SetProviderPID(uuid.New())
+		}
 		return verifyAndTransformTransfer(
 			tr, tr.GetProviderPID().URN(), t.ConsumerPID, transfer.States.REQUESTED)
 	default:

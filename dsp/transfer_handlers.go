@@ -166,6 +166,7 @@ func (dh *dspHandlers) providerTransferRequestHandler(w http.ResponseWriter, req
 		pi,
 		authforwarder.ExtractRequesterInfo(ctx),
 	)
+	request.SetProviderPID(uuid.New())
 
 	if err := storeRequest(ctx, dh.store, request); err != nil {
 		return err
