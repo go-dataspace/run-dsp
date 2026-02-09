@@ -336,7 +336,7 @@ func FromModel(req models.TransferRequest, ro bool) (*Request, error) {
 		publishInfo:       publishInfo,
 		requesterInfo:     requesterInfo,
 		transferDirection: direction,
-		ro:                !req.Locked,
+		ro:                ro,
 		modified:          false,
 		traceInfo:         traceInfo,
 		internal_id:       req.ID,

@@ -239,7 +239,7 @@ func mkRequestUrl(u *url.URL, parts ...string) string {
 
 //nolint:funlen
 func TestNegotiationProviderInitialRequest(t *testing.T) {
-	for _, autoAccept := range []bool{true, true} {
+	for _, autoAccept := range []bool{true, false} {
 		ctx, cancel, env := setupEnvironment(t, autoAccept, false)
 
 		env.provider.On("GetDataset", mock.Anything, &dsrpc.GetDatasetRequest{
