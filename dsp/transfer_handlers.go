@@ -121,7 +121,6 @@ func (dh *dspHandlers) providerTransferRequestHandler(w http.ResponseWriter, req
 		return transferError(ctx, fmt.Sprintf("invalid request message: %s", err.Error()),
 			http.StatusBadRequest, "400", "Invalid request", nil)
 	}
-
 	consumerPID, err := uuid.Parse(transferReq.ConsumerPID)
 	if err != nil {
 		return transferError(ctx, fmt.Sprintf("Invalid consumer ID %s: %s", transferReq.ConsumerPID, err.Error()),
