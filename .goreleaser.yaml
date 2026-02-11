@@ -64,11 +64,25 @@ archives:
 
 changelog:
   sort: asc
-  use: github
+  use: gitea
+  groups:
+    - title: Features and performance
+      regexp: '^.*\[(?:feature|performance).*\].*$'
+      order: 0
+    - title: Bug fixes
+      regexp: '^.*\[bug.*\].*$'
+      order: 1
+    - title: Chores & version bumps
+      regexp: '^.*\[chore.*\].*$'
+      order: 2
+    - title: Documentation
+      regexp: '^.*\[doc.*\].*$'
+      order: 3
+    - title: Other
+      order: 999
   filters:
-    exclude:
-      - "^docs:"
-      - "^test:"
+    include:
+      - '^.*\[.*\].*$'
 
 announce:
   mattermost:
