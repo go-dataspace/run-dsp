@@ -67,19 +67,19 @@ changelog:
   use: gitea
   groups:
     - title: Security fixes
-      regexp: '^.*\[security.*\].*$'
+      regexp: 'security:.*$'
       order: 0
     - title: Features and performance
-      regexp: '^.*\[(?:feature|performance).*\].*$'
+      regexp: '^feat:.*$'
       order: 1
-    - title: Bug fixes
-      regexp: '^.*\[bug.*\].*$'
+    - title: Bug and performance fixes
+      regexp: '^fix:.*$'
       order: 2
     - title: Chores & version bumps
-      regexp: '^.*\[chore.*\].*$'
+      regexp: '^chore:.*$'
       order: 3
     - title: Documentation
-      regexp: '^.*\[doc.*\].*$'
+      regexp: '^docs:.*$'
       order: 4
     - title: Other
       order: 999
