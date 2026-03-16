@@ -23,6 +23,6 @@ when:
 
 steps:
   - name: vulncheck
-    image: golang:1.25.7
+    image: golang:1.26.1
     commands:
       - make vulncheck
