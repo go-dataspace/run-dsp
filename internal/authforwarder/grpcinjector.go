@@ -29,7 +29,7 @@ var errMissingMetadata = status.Errorf(codes.InvalidArgument, "missing metadata"
 // outgoing metadata.
 func UnaryClientInterceptor(
 	ctx context.Context,
-	method string, req interface{}, reply interface{},
+	method string, req any, reply any,
 	cc *grpc.ClientConn, invoker grpc.UnaryInvoker,
 	opts ...grpc.CallOption,
 ) error {
@@ -77,7 +77,7 @@ func (s *serverStream) Context() context.Context {
 // StreamInterceptor will process the authorization header, convert it to a prefix, and then
 // inject it into the context, but for streams.
 func StreamInterceptor(
-	srv interface{}, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler,
+	srv any, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler,
 ) error {
 	ctx := ss.Context()
 	md, ok := metadata.FromIncomingContext(ctx)

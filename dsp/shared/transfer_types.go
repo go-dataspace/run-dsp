@@ -20,7 +20,7 @@ import (
 
 // TransferRequestMessage requests a data transfer.
 type TransferRequestMessage struct {
-	Context         jsonld.Context `json:"@context,omitempty"`
+	Context         jsonld.Context `json:"@context"`
 	Type            string         `json:"@type,omitempty" validate:"required,eq=dspace:TransferRequestMessage"`
 	AgreementID     string         `json:"dspace:agreementID" validate:"required"`
 	Format          string         `json:"dct:format" validate:"required"`
@@ -31,7 +31,7 @@ type TransferRequestMessage struct {
 
 // TransferStartMessage signals a transfer start.
 type TransferStartMessage struct {
-	Context     jsonld.Context `json:"@context,omitempty"`
+	Context     jsonld.Context `json:"@context"`
 	Type        string         `json:"@type,omitempty" validate:"required,eq=dspace:TransferStartMessage"`
 	ProviderPID string         `json:"dspace:providerPid" validate:"required"`
 	ConsumerPID string         `json:"dspace:consumerPid" validate:"required"`
@@ -40,7 +40,7 @@ type TransferStartMessage struct {
 
 // TransferSuspensionMessage signals the suspension of a datatransfer.
 type TransferSuspensionMessage struct {
-	Context     jsonld.Context   `json:"@context,omitempty"`
+	Context     jsonld.Context   `json:"@context"`
 	Type        string           `json:"@type,omitempty" validate:"required,eq=dspace:TransferSuspensionMessage"`
 	ProviderPID string           `json:"dspace:providerPid,omitempty" validate:"required"`
 	ConsumerPID string           `json:"dspace:consumerPid,omitempty" validate:"required"`
@@ -50,7 +50,7 @@ type TransferSuspensionMessage struct {
 
 // TransferCompletionMessage signals the completion of a datatransfer.
 type TransferCompletionMessage struct {
-	Context     jsonld.Context `json:"@context,omitempty"`
+	Context     jsonld.Context `json:"@context"`
 	Type        string         `json:"@type,omitempty" validate:"required,eq=dspace:TransferCompletionMessage"`
 	ProviderPID string         `json:"dspace:providerPid,omitempty" validate:"required"`
 	ConsumerPID string         `json:"dspace:consumerPid,omitempty" validate:"required"`
@@ -58,7 +58,7 @@ type TransferCompletionMessage struct {
 
 // TransferTerminationMessage signals the suspension of a datatransfer.
 type TransferTerminationMessage struct {
-	Context     jsonld.Context   `json:"@context,omitempty"`
+	Context     jsonld.Context   `json:"@context"`
 	Type        string           `json:"@type,omitempty" validate:"required,eq=dspace:TransferTerminationMessage"`
 	ProviderPID string           `json:"dspace:providerPid,omitempty" validate:"required"`
 	ConsumerPID string           `json:"dspace:consumerPid,omitempty" validate:"required"`
@@ -68,7 +68,7 @@ type TransferTerminationMessage struct {
 
 // TransferProcess are state change reponses.
 type TransferProcess struct {
-	Context     jsonld.Context `json:"@context,omitempty"`
+	Context     jsonld.Context `json:"@context"`
 	Type        string         `json:"@type,omitempty" validate:"required,eq=dspace:TransferProcess"`
 	ProviderPID string         `json:"dspace:providerPid,omitempty" validate:"required"`
 	ConsumerPID string         `json:"dspace:consumerPid,omitempty" validate:"required"`

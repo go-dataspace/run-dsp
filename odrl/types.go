@@ -60,7 +60,7 @@ type Permission struct {
 	AbstractPolicyRule
 	Action     string       `json:"action" validate:"odrl_action"`
 	Constraint []Constraint `json:"constraint,omitempty" validate:"dive"`
-	Duty       Duty         `json:"duty,omitempty"`
+	Duty       Duty         `json:"duty"`
 }
 
 // Duty is an ODRL duty.
@@ -74,7 +74,7 @@ type Duty struct {
 // Constraint is an ODRL constraint.
 type Constraint struct {
 	RightOperand          string    `json:"odrl:rightOperand"`
-	RightOperandReference Reference `json:"odrl:rightOperandReference,omitempty"`
+	RightOperandReference Reference `json:"odrl:rightOperandReference"`
 	LeftOperand           string    `json:"odrl:leftOperand" validate:"odrl_leftoperand"`
 	Operator              string    `json:"odrl:operator" validate:"odrl_operator"` // TODO: implment custom verifier.
 }
