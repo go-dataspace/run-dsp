@@ -15,20 +15,32 @@
 when:
   - event: push
     branch: main
-    path:
-      exclude: ['*.md', 'docs/**', 'charts/**', 'conf/**']
   - event: push
     branch: v0.0-maintenance
-    path:
-      exclude: ['*.md', 'docs/**', 'charts/**', 'conf/**']
   - event: pull_request
-    path:
-      exclude: ['*.md', 'docs/**', 'charts/**', 'conf/**']
   - event: tag
     ref: refs/tags/v*
+  - event: tag
+    ref: refs/tags/helm-v*
 
 steps:
-  - name: build
+  - name: code
     image: golang:1.26.1
     commands:
       - make build
+    when:
+      - path:
+          exclude: ['*.md', 'docs/**', 'charts/**', 'conf/**']
+      - event: tag
+        ref: refs/tags/v*
+
+  - name: helm
+    image: helm:4
+    commands:
+      - helm package charts/run-dsp
+      - helm package charts/run-dsp-charts
+    when:
+      - path:
+          include: ['charts/**',]
+      - event: tag
+        ref: refs/tags/helm-v*

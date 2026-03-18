@@ -15,14 +15,12 @@
 when:
   - event: push
     branch: main
-    path:
-      exclude: ['*.md', 'docs/**', 'charts/**', 'conf/**']
   - event: push
     branch: v0.0-maintenance
-    path:
-      exclude: ['*.md', 'docs/**', 'charts/**', 'conf/**']
   - event: tag
     ref: refs/tags/v*
+  - event: tag
+    ref: refs/tags/helm-v*
 
 steps:
   publish-sha:
@@ -59,6 +57,21 @@ steps:
         from_secret: REGISTRY_PASSWORD
     when:
       event: push
+
+  publish-helm:
+    image: helm:4
+    commands:
+      - helm registry login -u ${REGISTRY_USER} -p ${REGISTRY_PASSWORD} codeberg.org
+      - helm package charts/run-dsp
+      - helm push run-dsp-*.tgz oci://codeberg.org/go-dataspace/helm
+      - rm run-dsp-*.tgz
+      - helm package charts/run-dsp-stack
+      - helm push run-dsp-stack-*.tgz oci://codeberg.org/go-dataspace/helm
+      - rm run-dsp-stack-.tgz
+    when:
+      - event: tag
+        ref: refs/tags/helm-v*
+
 
   publish:
     image: woodpeckerci/plugin-kaniko
