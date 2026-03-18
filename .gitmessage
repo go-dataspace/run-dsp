@@ -3,4 +3,5 @@
 <body>
 
 #
-# Types: security, feat, fix, docs, style, refactor, test, chore
+# Types: security, feat, fix, docs, style, refactor, test, chore,
+#        helm

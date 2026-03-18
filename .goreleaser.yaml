@@ -84,8 +84,8 @@ changelog:
     - title: Other
       order: 999
   filters:
-    include:
-      - '^.*\[.*\].*$'
+    exclude:
+      - "^helm:"
 
 announce:
   mattermost:
