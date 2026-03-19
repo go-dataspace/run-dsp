@@ -3,7 +3,7 @@ kind: ConfigMap
 metadata:
   name: {{ include "helm.fullname" . }}-config
   labels:
-    - test: foo
+    some-label: foo
     {{- include "helm.labels" . | nindent 4 }}
 data:
   run-dsp.toml: |
