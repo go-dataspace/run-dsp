@@ -31,4 +31,5 @@ steps:
   - name: build
     image: golang:1.26.1
     commands:
-      - make build
+      - apt -y update && apt -y install just
+      - just build

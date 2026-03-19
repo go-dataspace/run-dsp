@@ -31,4 +31,5 @@ steps:
   - name: lint
     image: golang:1.26.1
     commands:
-      - make lint
+      - apt -y update && apt -y install just
+      - just lint
