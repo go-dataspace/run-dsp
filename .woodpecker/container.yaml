@@ -39,6 +39,8 @@ steps:
         from_secret: REGISTRY_PASSWORD
     when:
       event: push
+      path:
+        exclude: ['*.md', 'docs/**', 'charts/**', 'conf/**']
 
   publish-debug-sha:
     image: woodpeckerci/plugin-kaniko
@@ -57,6 +59,8 @@ steps:
         from_secret: REGISTRY_PASSWORD
     when:
       event: push
+      path:
+        exclude: ['*.md', 'docs/**', 'charts/**', 'conf/**']
 
   publish-helm:
     image: alpine/helm:4
