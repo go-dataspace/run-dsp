@@ -35,7 +35,7 @@ steps:
         ref: refs/tags/v*
 
   - name: helm
-    image: helm:4
+    image: alpine/helm:4
     commands:
       - helm lint charts/run-dsp
       - helm lint charts/run-dsp-charts
