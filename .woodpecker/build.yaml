@@ -38,8 +38,9 @@ steps:
   - name: helm
     image: alpine/helm:4
     commands:
-      - helm package charts/run-dsp
-      - helm package charts/run-dsp-charts
+      - apk update && apk add just
+      - cd $CI_WORKSPACE
+      - just package-charts
     when:
       - path:
           include: ['charts/**',]

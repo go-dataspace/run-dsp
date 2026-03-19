@@ -38,8 +38,9 @@ steps:
   - name: helm
     image: alpine/helm:4
     commands:
-      - helm lint charts/run-dsp
-      - helm lint charts/run-dsp-charts
+      - apk update && apk add just
+      - cd $CI_WORKSPACE
+      - just helm-lint
     when:
       - path:
           include: ['charts/**',]

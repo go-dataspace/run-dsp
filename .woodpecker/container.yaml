@@ -62,12 +62,9 @@ steps:
     image: alpine/helm:4
     commands:
       - helm registry login -u ${REGISTRY_USER} -p ${REGISTRY_PASSWORD} codeberg.org
-      - helm package charts/run-dsp
-      - helm push run-dsp-*.tgz oci://codeberg.org/go-dataspace/helm
-      - rm run-dsp-*.tgz
-      - helm package charts/run-dsp-stack
-      - helm push run-dsp-stack-*.tgz oci://codeberg.org/go-dataspace/helm
-      - rm run-dsp-stack-.tgz
+      - apk update && apk add just
+      - cd $CI_WORKSPACE
+      - just publish-charts
     when:
       - event: tag
         ref: refs/tags/helm-v*
