@@ -30,7 +30,8 @@ steps:
       - apt -y update && apt -y install just
       - just lint
     when:
-      - path:
+      - event: push
+        path:
           exclude: ['*.md', 'docs/**', 'charts/**', 'conf/**']
       - event: tag
         ref: refs/tags/v*
@@ -42,7 +43,8 @@ steps:
       - cd $CI_WORKSPACE
       - just helm-lint
     when:
-      - path:
+      - event: push
+        path:
           include: ['charts/**',]
       - event: tag
         ref: refs/tags/helm-v*
