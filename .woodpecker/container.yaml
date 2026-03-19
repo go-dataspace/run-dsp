@@ -65,7 +65,7 @@ steps:
   publish-helm:
     image: alpine/helm:4
     commands:
-      - helm registry login -u ${REGISTRY_USER} -p ${REGISTRY_PASSWORD} codeberg.org
+      - helm registry login -u $REGISTRY_USER -p $REGISTRY_PASSWORD codeberg.org
       - apk update && apk add just
       - cd $CI_WORKSPACE
       - just publish-charts
