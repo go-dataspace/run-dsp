@@ -14,8 +14,9 @@
 
 FROM docker.io/library/golang:1.26.1 AS builder
 WORKDIR /app
+RUN apt -y update && apt -y install just
 COPY . ./
-RUN make build
+RUN just build
 
 FROM scratch
 WORKDIR /app
