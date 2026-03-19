@@ -14,7 +14,7 @@
 
 when:
   - event: push
-    branch: main
+    branch: ainmosni/chore/helm-ci
   - event: push
     branch: v0.0-maintenance
   - event: pull_request
