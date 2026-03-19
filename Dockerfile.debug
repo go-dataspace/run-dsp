@@ -18,7 +18,8 @@
 ###########################################
 FROM docker.io/library/golang:1.26.1 AS builder
 WORKDIR /app
+RUN apt -y update && apt -y install just
 COPY . ./
-RUN make debug
+RUN just debug
 RUN go install github.com/go-delve/delve/cmd/dlv@latest
 ENTRYPOINT [ "/go/bin/dlv", "exec", "--listen=:4000", "--headless", "--log", "--accept-multiclient", "--continue",  "./_build/run-dsp.debug" ]
