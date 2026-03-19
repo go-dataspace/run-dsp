@@ -69,6 +69,11 @@ steps:
       - apk update && apk add just
       - cd $CI_WORKSPACE
       - just publish-charts
+    environment:
+      REGISTRY_USER:
+        from_secret: REGISTRY_USER
+      REGISTRY_PASSWORD:
+        from_secret: REGISTRY_PASSWORD
     when:
       - event: tag
         ref: refs/tags/helm-v*
