@@ -14,7 +14,7 @@
 
 when:
   - event: push
-    branch: ainmosni/chore/helm-ci
+    branch: main
   - event: push
     branch: v0.0-maintenance
   - event: tag
@@ -39,6 +39,8 @@ steps:
         from_secret: REGISTRY_PASSWORD
     when:
       event: push
+      path:
+        exclude: ['*.md', 'docs/**', 'charts/**', 'conf/**']
 
   publish-debug-sha:
     image: woodpeckerci/plugin-kaniko
@@ -57,17 +59,21 @@ steps:
         from_secret: REGISTRY_PASSWORD
     when:
       event: push
+      path:
+        exclude: ['*.md', 'docs/**', 'charts/**', 'conf/**']
 
   publish-helm:
     image: alpine/helm:4
     commands:
-      - helm registry login -u ${REGISTRY_USER} -p ${REGISTRY_PASSWORD} codeberg.org
-      - helm package charts/run-dsp
-      - helm push run-dsp-*.tgz oci://codeberg.org/go-dataspace/helm
-      - rm run-dsp-*.tgz
-      - helm package charts/run-dsp-stack
-      - helm push run-dsp-stack-*.tgz oci://codeberg.org/go-dataspace/helm
-      - rm run-dsp-stack-.tgz
+      - helm registry login -u $REGISTRY_USER -p $REGISTRY_PASSWORD codeberg.org
+      - apk update && apk add just
+      - cd $CI_WORKSPACE
+      - just publish-charts
+    environment:
+      REGISTRY_USER:
+        from_secret: REGISTRY_USER
+      REGISTRY_PASSWORD:
+        from_secret: REGISTRY_PASSWORD
     when:
       - event: tag
         ref: refs/tags/helm-v*

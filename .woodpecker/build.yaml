@@ -14,7 +14,7 @@
 
 when:
   - event: push
-    branch: ainmosni/chore/helm-ci
+    branch: main
   - event: push
     branch: v0.0-maintenance
   - event: pull_request
@@ -30,7 +30,8 @@ steps:
       - apt -y update && apt -y install just
       - just build
     when:
-      - path:
+      - event: [push, pull_request]
+        path:
           exclude: ['*.md', 'docs/**', 'charts/**', 'conf/**']
       - event: tag
         ref: refs/tags/v*
@@ -38,10 +39,12 @@ steps:
   - name: helm
     image: alpine/helm:4
     commands:
-      - helm package charts/run-dsp
-      - helm package charts/run-dsp-charts
+      - apk update && apk add just
+      - cd $CI_WORKSPACE
+      - just package-charts
     when:
-      - path:
+      - event: [push, pull_request]
+        path:
           include: ['charts/**',]
       - event: tag
         ref: refs/tags/helm-v*
