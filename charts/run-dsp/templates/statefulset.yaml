@@ -1,19 +1,19 @@
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: {{ include "helm.fullname" . }}
+  name: {{ include "run-dsp.fullname" . }}
   labels:
-    {{- include "helm.labels" . | nindent 4 }}
+    {{- include "run-dsp.labels" . | nindent 4 }}
 spec:
   replicas: 1
   selector:
     matchLabels:
-      {{- include "helm.selectorLabels" . | nindent 6 }}
-  serviceName: {{ include "helm.fullname" . }}
+      {{- include "run-dsp.selectorLabels" . | nindent 6 }}
+  serviceName: {{ include "run-dsp.fullname" . }}
   {{- if .Values.persistence.enabled }}
   volumeClaimTemplates:
     - metadata:
-        name: {{ include "helm.fullname" .}}-db
+        name: {{ include "run-dsp.fullname" .}}-db
       spec:
         accessModes: ["ReadWriteOnce"]
         {{- with .Values.persistence.storageClass }}
@@ -31,7 +31,7 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       labels:
-        {{- include "helm.labels" . | nindent 8 }}
+        {{- include "run-dsp.labels" . | nindent 8 }}
         {{- with .Values.podLabels }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
@@ -39,7 +39,7 @@ spec:
       volumes:
         - name: config
           configMap:
-            name: {{ include "helm.fullname" . }}-config
+            name: {{ include "run-dsp.fullname" . }}-config
         {{- if not .Values.global.tls.insecure }}
         {{- with .Values.global.tls }}
         - name: client-tls
@@ -91,7 +91,7 @@ spec:
             mountPath: /config
             readOnly: true
           {{- if .Values.persistence.enabled }}
-          - name: {{ include "helm.fullname" . }}-db
+          - name: {{ include "run-dsp.fullname" . }}-db
             mountPath: "/store"
             readOnly: true
           {{- end -}}

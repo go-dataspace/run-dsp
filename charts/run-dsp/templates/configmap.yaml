@@ -1,9 +1,9 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: {{ include "helm.fullname" . }}-config
+  name: {{ include "run-dsp.fullname" . }}-config
   labels:
-    {{- include "helm.labels" . | nindent 4 }}
+    {{- include "run-dsp.labels" . | nindent 4 }}
 data:
   run-dsp.toml: |
     humanReadable = {{ .Values.log.humanReadable }}
@@ -26,27 +26,27 @@ data:
     {{- if eq .Values.dataspace.url "ingress" }}
     externalURL = "http{{ if .Values.ingress.tlsSecret }}s{{ end }}://{{ .Values.ingress.host }}"
     {{- else }}
-    externalURL = "http://{{ include "helm.fullname" . }}.{{ .Release.Namespace }}:8080"
+    externalURL = "http://{{ include "run-dsp.fullname" . }}.{{ .Release.Namespace }}:8080"
     {{- end }}
 
     [server.provider]
-    address = {{ include "helm.providerAddress" . | quote }}
+    address = {{ include "run-dsp.providerAddress" . | quote }}
     {{- include "run-dsp.tlsconf" (merge .Values.global.tls (dict "name" "provider")) | nindent 4}}
 
     [server.contractService]
     enabled = true
-    address = {{ include "helm.contractServiceAddress" . | quote }}
+    address = {{ include "run-dsp.contractServiceAddress" . | quote }}
     {{- include "run-dsp.tlsconf" (merge .Values.global.tls (dict "name" "contractservice")) | nindent 4}}
 
     [server.authnService]
     enabled = true
-    address = {{ include "helm.authnServiceAddress" . | quote }}
+    address = {{ include "run-dsp.authnServiceAddress" . | quote }}
     {{- include "run-dsp.tlsconf" (merge .Values.global.tls (dict "name" "authnservice")) | nindent 4}}
 
     [server.control]
     address = "0.0.0.0"
     port = 8081
-    externalAddress = "{{ include "helm.fullname" . }}.{{ .Release.Namespace }}:8081"
+    externalAddress = "{{ include "run-dsp.fullname" . }}.{{ .Release.Namespace }}:8081"
     insecure = {{ .Values.global.tls.insecure }}
     {{- if not .Values.global.tls.insecure }}
     cert = "/certs/control/tls.crt"

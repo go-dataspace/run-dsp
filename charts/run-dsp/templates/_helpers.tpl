@@ -1,7 +1,7 @@
 {{/*
 Expand the name of the chart.
 */}}
-{{- define "helm.name" -}}
+{{- define "run-dsp.name" -}}
 {{- default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" }}
 {{- end }}
 
@@ -10,7 +10,7 @@ Create a default fully qualified app name.
 We truncate at 63 chars because some Kubernetes name fields are limited to this (by the DNS naming spec).
 If release name contains chart name it will be used as a full name.
 */}}
-{{- define "helm.fullname" -}}
+{{- define "run-dsp.fullname" -}}
 {{- if .Values.fullnameOverride }}
 {{- .Values.fullnameOverride | trunc 63 | trimSuffix "-" }}
 {{- else }}
@@ -23,7 +23,7 @@ If release name contains chart name it will be used as a full name.
 {{- end }}
 {{- end }}
 
-{{- define "helm.providerAddress" -}}
+{{- define "run-dsp.providerAddress" -}}
 {{- if .Values.provider.address -}}
 {{- .Values.provider.address -}}
 {{- else -}}
@@ -31,7 +31,7 @@ If release name contains chart name it will be used as a full name.
 {{- end -}}
 {{- end -}}
 
-{{- define "helm.contractServiceAddress" -}}
+{{- define "run-dsp.contractServiceAddress" -}}
 {{- if .Values.contractService.address -}}
 {{- .Values.contractService.address -}}
 {{- else -}}
@@ -39,7 +39,7 @@ If release name contains chart name it will be used as a full name.
 {{- end -}}
 {{- end -}}
 
-{{- define "helm.authnServiceAddress" -}}
+{{- define "run-dsp.authnServiceAddress" -}}
 {{- if .Values.authnService.address -}}
 {{- .Values.authnService.address -}}
 {{- else -}}
@@ -50,16 +50,16 @@ If release name contains chart name it will be used as a full name.
 {{/*
 Create chart name and version as used by the chart label.
 */}}
-{{- define "helm.chart" -}}
+{{- define "run-dsp.chart" -}}
 {{- printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" | trunc 63 | trimSuffix "-" }}
 {{- end }}
 
 {{/*
 Common labels
 */}}
-{{- define "helm.labels" -}}
-helm.sh/chart: {{ include "helm.chart" . }}
-{{ include "helm.selectorLabels" . }}
+{{- define "run-dsp.labels" -}}
+helm.sh/chart: {{ include "run-dsp.chart" . }}
+{{ include "run-dsp.selectorLabels" . }}
 {{- if .Chart.AppVersion }}
 app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
 {{- end }}
@@ -69,17 +69,17 @@ app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{/*
 Selector labels
 */}}
-{{- define "helm.selectorLabels" -}}
-app.kubernetes.io/name: {{ include "helm.name" . }}
+{{- define "run-dsp.selectorLabels" -}}
+app.kubernetes.io/name: {{ include "run-dsp.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
 
 {{/*
 Create the name of the service account to use
 */}}
-{{- define "helm.serviceAccountName" -}}
+{{- define "run-dsp.serviceAccountName" -}}
 {{- if .Values.serviceAccount.create }}
-{{- default (include "helm.fullname" .) .Values.serviceAccount.name }}
+{{- default (include "run-dsp.fullname" .) .Values.serviceAccount.name }}
 {{- else }}
 {{- default "default" .Values.serviceAccount.name }}
 {{- end }}
