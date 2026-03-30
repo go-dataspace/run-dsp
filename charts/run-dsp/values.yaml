@@ -109,6 +109,7 @@ provider:
 
 # Contract service settings
 contractService:
+  enabled: false
   # The address to the contract service.
   address: "contractservice:9090"
 

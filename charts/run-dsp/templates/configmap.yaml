@@ -34,7 +34,11 @@ data:
     {{- include "run-dsp.tlsconf" (merge .Values.global.tls (dict "name" "provider")) | nindent 4}}
 
     [server.contractService]
+    {{- if .Values.contractService.enabled }}
     enabled = true
+    {{- else }}
+    enabled = false
+    {{- end }}
     address = {{ include "run-dsp.contractServiceAddress" . | quote }}
     {{- include "run-dsp.tlsconf" (merge .Values.global.tls (dict "name" "contractservice")) | nindent 4}}
 
@@ -58,9 +62,9 @@ data:
     {{- end }}
 
     [server.persistence]
-    backend = "badger"
+    backend = "sqlite"
 
-    [server.persistence.badger]
+    [server.persistence.sqlite]
     {{- if .Values.persistence.enabled }}
     memory = false
     dbPath = "/store/run-dsp.db"
