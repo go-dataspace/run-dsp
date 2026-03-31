@@ -34,6 +34,11 @@ builds:
 
     main: ./cmd
     binary: run-dsp
+    ignore:
+      - goos: windows
+        goarch: arm
+      - goos: windows
+        goarch: arm64
     ldflags:
       - -extldflags=-static
       - -s
