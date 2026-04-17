@@ -145,6 +145,6 @@ tracing:
   # Service name to use for tracing
   serviceName: run-dsp
   # Endpoint to send tracing data
-  endPoint: "http://localhost:4318/v1/traces"
+  endpoint: "http://localhost:4318/v1/traces"
   # Endpoint uses gRPC instead of http
   gRPC: false

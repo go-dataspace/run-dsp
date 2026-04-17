@@ -16,7 +16,7 @@ data:
 
     [server.tracing]
     enabled = {{ .Values.tracing.enabled }}
-    endPointUrl = {{ .Values.tracing.endPoint | quote }}
+    endPointUrl = {{ .Values.tracing.endpoint | quote }}
     grpc = {{ .Values.tracing.gRPC }}
     serviceName = {{ .Values.tracing.serviceName | quote }}
 
