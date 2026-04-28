@@ -493,10 +493,11 @@ func (c *command) Run(ctx context.Context) error {
 		err = errors.Join(err, otelShutdown(context.Background()))
 	}()
 
-	reconciler, httpServices, grpcConnections, err := c.setupServices(ctx, wg)
+	reconciler, httpServices, grpcConnections, store, err := c.setupServices(ctx, wg)
 	if err != nil {
 		return err
 	}
+	defer func() { _ = store.Close() }()
 
 	for _, s := range httpServices {
 		go func() {
@@ -526,23 +527,22 @@ func (c *command) Run(ctx context.Context) error {
 
 func (c *command) setupServices(ctx context.Context, //nolint:cyclop
 	wg *sync.WaitGroup,
-) (*statemachine.HTTPReconciler, []*http.Server, []*grpc.ClientConn, error) {
+) (*statemachine.HTTPReconciler, []*http.Server, []*grpc.ClientConn, persistence.StorageProvider, error) {
 	srvMetrics, clMetrics := setupMetrics()
 	grpcConnections := []*grpc.ClientConn{}
 	provider, conn, pingResponse, err := c.getProvider(ctx, clMetrics)
 	if err != nil {
-		return nil, []*http.Server{}, grpcConnections, err
+		return nil, []*http.Server{}, grpcConnections, nil, err
 	}
 	grpcConnections = append(grpcConnections, conn)
 	store, err := c.getStorageProvider(ctx)
 	if err != nil {
-		return nil, []*http.Server{}, grpcConnections, err
+		return nil, []*http.Server{}, grpcConnections, nil, err
 	}
-	defer func() { _ = store.Close() }()
 
 	authnService, authnConn, err := c.getAuthNService(ctx, clMetrics)
 	if err != nil {
-		return nil, []*http.Server{}, grpcConnections, err
+		return nil, []*http.Server{}, grpcConnections, nil, err
 	}
 	if authnConn != nil {
 		grpcConnections = append(grpcConnections, authnConn)
@@ -557,7 +557,7 @@ func (c *command) setupServices(ctx context.Context, //nolint:cyclop
 	selfURL.Path = path.Join(selfURL.Path, constants.APIPath)
 	contractService, csConn, err := c.getContractService(ctx, clMetrics)
 	if err != nil {
-		return nil, []*http.Server{}, grpcConnections, err
+		return nil, []*http.Server{}, grpcConnections, nil, err
 	}
 	if csConn != nil {
 		grpcConnections = append(grpcConnections, csConn)
@@ -566,13 +566,13 @@ func (c *command) setupServices(ctx context.Context, //nolint:cyclop
 	ctlSVC := control.New(httpClient, store, reconciler, provider, contractService, selfURL)
 	err = c.startControl(ctx, wg, ctlSVC, srvMetrics)
 	if err != nil {
-		return nil, []*http.Server{}, grpcConnections, err
+		return nil, []*http.Server{}, grpcConnections, nil, err
 	}
 
 	if contractService != nil {
 		err = c.configureContractService(ctx, contractService)
 		if err != nil {
-			return nil, []*http.Server{}, grpcConnections, err
+			return nil, []*http.Server{}, grpcConnections, nil, err
 		}
 	}
 
@@ -584,7 +584,7 @@ func (c *command) setupServices(ctx context.Context, //nolint:cyclop
 	if c.PrometheusEnabled {
 		httpServices = append(httpServices, c.getMetricsServer(ctx))
 	}
-	return reconciler, httpServices, grpcConnections, nil
+	return reconciler, httpServices, grpcConnections, store, nil
 }
 
 func (c *command) getMetricsServer(ctx context.Context) *http.Server {
