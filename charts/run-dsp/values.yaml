@@ -75,13 +75,25 @@ service:
 ingress:
   enabled: false
   className: ""
+  # Extra labels merged onto metadata.labels of the rendered Ingress.
+  # Use this to attach selector labels (e.g. for kustomize Components in
+  # downstream gitops repos that swap secretName onto a shared wildcard).
+  labels: {}
+    # dataloft.config/dedicated-cert: "false"  # opt into a wildcard-tls flow
   annotations: {}
     # kubernetes.io/ingress.class: nginx
     # kubernetes.io/tls-acme: "true"
   # The address to expose the dataspace listener with.
   host: dataspace-address.example.org
-  # The secret containing the TLS certificate for this host.
+  # The secret containing the TLS certificate for this host. Used for the
+  # legacy single-host tls synthesis when `tls` below is empty.
   tlsSecret: ""
+  # Optional: full passthrough of the spec.tls block. When set, takes
+  # precedence over the legacy host/tlsSecret synthesis. Useful for
+  # multi-host SAN configs. Setting this to [] is falsy in Go templates
+  # and falls through to synthesis from host/tlsSecret — clear tlsSecret
+  # too if you want to omit tls entirely.
+  tls: []
 
 nodeSelector: {}
 

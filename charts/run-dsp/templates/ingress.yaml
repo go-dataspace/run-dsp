@@ -5,6 +5,9 @@ metadata:
   name: {{ include "run-dsp.fullname" . }}
   labels:
     {{- include "run-dsp.labels" . | nindent 4 }}
+    {{- with .Values.ingress.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
   {{- with .Values.ingress.annotations }}
   annotations:
     {{- toYaml . | nindent 4 }}
@@ -13,7 +16,15 @@ spec:
   {{- with .Values.ingress.className }}
   ingressClassName: {{ . }}
   {{- end }}
-  {{- if .Values.ingress.tlsSecret }}
+  # tls precedence: explicit .Values.ingress.tls takes priority; otherwise
+  # synthesize from .Values.ingress.host + .Values.ingress.tlsSecret
+  # (legacy single-host shape). Note: setting `tls: []` or `tls: null` is
+  # falsy here and falls through to synthesis — clear tlsSecret too if
+  # you want to omit tls.
+  {{- if .Values.ingress.tls }}
+  tls:
+    {{- toYaml .Values.ingress.tls | nindent 4 }}
+  {{- else if .Values.ingress.tlsSecret }}
   tls:
     - hosts:
         - {{ .Values.ingress.host | quote }}
