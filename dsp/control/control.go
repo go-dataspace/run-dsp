@@ -517,15 +517,11 @@ func (s *Server) SignalTransferComplete( //nolint:cyclop
 	for _, role = range []dspconstants.DataspaceRole{dspconstants.DataspaceConsumer, dspconstants.DataspaceProvider} {
 		trReq, _ = s.store.GetTransfer(ctx, transferopts.WithRolePID(id, role), transferopts.WithRW())
 		if trReq != nil {
-			if err := authforwarder.CheckRequesterInfo(ctx, trReq.GetRequesterInfo()); err != nil {
-				releaseErr := s.store.ReleaseTransfer(ctx, trReq)
-				if releaseErr != nil {
-					ctxslog.Err(ctx, "problem when trying to release lock", releaseErr)
-				}
-				return nil, err
+			releaseErr := s.store.ReleaseTransfer(ctx, trReq)
+			if releaseErr != nil {
+				ctxslog.Err(ctx, "problem when trying to release lock", releaseErr)
 			}
-
-			break
+			return nil, err
 		}
 	}
 	if trReq == nil {
