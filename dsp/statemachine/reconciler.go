@@ -204,16 +204,22 @@ func (r *HTTPReconciler) worker() {
 			)
 			ctxslog.Info(ctx, "Attempting to reconcile entry")
 
+			stateUpdater, err := r.getStateUpdater(ctx, entry, entry.TargetState)
+			if err != nil {
+				r.handleError(ctx, op, fmt.Errorf("could not acquire record: %w", err))
+				continue
+			}
+
 			ctx, span := tracer.Start(ctx, "reconciliation-entry")
 			// As the dataspace standard doesn't care if we parse this, we won't.
-			_, err := r.r.SendHTTPRequest(ctx, entry.Method, entry.URL, entry.Body)
+			_, err = r.r.SendHTTPRequest(ctx, entry.Method, entry.URL, entry.Body)
 			span.End()
 			if err != nil {
 				r.handleError(ctx, op, err)
 				continue
 			}
 
-			err = r.updateState(ctx, entry, entry.TargetState)
+			err = stateUpdater.Commit(ctx)
 			if err != nil {
 				r.handleError(ctx, op, fmt.Errorf("could not update state: %w", err))
 				continue
@@ -253,7 +259,12 @@ func (r *HTTPReconciler) terminate(ctx context.Context, entry ReconciliationEntr
 	// We will handle this cleaner in the future, but this is to make any bugs obvious.
 	var err error
 	for range 10 {
-		err = r.updateState(ctx, entry, "dspace:TERMINATED")
+		stateUpdater, err := r.getStateUpdater(ctx, entry, entry.TargetState)
+		if err != nil {
+			ctxslog.Debug(ctx, "could not acquire record", "err", err)
+			return
+		}
+		err = stateUpdater.Commit(ctx)
 		if err == nil {
 			ctxslog.Debug(ctx, "Entry terminated")
 			return
@@ -281,78 +292,106 @@ func calculateNextAttempt(currentInterval time.Duration, attempts int) (time.Tim
 	return nextRun, time.Duration(ci)
 }
 
-func (r *HTTPReconciler) updateState(
+func (r *HTTPReconciler) getStateUpdater(
 	ctx context.Context, entry ReconciliationEntry, state string,
-) error {
+) (stateUpdater, error) {
 	switch entry.Type {
 	case ReconciliationContract:
-		return r.setContractState(ctx, state, entry.Role, entry.EntityID)
+		return newNegotiationUpdater(ctx, r.s, entry, state)
 	case ReconciliationTransferRequest:
-		return r.setTransferState(ctx, state, entry.Role, entry.EntityID)
+		return newRequestUpdater(ctx, r.s, entry, state)
 	case ReconciliationUndefined:
-		return ctxslog.ReturnError(ctx, "Undefined type", errors.New("undefined type"))
+		return nil, ctxslog.ReturnError(ctx, "Undefined type", errors.New("undefined type"))
 	default:
-		return ctxslog.ReturnError(ctx, "Undefined type", errors.New("undefined type"))
+		return nil, ctxslog.ReturnError(ctx, "Undefined type", errors.New("undefined type"))
 	}
 }
 
-func (c *HTTPReconciler) setTransferState(
-	ctx context.Context, state string, role constants.DataspaceRole, id uuid.UUID,
-) error {
-	ts, err := transfer.ParseState(state)
+type stateUpdater interface {
+	Commit(ctx context.Context) error
+}
+
+type negotiationUpdater struct {
+	store       persistence.StorageProvider
+	negotiation *contract.Negotiation
+}
+
+func newNegotiationUpdater(
+	ctx context.Context, store persistence.StorageProvider, entry ReconciliationEntry, state string,
+) (*negotiationUpdater, error) {
+	cs, err := contract.ParseState(state)
 	if err != nil {
-		return fmt.Errorf("%w: Invalid state: %w", ErrFatal, err)
+		return nil, fmt.Errorf("%w: Invalid state: %w", ErrFatal, err)
 	}
-	tr, err := c.s.GetTransfer(ctx,
-		transferopts.WithRW(),
-		transferopts.WithRolePID(id, role),
+	var con *contract.Negotiation
+	con, err = store.GetContract(ctx,
+		contractopts.WithRW(),
+		contractopts.WithRolePID(entry.EntityID, entry.Role),
 	)
 	if err != nil {
-		return fmt.Errorf("can't find transfer request: %w", err)
+		return nil, fmt.Errorf("can't find contract: %w", err)
 	}
-	err = tr.SetState(ts)
+	err = con.SetState(cs)
 	if err != nil {
-		return fmt.Errorf("can't change state: %w", err)
+		return nil, fmt.Errorf("can't change state: %w", err)
 	}
-	err = c.s.PutTransfer(ctx, tr)
+	return &negotiationUpdater{
+		store:       store,
+		negotiation: con,
+	}, nil
+}
+
+func (u *negotiationUpdater) Commit(ctx context.Context) error {
+	err := u.store.PutContract(ctx, u.negotiation)
 	if err != nil {
-		return fmt.Errorf("can't save transfer request: %w", err)
+		return fmt.Errorf("can't save negotiation: %w", err)
 	}
-	transfersCounter.WithLabelValues(
-		role.String(),
-		ts.String(),
-		tr.GetCallback().String(),
+	contractsCounter.WithLabelValues(
+		u.negotiation.GetRole().String(),
+		u.negotiation.GetState().String(),
+		u.negotiation.GetCallback().String(),
 	).Inc()
 	return nil
 }
 
-func (c *HTTPReconciler) setContractState(
-	ctx context.Context, state string, role constants.DataspaceRole, id uuid.UUID,
-) error {
-	cs, err := contract.ParseState(state)
+type requestUpdater struct {
+	store   persistence.StorageProvider
+	request *transfer.Request
+}
+
+func newRequestUpdater(
+	ctx context.Context, store persistence.StorageProvider, entry ReconciliationEntry, state string,
+) (*requestUpdater, error) {
+	ts, err := transfer.ParseState(state)
 	if err != nil {
-		return fmt.Errorf("%w: Invalid state: %w", ErrFatal, err)
+		return nil, fmt.Errorf("%w: Invalid state: %w", ErrFatal, err)
 	}
-	var con *contract.Negotiation
-	con, err = c.s.GetContract(ctx,
-		contractopts.WithRW(),
-		contractopts.WithRolePID(id, role),
+	tr, err := store.GetTransfer(ctx,
+		transferopts.WithRW(),
+		transferopts.WithRolePID(entry.EntityID, entry.Role),
 	)
 	if err != nil {
-		return fmt.Errorf("can't find contract: %w", err)
+		return nil, fmt.Errorf("can't find transfer request: %w", err)
 	}
-	err = con.SetState(cs)
+	err = tr.SetState(ts)
 	if err != nil {
-		return fmt.Errorf("can't change state: %w", err)
+		return nil, fmt.Errorf("can't change state: %w", err)
 	}
-	err = c.s.PutContract(ctx, con)
+	return &requestUpdater{
+		store:   store,
+		request: tr,
+	}, nil
+}
+
+func (u *requestUpdater) Commit(ctx context.Context) error {
+	err := u.store.PutTransfer(ctx, u.request)
 	if err != nil {
-		return fmt.Errorf("can't save contract: %w", err)
+		return fmt.Errorf("can't save transfer request: %w", err)
 	}
-	contractsCounter.WithLabelValues(
-		role.String(),
-		cs.String(),
-		con.GetCallback().String(),
+	transfersCounter.WithLabelValues(
+		u.request.GetRole().String(),
+		u.request.GetState().String(),
+		u.request.GetCallback().String(),
 	).Inc()
 	return nil
 }
