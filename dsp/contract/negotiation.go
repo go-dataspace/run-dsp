@@ -75,10 +75,11 @@ type Negotiation struct {
 	role        constants.DataspaceRole
 	autoAccept  bool
 
-	initial   bool
-	ro        bool
-	modified  bool
-	traceInfo shared.TraceInfo
+	initial      bool
+	ro           bool
+	modified     bool
+	newAgreement bool
+	traceInfo    shared.TraceInfo
 
 	requesterInfo *dsrpc.RequesterInfo
 
@@ -190,6 +191,7 @@ func (cn *Negotiation) SetConsumerPID(u uuid.UUID) {
 func (cn *Negotiation) SetAgreement(a *odrl.Agreement) {
 	cn.panicRO()
 	cn.agreement = a
+	cn.newAgreement = true
 	cn.modify()
 }
 
@@ -220,9 +222,10 @@ func (cn *Negotiation) AutoAccept() bool { return cn.autoAccept }
 func (cn *Negotiation) SetAutoAccept()   { cn.autoAccept = true }
 
 // Properties that decisions are based on.
-func (cn *Negotiation) ReadOnly() bool { return cn.ro }
-func (cn *Negotiation) Initial() bool  { return cn.initial }
-func (cn *Negotiation) Modified() bool { return cn.modified }
+func (cn *Negotiation) ReadOnly() bool     { return cn.ro }
+func (cn *Negotiation) Initial() bool      { return cn.initial }
+func (cn *Negotiation) NewAgreement() bool { return cn.newAgreement }
+func (cn *Negotiation) Modified() bool     { return cn.modified }
 func (cn *Negotiation) StorageKey() []byte {
 	id := cn.consumerPID
 	if cn.role == constants.DataspaceProvider {

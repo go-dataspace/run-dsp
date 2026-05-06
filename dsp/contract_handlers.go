@@ -260,7 +260,7 @@ func storeNegotiation(
 			http.StatusInternalServerError, "500", "Not able to store negotiation", negotiation)
 	}
 
-	if negotiation.Modified() && negotiation.GetAgreement() != nil {
+	if negotiation.NewAgreement() && negotiation.GetAgreement() != nil {
 		if err := store.PutAgreement(ctx, negotiation.GetAgreement()); err != nil {
 			return contractError(ctx, fmt.Sprintf("couldn't store agreement: %s", err),
 				http.StatusInternalServerError, "500", "Not able to store agreement", negotiation)

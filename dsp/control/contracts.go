@@ -153,6 +153,11 @@ func sendContractMessage[T any](
 	if err := s.store.PutContract(ctx, negotiation); err != nil {
 		return nil, status.Errorf(codes.Internal, "couldn't store contract negotiation: %s", err)
 	}
+	if negotiation.NewAgreement() && negotiation.GetAgreement() != nil {
+		if err := s.store.PutAgreement(ctx, negotiation.GetAgreement()); err != nil {
+			return nil, status.Errorf(codes.Internal, "couldn't store agreement: %s", err)
+		}
+	}
 
 	// The applyFunc for Send doesn't really return errors but the signature says for uniformity.
 	_ = apply()
