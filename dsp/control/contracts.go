@@ -98,6 +98,7 @@ func (s *Server) ContractRequest(
 	)
 }
 
+//nolint:cyclop
 func sendContractMessage[T any](
 	ctx context.Context,
 	s *Server,
