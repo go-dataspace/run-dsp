@@ -112,6 +112,7 @@ func (p *Provider) getContractLocked(
 			}
 			return nil, err
 		}
+		ctxslog.Debug(ctx, "contract acquired")
 
 		// As UPDATE ... RETURNING does not support JOINS we have to do this manually.
 		if cn.AgreementID != nil {
@@ -132,7 +133,7 @@ func (p *Provider) PutContract(ctx context.Context, contract *contract.Negotiati
 		panic("trying to save a read only model, this is certainly a bug")
 	}
 	if !contract.Modified() {
-		return nil
+		return p.ReleaseContract(ctx, contract)
 	}
 	model, err := contract.ToModel()
 	if err != nil {

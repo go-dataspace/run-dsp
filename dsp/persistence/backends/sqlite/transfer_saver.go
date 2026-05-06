@@ -121,7 +121,7 @@ func (p *Provider) PutTransfer(ctx context.Context, req *transfer.Request) error
 		panic("trying to save a read only model, this is certainly a bug")
 	}
 	if !req.Modified() {
-		return nil
+		return p.ReleaseTransfer(ctx, req)
 	}
 	model, err := req.ToModel()
 	if err != nil {
