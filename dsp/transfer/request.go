@@ -261,19 +261,25 @@ func (tr *Request) modify() {
 //
 //nolint:cyclop,funlen // It's not worth simplifying this at this time.
 func FromModel(req models.TransferRequest, ro bool) (*Request, error) {
+	ppid := uuid.UUID{}
+	cpid := uuid.UUID{}
 	state, err := ParseState(req.State)
 	if err != nil {
 		return nil, err
 	}
 
-	ppid, err := uuid.Parse(*req.ProviderPID)
-	if err != nil {
-		return nil, err
+	if req.ProviderPID != nil {
+		ppid, err = uuid.Parse(*req.ProviderPID)
+		if err != nil {
+			return nil, err
+		}
 	}
 
-	cpid, err := uuid.Parse(*req.ConsumerPID)
-	if err != nil {
-		return nil, err
+	if req.ConsumerPID != nil {
+		cpid, err = uuid.Parse(*req.ConsumerPID)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	agreement_id, err := uuid.Parse(req.Agreement.ID)
