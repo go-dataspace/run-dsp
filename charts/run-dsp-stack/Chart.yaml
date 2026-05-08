@@ -1,6 +1,6 @@
 apiVersion: v2
 name: run-dsp-stack
-version: 0.1.1
+version: 0.1.2
 description: This chart deploys a complete RUN-DSP stack.
 dependencies:
 - name: run-dsp
@@ -13,5 +13,5 @@ dependencies:
   version: 0.0.4
   repository: https://helm.go-dataspace.eu/charts
 - name: rdsp-s3
-  version: 0.1.0
+  version: 0.1.1
   repository: oci://codeberg.org/go-dataspace/helm
