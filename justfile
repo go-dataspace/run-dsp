@@ -14,7 +14,6 @@
 #
 
 BINARY_NAME := "run-dsp"
-HELM_REGISTRY := "oci://codeberg.org/go-dataspace/helm"
 
 default: vulncheck lint test build
 
@@ -50,25 +49,6 @@ generate: _download_mods
 [group('go')]
 mocks: _download_mods
     go tool mockery
-
-
-# Lint all charts
-[group('helm')]
-helm-lint:
-    - helm lint charts/run-dsp
-    - helm lint charts/run-dsp-stack
-
-# Package all charts
-[group('helm')]
-package-charts:
-    helm package charts/run-dsp
-    helm package charts/run-dsp-stack
-
-# Publish all charts, specifically made for woodpecker
-[group('helm')]
-publish-charts: package-charts
-    helm push run-dsp-{{ trim_start_match(env("CI_COMMIT_TAG"), "helm-v") }}.tgz {{ HELM_REGISTRY }}
-    helm push run-dsp-stack-{{ trim_start_match(env("CI_COMMIT_TAG"), "helm-v") }}.tgz {{ HELM_REGISTRY }}
 
 _download_mods:
     go mod download

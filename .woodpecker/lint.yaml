@@ -20,8 +20,6 @@ when:
   - event: pull_request
   - event: tag
     ref: refs/tags/v*
-  - event: tag
-    ref: refs/tags/helm-v*
 
 steps:
   - name: code
@@ -32,19 +30,6 @@ steps:
     when:
       - event: [push, pull_request]
         path:
-          exclude: ['*.md', 'docs/**', 'charts/**', 'conf/**']
+          exclude: ['*.md', 'docs/**', 'conf/**']
       - event: tag
         ref: refs/tags/v*
-
-  - name: helm
-    image: alpine/helm:4
-    commands:
-      - apk update && apk add just
-      - cd $CI_WORKSPACE
-      - just helm-lint
-    when:
-      - event: [push, pull_request]
-        path:
-          include: ['charts/**',]
-      - event: tag
-        ref: refs/tags/helm-v*

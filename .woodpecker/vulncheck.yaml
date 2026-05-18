@@ -20,8 +20,6 @@ when:
   - event: tag
     ref: refs/tags/v*
   - event: pull_request
-  - event: tag
-    ref: refs/tags/helm-v*
 
 steps:
   - name: vulncheck
@@ -32,6 +30,6 @@ steps:
     when:
       - event: [push, pull_request]
         path:
-          exclude: ['*.md', 'docs/**', 'charts/**', 'conf/**']
+          exclude: ['*.md', 'docs/**', 'conf/**']
       - event: tag
         ref: refs/tags/v*

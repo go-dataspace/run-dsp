@@ -90,9 +90,6 @@ changelog:
       order: 4
     - title: Other
       order: 999
-  filters:
-    exclude:
-      - "^helm:"
 
 announce:
   mattermost:
