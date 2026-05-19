@@ -553,6 +553,8 @@ go-dataspace.eu/run-dsrpc v0.0.19-alpha2.0.20260127133439-712b0d382228 h1:n7RISy
 go-dataspace.eu/run-dsrpc v0.0.19-alpha2.0.20260127133439-712b0d382228/go.mod h1:/645KCGqHGBJB3F4vajgLklPoaMraNcDs9AFhkJPfI0=
 go-dataspace.eu/run-dsrpc v0.0.20-alpha2 h1:XlhDQMkmyxzAaKbtAdDZ3AJzL8JgNhz3yDUn9rdEYLI=
 go-dataspace.eu/run-dsrpc v0.0.20-alpha2/go.mod h1:/645KCGqHGBJB3F4vajgLklPoaMraNcDs9AFhkJPfI0=
+go-dataspace.eu/run-dsrpc v0.0.21-alpha2 h1:If7AdXVb1DN+n7X5finuRp9z4Cq1S3uSZNBUeWdhu5I=
+go-dataspace.eu/run-dsrpc v0.0.21-alpha2/go.mod h1:/645KCGqHGBJB3F4vajgLklPoaMraNcDs9AFhkJPfI0=
 go-simpler.org/assert v0.9.0 h1:PfpmcSvL7yAnWyChSjOz6Sp6m9j5lyK8Ok9pEL31YkQ=
 go-simpler.org/assert v0.9.0/go.mod h1:74Eqh5eI6vCK6Y5l3PI8ZYFXG4Sa+tkr70OIPJAUr28=
 go-simpler.org/musttag v0.13.1 h1:lw2sJyu7S1X8lc8zWUAdH42y+afdcCnHhWpnkWvd6vU=

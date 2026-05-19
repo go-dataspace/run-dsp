@@ -32,7 +32,6 @@ import (
 	"go-dataspace.eu/run-dsp/dsp/statemachine"
 	"go-dataspace.eu/run-dsp/internal/authforwarder"
 	"go-dataspace.eu/run-dsp/odrl"
-	dsrpc "go-dataspace.eu/run-dsrpc/gen/go/dsp/v1alpha2"
 )
 
 type ContractError struct {
@@ -174,11 +173,7 @@ func progressContractState[T any](
 
 	ctxslog.Debug(ctx, "Got contract message", "req", msg)
 
-	// Since this is a continuation of negotiation, we add a continuation RequestInfo to context
-	// FIXME: This probably has to be reconsidered regarding security.
-	requestInfo := &dsrpc.RequesterInfo{
-		AuthenticationStatus: dsrpc.AuthenticationStatus_AUTHENTICATION_STATUS_CONTINUATION,
-	}
+	requestInfo := authforwarder.ExtractRequesterInfo(ctx)
 
 	// Add local origin requester info to context
 	req = req.WithContext(authforwarder.SetRequesterInfo(ctx, requestInfo))

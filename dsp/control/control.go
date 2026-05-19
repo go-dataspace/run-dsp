@@ -206,6 +206,7 @@ func (s *Server) GetProviderDatasetDownloadInformation(
 		s.contractService == nil,
 		&dsrpc.RequesterInfo{
 			AuthenticationStatus: dsrpc.AuthenticationStatus_AUTHENTICATION_STATUS_LOCAL_ORIGIN,
+			ExternalId:           authforwarder.ExtractAuthorization(ctx),
 		},
 	)
 	// Store and retrieve contract negotiation so that it's saved and the locking works.
@@ -289,6 +290,7 @@ func (s *Server) GetProviderDatasetDownloadInformation(
 		nil,
 		&dsrpc.RequesterInfo{
 			AuthenticationStatus: dsrpc.AuthenticationStatus_AUTHENTICATION_STATUS_LOCAL_ORIGIN,
+			ExternalId:           authforwarder.ExtractAuthorization(ctx),
 		},
 	)
 	// Save and retrieve the transfer request to get the locks working properly.
@@ -404,6 +406,7 @@ func (s *Server) GetProviderDatasetUploadInformation(
 		s.contractService == nil,
 		&dsrpc.RequesterInfo{
 			AuthenticationStatus: dsrpc.AuthenticationStatus_AUTHENTICATION_STATUS_LOCAL_ORIGIN,
+			ExternalId:           authforwarder.ExtractAuthorization(ctx),
 		},
 	)
 	// Store and retrieve contract negotiation so that it's saved and the locking works.
@@ -611,6 +614,7 @@ func (s *Server) InitiatePushTransfer(ctx context.Context, r *dsrpc.InitiatePush
 		response.PublishInfo,
 		&dsrpc.RequesterInfo{
 			AuthenticationStatus: dsrpc.AuthenticationStatus_AUTHENTICATION_STATUS_LOCAL_ORIGIN,
+			ExternalId:           r.RequesterInfo.ExternalId,
 		},
 	)
 	// Save and retrieve the transfer request to get the locks working properly.

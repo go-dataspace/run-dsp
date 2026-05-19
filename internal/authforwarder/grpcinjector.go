@@ -105,3 +105,8 @@ func ExtractAuthorization(ctx context.Context) string {
 	}
 	return val
 }
+
+// InjectAuthorization inserts a authorization context entry.
+func InjectAuthorization(ctx context.Context, value string) context.Context {
+	return context.WithValue(ctx, contextKey, value)
+}

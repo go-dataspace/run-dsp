@@ -327,14 +327,15 @@ func (s *Server) ContractTerminate(
 	cu := shared.MustParseURL(negotiation.GetCallback().String())
 	cu.Path = path.Join(cu.Path, "negotiations", negotiation.GetRemotePID().String(), "termination")
 	s.reconciler.Add(statemachine.ReconciliationEntry{
-		EntityID:    negotiation.GetLocalPID(),
-		Type:        statemachine.ReconciliationContract,
-		Role:        negotiation.GetRole(),
-		TargetState: contract.States.TERMINATED.String(),
-		Method:      "POST",
-		URL:         cu,
-		Body:        reqBody,
-		Context:     ctx,
+		EntityID:        negotiation.GetLocalPID(),
+		Type:            statemachine.ReconciliationContract,
+		Role:            negotiation.GetRole(),
+		TargetState:     contract.States.TERMINATED.String(),
+		Method:          "POST",
+		URL:             cu,
+		Body:            reqBody,
+		Context:         ctx,
+		AuthHeaderValue: negotiation.GetRequesterInfo().ExternalId,
 	})
 	return &dsrpc.ContractTerminateResponse{}, nil
 }

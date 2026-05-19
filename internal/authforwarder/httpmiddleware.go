@@ -51,8 +51,9 @@ func (art AuthRoundTripper) RoundTrip(req *http.Request) (*http.Response, error)
 	if art.AuthNService != nil {
 		authVal, err := art.AuthNService.Sign(req.Context(), &dsrpc.SignRequest{
 			RequestInfo: &dsrpc.RequestInfo{
-				Method: req.Method,
-				Url:    req.URL.String(),
+				Method:                    req.Method,
+				Url:                       req.URL.String(),
+				AuthenticationHeaderValue: ExtractAuthorization(req.Context()),
 			},
 		})
 		if err != nil {

@@ -60,6 +60,7 @@ func makeContractRequestFunction(
 		destinationState.String(),
 		ReconciliationContract,
 		reconciler,
+		c.GetRequesterInfo().GetExternalId(),
 	)
 }
 
@@ -72,6 +73,7 @@ func makeRequestFunction(
 	destinationState string,
 	recType ReconciliationType,
 	reconciler Reconciler,
+	authHeaderValue string,
 ) applyFunc {
 	return func() error {
 		ctxslog.Debug(ctx, "Adding entry to reconciler",
@@ -81,14 +83,15 @@ func makeRequestFunction(
 			"destinationState", destinationState,
 		)
 		reconciler.Add(ReconciliationEntry{
-			EntityID:    id,
-			Type:        recType,
-			Role:        role,
-			TargetState: destinationState,
-			Method:      "POST",
-			URL:         cu,
-			Body:        reqBody,
-			Context:     ctx,
+			EntityID:        id,
+			Type:            recType,
+			Role:            role,
+			TargetState:     destinationState,
+			Method:          "POST",
+			URL:             cu,
+			Body:            reqBody,
+			Context:         ctx,
+			AuthHeaderValue: authHeaderValue,
 		})
 		return nil
 	}

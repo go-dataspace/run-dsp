@@ -54,6 +54,7 @@ func makeTransferRequestFunction(
 			destinationState.String(),
 			ReconciliationTransferRequest,
 			reconciler,
+			t.GetRequesterInfo().GetExternalId(),
 		)
 		err := f()
 		if err != nil {

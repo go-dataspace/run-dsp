@@ -112,7 +112,8 @@ func (e *environment) Close() {
 func mockAuthMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		requesterInfo := &dsrpc.RequesterInfo{
-			AuthenticationStatus: dsrpc.AuthenticationStatus_AUTHENTICATION_STATUS_UNAUTHENTICATED,
+			AuthenticationStatus: dsrpc.AuthenticationStatus_AUTHENTICATION_STATUS_AUTHENTICATED,
+			ExternalId:           "test",
 		}
 
 		req = req.WithContext(context.WithValue(req.Context(), authforwarder.RequesterInfoContextKey, requesterInfo))
@@ -165,6 +166,7 @@ func fetchAndDecode[T any](ctx context.Context, t *testing.T, method, url string
 	t.Helper()
 	req, err := http.NewRequestWithContext(ctx, method, url, body)
 	require.Nil(t, err)
+	req.Header.Add("Authorization", "test")
 	resp, err := http.DefaultClient.Do(req)
 	require.Nilf(t, err, "got error: %s", err)
 	require.Equal(t, http.StatusOK, resp.StatusCode)
@@ -245,7 +247,8 @@ func TestNegotiationProviderInitialRequest(t *testing.T) {
 		env.provider.On("GetDataset", mock.Anything, &dsrpc.GetDatasetRequest{
 			DatasetId: targetID.String(),
 			RequesterInfo: &dsrpc.RequesterInfo{
-				AuthenticationStatus: dsrpc.AuthenticationStatus_AUTHENTICATION_STATUS_UNAUTHENTICATED,
+				AuthenticationStatus: dsrpc.AuthenticationStatus_AUTHENTICATION_STATUS_AUTHENTICATED,
+				ExternalId:           "test",
 			},
 		}).Return(&dsrpc.GetDatasetResponse{
 			Dataset: &dsrpc.Dataset{},
@@ -380,6 +383,7 @@ func TestNegotiationProviderEventAccepted(t *testing.T) { //nolint:funlen
 		createNegotiation(ctx, t, env.store, contract.States.OFFERED, constants.DataspaceProvider, autoAccept,
 			&dsrpc.RequesterInfo{
 				AuthenticationStatus: dsrpc.AuthenticationStatus_AUTHENTICATION_STATUS_LOCAL_ORIGIN,
+				ExternalId:           "test",
 			})
 
 		u := env.server.URL + "/negotiations/" + staticProviderPID.String() + "/events"
@@ -389,7 +393,8 @@ func TestNegotiationProviderEventAccepted(t *testing.T) { //nolint:funlen
 				mock.Anything, &dsrpc.ContractServiceAcceptedReceivedRequest{
 					Pid: staticProviderPID.String(),
 					RequesterInfo: &dsrpc.RequesterInfo{
-						AuthenticationStatus: dsrpc.AuthenticationStatus_AUTHENTICATION_STATUS_CONTINUATION,
+						AuthenticationStatus: dsrpc.AuthenticationStatus_AUTHENTICATION_STATUS_AUTHENTICATED,
+						ExternalId:           "test",
 					},
 				},
 			).Return(&dsrpc.ContractServiceAcceptedReceivedResponse{}, nil)
@@ -458,7 +463,8 @@ func TestNegotiationProviderAgreementVerification(t *testing.T) { //nolint:funle
 				mock.Anything, &dsrpc.ContractServiceVerificationReceivedRequest{
 					Pid: staticProviderPID.String(),
 					RequesterInfo: &dsrpc.RequesterInfo{
-						AuthenticationStatus: dsrpc.AuthenticationStatus_AUTHENTICATION_STATUS_CONTINUATION,
+						AuthenticationStatus: dsrpc.AuthenticationStatus_AUTHENTICATION_STATUS_AUTHENTICATED,
+						ExternalId:           "test",
 					},
 				},
 			).Return(&dsrpc.ContractServiceVerificationReceivedResponse{}, nil)
@@ -657,7 +663,8 @@ func TestNegotiationConsumerAgreement(t *testing.T) {
 					mock.Anything, &dsrpc.ContractServiceAgreementReceivedRequest{
 						Pid: staticConsumerPID.String(),
 						RequesterInfo: &dsrpc.RequesterInfo{
-							AuthenticationStatus: dsrpc.AuthenticationStatus_AUTHENTICATION_STATUS_CONTINUATION,
+							AuthenticationStatus: dsrpc.AuthenticationStatus_AUTHENTICATION_STATUS_AUTHENTICATED,
+							ExternalId:           "test",
 						},
 					},
 				).Return(&dsrpc.ContractServiceAgreementReceivedResponse{}, nil)
@@ -729,7 +736,8 @@ func TestNegotiationConsumerEventFinalized(t *testing.T) {
 				mock.Anything, &dsrpc.ContractServiceFinalizationReceivedRequest{
 					Pid: staticConsumerPID.String(),
 					RequesterInfo: &dsrpc.RequesterInfo{
-						AuthenticationStatus: dsrpc.AuthenticationStatus_AUTHENTICATION_STATUS_CONTINUATION,
+						AuthenticationStatus: dsrpc.AuthenticationStatus_AUTHENTICATION_STATUS_AUTHENTICATED,
+						ExternalId:           "test",
 					},
 					Offer: string(odrl),
 				},

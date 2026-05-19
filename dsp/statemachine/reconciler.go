@@ -35,6 +35,7 @@ import (
 	transferopts "go-dataspace.eu/run-dsp/dsp/persistence/options/transfer"
 	"go-dataspace.eu/run-dsp/dsp/shared"
 	"go-dataspace.eu/run-dsp/dsp/transfer"
+	"go-dataspace.eu/run-dsp/internal/authforwarder"
 	"go.opentelemetry.io/otel"
 )
 
@@ -86,14 +87,15 @@ type reconciliationOperation struct {
 }
 
 type ReconciliationEntry struct {
-	EntityID    uuid.UUID
-	Type        ReconciliationType
-	Role        constants.DataspaceRole
-	TargetState string
-	Method      string
-	URL         *url.URL
-	Body        []byte
-	Context     context.Context
+	EntityID        uuid.UUID
+	Type            ReconciliationType
+	Role            constants.DataspaceRole
+	TargetState     string
+	Method          string
+	URL             *url.URL
+	Body            []byte
+	Context         context.Context
+	AuthHeaderValue string
 }
 
 // Reconciler is the interface for the reconciler used in the statemachine. It's where
@@ -195,6 +197,7 @@ func (r *HTTPReconciler) worker() {
 		case op := <-r.c:
 			entry := op.Entry
 			ctx := context.WithoutCancel(entry.Context)
+			ctx = authforwarder.InjectAuthorization(ctx, op.Entry.AuthHeaderValue)
 			ctx = ctxslog.With(ctx,
 				"entityType", entry.Type,
 				"entityRole", entry.Role,
