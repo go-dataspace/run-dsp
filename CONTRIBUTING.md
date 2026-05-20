@@ -119,6 +119,12 @@ Enhancement suggestions are tracked as [Codeberg issues](https://codeberg.org/go
 
 
 ### Your First Code Contribution
+
+After cloning, run `just install-git-hooks` once to wire up the repository's
+pre-commit hooks (golangci-lint, basic file checks, and a hook that keeps
+`go.mod` and the golang base image tags in `Dockerfile(s)` and
+`.woodpecker/*.yaml` pinned to the latest published Go release).
+
 <!-- TODO
 include Setup of env, IDE and typical getting started instructions?
 

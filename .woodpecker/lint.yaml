@@ -23,10 +23,11 @@ when:
 
 steps:
   - name: code
-    image: golang:1.26.2
+    image: golang:1.26.3
     commands:
-      - apt -y update && apt -y install just
+      - apt -y update && apt -y install just curl
       - just lint
+      - just sync-go-version check
     when:
       - event: [push, pull_request]
         path:

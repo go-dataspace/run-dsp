@@ -17,3 +17,13 @@ repos:
         args: [-b, main]
       - id: trailing-whitespace
         args: [--markdown-linebreak-ext=md]
+  - repo: local
+    hooks:
+      - id: sync-go-version
+        name: sync go.mod and Go base image tags to the latest release
+        entry: "sh -c 'command -v just >/dev/null || { echo \"warning: just not installed; skipping (CI will still verify). Install: brew install just\" >&2; exit 0; }; exec just sync-go-version'"
+        language: system
+        stages: [pre-push]
+        always_run: true
+        pass_filenames: false
+        verbose: true

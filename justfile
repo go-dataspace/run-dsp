@@ -15,6 +15,9 @@
 
 BINARY_NAME := "run-dsp"
 
+# Files carrying the Go version that `sync-go-version` keeps in sync with the latest release
+GO_VERSION_FILES := "go.mod Dockerfile Dockerfile.debug .woodpecker/build.yaml .woodpecker/lint.yaml .woodpecker/test.yaml .woodpecker/vulncheck.yaml"
+
 default: vulncheck lint test build
 
 # Build run-dsp to _build/run-dsp
@@ -49,6 +52,22 @@ generate: _download_mods
 [group('go')]
 mocks: _download_mods
     go tool mockery
+
+# Install pre-commit git hooks (one-time setup per clone)
+[group('dev')]
+install-git-hooks:
+    @command -v pre-commit >/dev/null || { echo "error: pre-commit not found. Install with: pipx install pre-commit (or brew install pre-commit)" >&2; exit 1; }
+    pre-commit install --hook-type pre-commit --hook-type pre-push
+
+# Sync go.mod and golang base image tags (Dockerfile/.woodpecker) to the latest published Go 1.x
+[group('go')]
+sync-go-version mode="apply":
+    scripts/sync-go-version.sh {{mode}} {{GO_VERSION_FILES}}
+
+# Run shell-script unit tests
+[group('dev')]
+test-scripts:
+    scripts/tests/sync-go-version.test.sh
 
 _download_mods:
     go mod download
