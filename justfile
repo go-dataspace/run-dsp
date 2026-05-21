@@ -56,7 +56,7 @@ mocks: _download_mods
 # Install pre-commit git hooks (one-time setup per clone)
 [group('dev')]
 install-git-hooks:
-    @command -v pre-commit >/dev/null || { echo "error: pre-commit not found. Install with: pipx install pre-commit (or brew install pre-commit)" >&2; exit 1; }
+    @command -v pre-commit >/dev/null || { echo "error: pre-commit not found. Please install pre-commit." >&2; exit 1; }
     pre-commit install --hook-type pre-commit --hook-type pre-push
 
 # Sync go.mod and golang base image tags (Dockerfile/.woodpecker) to the latest published Go 1.x
