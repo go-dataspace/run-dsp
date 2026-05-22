@@ -27,3 +27,11 @@ repos:
         always_run: true
         pass_filenames: false
         verbose: true
+      - id: test-scripts
+        name: run tests on scripts in ./scripts
+        entry: "scripts/tests/sync-go-version.test.sh"
+        language: system
+        stages: [pre-push]
+        files: ^scripts/
+        pass_filenames: false
+        verbose: true

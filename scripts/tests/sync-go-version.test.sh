@@ -75,6 +75,7 @@ seed() { # dir version -- write go.mod + Dockerfile + woodpecker yaml pinned to 
     printf 'module example.com/m\n\ngo %s\n' "$2" >"$1/go.mod"
     printf 'FROM docker.io/library/golang:%s AS builder\n' "$2" >"$1/Dockerfile"
     printf 'steps:\n  build:\n    image: golang:%s\n' "$2" >"$1/.woodpecker/build.yaml"
+    printf '      GOTOOLCHAIN: "go%s"\n' "$2" >"$1/.woodpecker/release.yaml"
 }
 
 # ============================================================================
@@ -91,12 +92,8 @@ assert_eq "empty feed yields nothing" "" "$(printf '' | parse_latest_go_version)
 
 # ============================================================================
 section "version_needle"
-assert_eq "go.mod needle is anchored" \
-    '^go 1\.26\.3$' "$(version_needle go.mod 1.26.3)"
-assert_eq "nested-path go.mod still matches" \
-    '^go 1\.26\.3$' "$(version_needle path/to/go.mod 1.26.3)"
-assert_eq "image needle carries a tail boundary" \
-    'golang:1\.26\.3([^0-9.]|$)' "$(version_needle Dockerfile 1.26.3)"
+assert_eq "needle is one unified ERE with a tail boundary" \
+    'go(lang)?:? ?1\.26\.3([^0-9.]|$)' "$(version_needle 1.26.3)"
 
 # ============================================================================
 section "apply_version"
@@ -104,8 +101,10 @@ d=$(workdir)
 seed "$d" 1.20.0
 apply_version "$d/go.mod" 1.26.3
 apply_version "$d/Dockerfile" 1.26.3
+apply_version "$d/.woodpecker/release.yaml" 1.26.3
 assert_eq "rewrites the go.mod directive" "go 1.26.3" "$(grep '^go ' "$d/go.mod")"
 assert_has "rewrites the Dockerfile tag" "$(cat "$d/Dockerfile")" "golang:1.26.3"
+assert_has "rewrites the release.yaml GOTOOLCHAIN" "$(cat "$d/.woodpecker/release.yaml")" "go1.26.3"
 assert_eq "leaves no .bak files behind" "" "$(find "$d" -name '*.bak')"
 
 d=$(workdir)
@@ -135,8 +134,9 @@ assert_eq "lists only the stale file in a mixed set" \
 d=$(workdir)
 printf 'module m\n\ngo 1.26.30\n' >"$d/go.mod"
 printf 'FROM golang:1.26.30 AS b\n' >"$d/Dockerfile"
+printf '   GOTOOLCHAIN: "go1.26.30"\n' > "$d/.woodpecker/release.yaml"
 assert_eq "a longer tag (1.26.30) is not mistaken for 1.26.3" \
-    $'go.mod\nDockerfile' "$(cd "$d" && find_drift 1.26.3 go.mod Dockerfile)"
+    $'go.mod\nDockerfile\n.woodpecker/release.yaml' "$(cd "$d" && find_drift 1.26.3 go.mod Dockerfile .woodpecker/release.yaml)"
 
 # ============================================================================
 section "resolve_version"

@@ -52,11 +52,11 @@ parse_latest_go_version() {
     grep -oE 'go1\.[0-9]+\.[0-9]+' | sort -V | tail -n1 | sed 's/^go//'
 }
 
-# Print the extended-regexp that proves file $1 already pins version $2. The
-# trailing boundary stops "1.26.3" from matching a longer tag like "1.26.30".
+# Print the extended-regexp that pins version $1. The trailing boundary
+# stops "1.26.3" from matching a longer tag like "1.26.30".
 version_needle() {
-    local escaped=${2//./\\.}
-    printf 'go(lang)?:? ?%s' "$escaped"
+    local escaped=${1//./\\.}
+    printf 'go(lang)?:? ?%s([^0-9.]|$)' "$escaped"
 }
 
 # Rewrite the Go version pinned in file $1 to version $2.
@@ -74,7 +74,8 @@ find_drift() {
     local version=$1 file
     shift
     for file in "$@"; do
-        grep -qP "$(version_needle "$file" "$version")" "$file" || printf '%s\n' "$file"
+        # BSD grep on macOS has no -P; so the needle is ERE (-E)
+        grep -qE "$(version_needle "$version")" "$file" || printf '%s\n' "$file"
     done
 }
 

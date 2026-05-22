@@ -27,6 +27,7 @@ steps:
     commands:
       - apt -y update && apt -y install just
       - just test
+      - just test-scripts
     when:
       - event: [push, pull_request]
         path:
