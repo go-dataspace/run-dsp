@@ -56,16 +56,14 @@ parse_latest_go_version() {
 # trailing boundary stops "1.26.3" from matching a longer tag like "1.26.30".
 version_needle() {
     local escaped=${2//./\\.}
-    case "$1" in
-        go.mod | */go.mod) printf '^go %s$\n' "$escaped" ;;
-        *)                 printf 'golang:%s([^0-9.]|$)\n' "$escaped" ;;
-    esac
+    printf 'go(lang)?:? ?%s' "$escaped"
 }
 
 # Rewrite the Go version pinned in file $1 to version $2.
 apply_version() {
     case "$1" in
         go.mod | */go.mod) sed -i.bak -E "s|^go [0-9]+(\.[0-9]+){0,2}|go ${2}|" "$1" ;;
+        release.yaml | */release.yaml) sed -i.bak -E "s|go[0-9]+(\.[0-9]+){0,2}|go${2}|" "$1" ;;
         *)                 sed -i.bak -E "s|golang:[0-9]+(\.[0-9]+){0,2}|golang:${2}|" "$1" ;;
     esac
     rm -f "${1}.bak"
@@ -76,7 +74,7 @@ find_drift() {
     local version=$1 file
     shift
     for file in "$@"; do
-        grep -qE "$(version_needle "$file" "$version")" "$file" || printf '%s\n' "$file"
+        grep -qP "$(version_needle "$file" "$version")" "$file" || printf '%s\n' "$file"
     done
 }
 

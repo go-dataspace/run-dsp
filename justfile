@@ -16,7 +16,7 @@
 BINARY_NAME := "run-dsp"
 
 # Files carrying the Go version that `sync-go-version` keeps in sync with the latest release
-GO_VERSION_FILES := "go.mod Dockerfile Dockerfile.debug .woodpecker/build.yaml .woodpecker/lint.yaml .woodpecker/test.yaml .woodpecker/vulncheck.yaml"
+GO_VERSION_FILES := "go.mod Dockerfile Dockerfile.debug .woodpecker/build.yaml .woodpecker/lint.yaml .woodpecker/test.yaml .woodpecker/vulncheck.yaml .woodpecker/release.yaml"
 
 default: vulncheck lint test build
 
