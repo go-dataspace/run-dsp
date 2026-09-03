@@ -23,7 +23,7 @@ when:
 
 steps:
   - name: code
-    image: golang:1.26.3
+    image: golang:1.27.1
     commands:
       - apt -y update && apt -y install just
       - just build
