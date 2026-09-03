@@ -1,8 +1,16 @@
 repos:
-  - repo: https://github.com/golangci/golangci-lint
-    rev: v2.4.0
+  # Runs the golangci-lint pinned as a go.mod tool (same binary + module graph
+  # as `just lint` in CI), instead of a separately built hook that goes stale
+  # against the go directive after every sync-go-version bump.
+  - repo: local
     hooks:
       - id: golangci-lint
+        name: golangci-lint
+        entry: go tool golangci-lint run --new-from-rev HEAD --fix
+        language: system
+        types: [go]
+        pass_filenames: false
+        require_serial: true
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v6.0.0
     hooks:
