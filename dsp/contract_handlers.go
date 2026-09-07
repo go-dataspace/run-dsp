@@ -72,15 +72,20 @@ func (ce ContractError) ConsumerPID() string {
 func contractError(
 	ctx context.Context, err string, statusCode int, dspCode string, reason string, contract *contract.Negotiation,
 ) ContractError {
-	ctxslog.Error(
-		ctx, "contract error",
-		"statusCode", statusCode,
-		"dspCode", dspCode,
-		"reason", reason,
-		"negotiationRole", contract.GetRole(),
-		"localPID", contract.GetLocalPID(),
-		"err", err,
-	)
+	// Avoid nil-pointer panics when no negotiation is available.
+	if contract != nil {
+		ctxslog.Error(
+			ctx, "contract error",
+			"statusCode", statusCode,
+			"dspCode", dspCode,
+			"reason", reason,
+			"negotiationRole", contract.GetRole(),
+			"localPID", contract.GetLocalPID(),
+			"err", err,
+		)
+	} else {
+		ctxslog.Error(ctx, "contract error", "statusCode", statusCode, "dspCode", dspCode, "reason", reason, "err", err)
+	}
 	return ContractError{
 		status:   statusCode,
 		contract: contract,
