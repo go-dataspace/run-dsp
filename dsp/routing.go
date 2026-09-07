@@ -22,21 +22,16 @@ import (
 	"go-dataspace.eu/run-dsp/dsp/persistence"
 	"go-dataspace.eu/run-dsp/dsp/statemachine"
 	dsrpc "go-dataspace.eu/run-dsrpc/gen/go/dsp/v1alpha2"
-	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 )
 
 // GetRoutes gets all the dataspace routes.
 func GetWellKnownRoutes() http.Handler {
 	mux := http.NewServeMux()
 
-	handleFunc := func(pattern string, handlerFunc func(http.ResponseWriter, *http.Request)) {
-		handler := otelhttp.WithRouteTag(pattern, http.HandlerFunc(handlerFunc))
-		mux.Handle(pattern, handler)
-	}
-
-	handleFunc("GET /dspace-version", WrapHandlerWithMetrics("dspace-version", WrapHandlerWithError(dspaceVersionHandler)))
+	mux.HandleFunc("GET /dspace-version", WrapHandlerWithMetrics(
+		"dspace-version", WrapHandlerWithError(dspaceVersionHandler)))
 	// This is an optional proof endpoint for protected datasets.
-	handleFunc("GET /dspace-trust", routeNotImplemented)
+	mux.HandleFunc("GET /dspace-trust", routeNotImplemented)
 	return mux
 }
 
@@ -50,10 +45,6 @@ func GetDSPRoutes(
 	pingResponse *dsrpc.PingResponse,
 ) http.Handler {
 	mux := http.NewServeMux()
-	handleFunc := func(pattern string, handlerFunc func(http.ResponseWriter, *http.Request)) {
-		handler := otelhttp.WithRouteTag(pattern, http.HandlerFunc(handlerFunc))
-		mux.Handle(pattern, handler)
-	}
 
 	ch := dspHandlers{
 		authNService:        authNService,
@@ -66,13 +57,13 @@ func GetDSPRoutes(
 		dataserviceEndpoint: pingResponse.GetDataserviceUrl(),
 	}
 	// Catalog endpoints
-	setupCatalogEndpoints(handleFunc, ch)
+	setupCatalogEndpoints(mux.HandleFunc, ch)
 
 	// Contract endpoints
-	setupContractEndpoints(handleFunc, ch)
+	setupContractEndpoints(mux.HandleFunc, ch)
 
 	// Transfer endpoints
-	setupTransferEndpoints(handleFunc, ch)
+	setupTransferEndpoints(mux.HandleFunc, ch)
 
 	return mux
 }
