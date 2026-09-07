@@ -237,13 +237,15 @@ func (s *Server) GetProviderDatasetDownloadInformation(
 	// These don't really return errors, the err is for uniformity with the recv applyFunc
 	_ = apply()
 
+	// Cache PID before fetch failure to avoid panic on invalid negotiation in error path.
+	localPID := negotiation.GetLocalPID()
 	negotiation, err = s.store.GetContract(
 		ctx,
-		contractopts.WithRolePID(negotiation.GetLocalPID(), dspconstants.DataspaceConsumer),
+		contractopts.WithRolePID(localPID, dspconstants.DataspaceConsumer),
 	)
 	if err != nil {
 		return nil, status.Errorf(
-			codes.Internal, "could not get consumer contract with PID %s: %s", negotiation.GetLocalPID(), err)
+			codes.Internal, "could not get consumer contract with PID %s: %s", localPID, err)
 	}
 
 	ctxslog.Info(ctx, "Starting to monitor contract")
@@ -255,13 +257,15 @@ func (s *Server) GetProviderDatasetDownloadInformation(
 			ctxslog.Debug(ctx, "Contract not finalized...", "checks", checks, "state", negotiation.GetState().String())
 		}
 		time.Sleep(1 * time.Second)
+		// Cache PID before fetch failure to avoid panic on invalid negotiation in error path.
+		localPID = negotiation.GetLocalPID()
 		negotiation, err = s.store.GetContract(
 			ctx,
-			contractopts.WithRolePID(negotiation.GetLocalPID(), dspconstants.DataspaceConsumer),
+			contractopts.WithRolePID(localPID, dspconstants.DataspaceConsumer),
 		)
 		if err != nil {
 			return nil, status.Errorf(
-				codes.Internal, "could not get consumer contract with PID %s: %s", negotiation.GetLocalPID(), err)
+				codes.Internal, "could not get consumer contract with PID %s: %s", localPID, err)
 		}
 
 		if negotiation.GetState() == contract.States.TERMINATED {
@@ -437,13 +441,15 @@ func (s *Server) GetProviderDatasetUploadInformation(
 	// These don't really return errors, the err is for uniformity with the recv applyFunc
 	_ = apply()
 
+    // Cache PID before fetch failure to avoid panic on invalid negotiation in error path.
+	localPID := negotiation.GetLocalPID()
 	negotiation, err = s.store.GetContract(
 		ctx,
-		contractopts.WithRolePID(negotiation.GetLocalPID(), dspconstants.DataspaceProvider),
+		contractopts.WithRolePID(localPID, dspconstants.DataspaceProvider),
 	)
 	if err != nil {
 		return nil, status.Errorf(
-			codes.Internal, "could not get provider contract with PID %s: %s", negotiation.GetLocalPID(), err)
+			codes.Internal, "could not get provider contract with PID %s: %s", localPID, err)
 	}
 
 	ctxslog.Info(ctx, "Starting to monitor contract")
@@ -454,13 +460,15 @@ func (s *Server) GetProviderDatasetUploadInformation(
 			ctxslog.Info(ctx, "Contract not finalized", "current_state", negotiation.GetState().String())
 		}
 		time.Sleep(1 * time.Second)
+		// Cache PID before fetch failure to avoid panic on invalid negotiation in error path.
+		localPID = negotiation.GetLocalPID()
 		negotiation, err = s.store.GetContract(
 			ctx,
-			contractopts.WithRolePID(negotiation.GetLocalPID(), dspconstants.DataspaceProvider),
+			contractopts.WithRolePID(localPID, dspconstants.DataspaceProvider),
 		)
 		if err != nil {
 			return nil, status.Errorf(
-				codes.Internal, "could not get provider contract with PID %s: %s", negotiation.GetLocalPID(), err)
+				codes.Internal, "could not get provider contract with PID %s: %s", localPID, err)
 		}
 		checks++
 	}
