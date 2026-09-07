@@ -163,11 +163,12 @@ func (r *HTTPReconciler) manager() {
 	for {
 		select {
 		case <-ticker.C:
+			// Protect Len() and PopFront() with the same lock to avoid races on r.q.
+			r.Lock()
 			if r.q.Len() == 0 {
+				r.Unlock()
 				continue
 			}
-
-			r.Lock()
 			op := r.q.PopFront()
 			r.Unlock()
 			if time.Now().After(op.NextAttempt) {
