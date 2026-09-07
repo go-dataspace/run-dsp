@@ -441,7 +441,7 @@ func (s *Server) GetProviderDatasetUploadInformation(
 	// These don't really return errors, the err is for uniformity with the recv applyFunc
 	_ = apply()
 
-    // Cache PID before fetch failure to avoid panic on invalid negotiation in error path.
+	// Cache PID before fetch failure to avoid panic on invalid negotiation in error path.
 	localPID := negotiation.GetLocalPID()
 	negotiation, err = s.store.GetContract(
 		ctx,
