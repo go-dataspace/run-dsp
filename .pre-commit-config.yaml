@@ -1,8 +1,4 @@
 repos:
-  - repo: https://github.com/golangci/golangci-lint
-    rev: v2.4.0
-    hooks:
-      - id: golangci-lint
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v6.0.0
     hooks:
@@ -35,3 +31,10 @@ repos:
         files: ^scripts/
         pass_filenames: false
         verbose: true
+      - id: golangci-lint
+        name: golangci-lint
+        entry: go tool golangci-lint run --new-from-rev HEAD --fix
+        language: system
+        types: [go]
+        pass_filenames: false
+        require_serial: true
