@@ -187,6 +187,12 @@ func progressContractState[T any](
 }
 
 // TODO: Clean this function up.
+//
+// The defer-based lock-release safety net below adds two branches and eleven
+// lines to a function that was already at the complexity/length limit; see
+// the TODO above.
+//
+//nolint:cyclop,funlen
 func processMessage[T any](
 	dh *dspHandlers,
 	w http.ResponseWriter,
@@ -206,6 +212,17 @@ func processMessage[T any](
 		return contractError(ctx, fmt.Sprintf("%d contract %s not found: %s", role, pid, err),
 			http.StatusNotFound, "404", "Contract not found", nil)
 	}
+
+	// Prevent leaked contract locks and resulting deadlocks on early returns.
+	released := false
+	defer func() {
+		if !released {
+			if rbErr := dh.store.ReleaseContract(ctx, contract); rbErr != nil {
+				ctxslog.Info(ctx, "B9: ReleaseContract failed in processMessage defer", "err", rbErr.Error())
+			}
+		}
+	}()
+
 	ctx = ctxslog.With(ctx, contract.GetLogFields("_recv")...)
 	ctx = ctxslog.With(ctx, "messageType", fmt.Sprintf("%T", msg))
 	ctxslog.Info(ctx, "processing contract negotiation")
@@ -239,6 +256,7 @@ func processMessage[T any](
 	if err != nil {
 		return err
 	}
+	released = true
 	if err := apply(); err != nil {
 		return contractError(ctx, fmt.Sprintf("failed to propagate: %s", err),
 			http.StatusInternalServerError, "500", "Internal error", pState.GetContract(),
