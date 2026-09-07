@@ -16,6 +16,7 @@ package statemachine
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math/rand/v2"
@@ -195,44 +196,60 @@ func (r *HTTPReconciler) worker() {
 	for {
 		select {
 		case op := <-r.c:
-			entry := op.Entry
-			ctx := context.WithoutCancel(entry.Context)
-			ctx = authforwarder.InjectAuthorization(ctx, op.Entry.AuthHeaderValue)
-			ctx = ctxslog.With(ctx,
-				"entityType", entry.Type,
-				"entityRole", entry.Role,
-				"entityID", entry.EntityID.String(),
-				"method", entry.Method,
-				"url", entry.URL.String(),
-			)
-			ctxslog.Info(ctx, "Attempting to reconcile entry")
-
-			stateUpdater, err := r.getStateUpdater(ctx, entry, entry.TargetState)
-			if err != nil {
-				r.handleError(ctx, op, fmt.Errorf("could not acquire record: %w", err))
-				continue
-			}
-
-			ctx, span := tracer.Start(ctx, "reconciliation-entry")
-			// As the dataspace standard doesn't care if we parse this, we won't.
-			_, err = r.r.SendHTTPRequest(ctx, entry.Method, entry.URL, entry.Body)
-			span.End()
-			if err != nil {
-				r.handleError(ctx, op, err)
-				continue
-			}
-
-			err = stateUpdater.Commit(ctx)
-			if err != nil {
-				r.handleError(ctx, op, fmt.Errorf("could not update state: %w", err))
-				continue
-			}
+			r.reconcileEntry(op)
 		case <-r.ctx.Done():
 			rLogger.Info("Context done called, exiting.")
 			r.WaitGroup.Done()
 			return
 		}
 	}
+}
+
+// Ensure the row lock is released on all paths that do not reach Commit().
+func (r *HTTPReconciler) reconcileEntry(op reconciliationOperation) {
+	entry := op.Entry
+	ctx := context.WithoutCancel(entry.Context)
+	ctx = authforwarder.InjectAuthorization(ctx, op.Entry.AuthHeaderValue)
+	ctx = ctxslog.With(ctx,
+		"entityType", entry.Type,
+		"entityRole", entry.Role,
+		"entityID", entry.EntityID.String(),
+		"method", entry.Method,
+		"url", entry.URL.String(),
+	)
+	ctxslog.Info(ctx, "Attempting to reconcile entry")
+
+	stateUpdater, err := r.getStateUpdater(ctx, entry, entry.TargetState)
+	if err != nil {
+		r.handleError(ctx, op, fmt.Errorf("could not acquire record: %w", err))
+		return
+	}
+	released := false
+	defer func() {
+		if !released {
+			if rbErr := stateUpdater.Rollback(ctx); rbErr != nil {
+				ctxslog.Error(ctx, "could not release lock after failed reconciliation attempt", "err", rbErr)
+			}
+		}
+	}()
+
+	ctx, span := tracer.Start(ctx, "reconciliation-entry")
+	respBody, err := r.r.SendHTTPRequest(ctx, entry.Method, entry.URL, entry.Body)
+	span.End()
+	if err != nil {
+		r.handleError(ctx, op, err)
+		return
+	}
+
+	// Store peer-assigned PIDs before committing the updated negotiation state.
+	stateUpdater.ApplyResponse(ctx, respBody)
+
+	err = stateUpdater.Commit(ctx)
+	if err != nil {
+		r.handleError(ctx, op, fmt.Errorf("could not update state: %w", err))
+		return
+	}
+	released = true
 }
 
 func (r *HTTPReconciler) handleError(ctx context.Context, op reconciliationOperation, err error) {
@@ -262,12 +279,7 @@ func (r *HTTPReconciler) terminate(ctx context.Context, entry ReconciliationEntr
 	// We will handle this cleaner in the future, but this is to make any bugs obvious.
 	var err error
 	for range 10 {
-		stateUpdater, err := r.getStateUpdater(ctx, entry, entry.TargetState)
-		if err != nil {
-			ctxslog.Debug(ctx, "could not acquire record", "err", err)
-			return
-		}
-		err = stateUpdater.Commit(ctx)
+		err = r.terminateAttempt(ctx, entry)
 		if err == nil {
 			ctxslog.Debug(ctx, "Entry terminated")
 			return
@@ -275,6 +287,27 @@ func (r *HTTPReconciler) terminate(ctx context.Context, entry ReconciliationEntr
 		ctxslog.Debug(ctx, "Could not update state", "err", err)
 	}
 	panic(fmt.Sprintf("Could not set state to terminated, %s", err))
+}
+
+func (r *HTTPReconciler) terminateAttempt(ctx context.Context, entry ReconciliationEntry) error {
+	stateUpdater, err := r.getStateUpdater(ctx, entry, entry.TargetState)
+	if err != nil {
+		ctxslog.Debug(ctx, "could not acquire record", "err", err)
+		return err
+	}
+	released := false
+	defer func() {
+		if !released {
+			if rbErr := stateUpdater.Rollback(ctx); rbErr != nil {
+				ctxslog.Debug(ctx, "could not release lock after failed termination attempt", "err", rbErr)
+			}
+		}
+	}()
+	if err := stateUpdater.Commit(ctx); err != nil {
+		return err
+	}
+	released = true
+	return nil
 }
 
 func calculateNextAttempt(currentInterval time.Duration, attempts int) (time.Time, time.Duration) {
@@ -312,6 +345,11 @@ func (r *HTTPReconciler) getStateUpdater(
 
 type stateUpdater interface {
 	Commit(ctx context.Context) error
+	// Prevent leaked row locks on paths that do not reach Commit().
+	Rollback(ctx context.Context) error
+	// ApplyResponse merges peer-provided negotiation identifiers into the
+	// local state before commit.
+	ApplyResponse(ctx context.Context, body []byte)
 }
 
 type negotiationUpdater struct {
@@ -336,6 +374,9 @@ func newNegotiationUpdater(
 	}
 	err = con.SetState(cs)
 	if err != nil {
+		if relErr := store.ReleaseContract(ctx, con); relErr != nil {
+			ctxslog.Error(ctx, "could not release contract lock after failed state change", "err", relErr)
+		}
 		return nil, fmt.Errorf("can't change state: %w", err)
 	}
 	return &negotiationUpdater{
@@ -355,6 +396,57 @@ func (u *negotiationUpdater) Commit(ctx context.Context) error {
 		u.negotiation.GetCallback().String(),
 	).Inc()
 	return nil
+}
+
+// See the stateUpdater interface's own doc.
+func (u *negotiationUpdater) Rollback(ctx context.Context) error {
+	if err := u.store.ReleaseContract(ctx, u.negotiation); err != nil {
+		return fmt.Errorf("can't release negotiation lock: %w", err)
+	}
+	return nil
+}
+
+func parseNegotiationAck(body []byte) (uuid.UUID, uuid.UUID, bool) {
+	if len(body) == 0 {
+		return uuid.UUID{}, uuid.UUID{}, false
+	}
+	var ack shared.ContractNegotiation
+	if err := json.Unmarshal(body, &ack); err != nil {
+		return uuid.UUID{}, uuid.UUID{}, false
+	}
+	if ack.Type != "dspace:ContractNegotiation" {
+		return uuid.UUID{}, uuid.UUID{}, false
+	}
+	ppid, pErr := uuid.Parse(ack.ProviderPID)
+	cpid, cErr := uuid.Parse(ack.ConsumerPID)
+	if pErr != nil || cErr != nil {
+		return uuid.UUID{}, uuid.UUID{}, false
+	}
+	return ppid, cpid, true
+}
+
+// ApplyResponse backfills whichever of providerPID/consumerPID this negotiation
+// is still missing from the peer's ContractNegotiation ack. See the
+// stateUpdater interface's own doc for why this never returns an error.
+func (u *negotiationUpdater) ApplyResponse(ctx context.Context, body []byte) {
+	ppid, cpid, ok := parseNegotiationAck(body)
+	if !ok {
+		ctxslog.Debug(ctx, "ignoring unusable negotiation ack")
+		return
+	}
+
+	// Only ever learn the half we are missing, and only when the half we
+	// already hold matches: a peer-supplied body is untrusted input mutating
+	// persistent state, so a misrouted or forged ack must never rewrite a PID
+	// we already have.
+	switch {
+	case u.negotiation.GetProviderPID() == emptyUUID && cpid == u.negotiation.GetConsumerPID() && ppid != emptyUUID:
+		u.negotiation.SetProviderPID(ppid)
+		ctxslog.Info(ctx, "learned provider PID from negotiation ack", "providerPID", ppid.String())
+	case u.negotiation.GetConsumerPID() == emptyUUID && ppid == u.negotiation.GetProviderPID() && cpid != emptyUUID:
+		u.negotiation.SetConsumerPID(cpid)
+		ctxslog.Info(ctx, "learned consumer PID from negotiation ack", "consumerPID", cpid.String())
+	}
 }
 
 type requestUpdater struct {
@@ -378,6 +470,10 @@ func newRequestUpdater(
 	}
 	err = tr.SetState(ts)
 	if err != nil {
+		// See the identical comment in newNegotiationUpdater above.
+		if relErr := store.ReleaseTransfer(ctx, tr); relErr != nil {
+			ctxslog.Error(ctx, "could not release transfer lock after failed state change", "err", relErr)
+		}
 		return nil, fmt.Errorf("can't change state: %w", err)
 	}
 	return &requestUpdater{
@@ -398,3 +494,15 @@ func (u *requestUpdater) Commit(ctx context.Context) error {
 	).Inc()
 	return nil
 }
+
+// See the stateUpdater interface's own doc.
+func (u *requestUpdater) Rollback(ctx context.Context) error {
+	if err := u.store.ReleaseTransfer(ctx, u.request); err != nil {
+		return fmt.Errorf("can't release transfer lock: %w", err)
+	}
+	return nil
+}
+
+// No-op for transfers: required identifiers are propagated through
+// transfer messages rather than response acknowledgements.
+func (u *requestUpdater) ApplyResponse(_ context.Context, _ []byte) {}

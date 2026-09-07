@@ -199,8 +199,22 @@ func createNegotiation(
 	requesterInfo *dsrpc.RequesterInfo,
 ) {
 	t.Helper()
-	providerPID := staticProviderPID
-	consumerPID := staticConsumerPID
+	createNegotiationWithPIDs(
+		ctx, t, store, staticProviderPID, staticConsumerPID, state, role, autoAccept, requesterInfo,
+	)
+}
+
+func createNegotiationWithPIDs(
+	ctx context.Context,
+	t *testing.T,
+	store persistence.StorageProvider,
+	providerPID, consumerPID uuid.UUID,
+	state contract.State,
+	role constants.DataspaceRole,
+	autoAccept bool,
+	requesterInfo *dsrpc.RequesterInfo,
+) {
+	t.Helper()
 	neg := contract.New(
 		ctx,
 		providerPID,
@@ -237,6 +251,28 @@ func mkRequestUrl(u *url.URL, parts ...string) string {
 	parts = append([]string{cu.Path}, parts...)
 	cu.Path = path.Join(parts...)
 	return cu.String()
+}
+
+func assertQueuedVerification(t *testing.T, env *environment, providerPID, consumerPID uuid.UUID) {
+	t.Helper()
+	require.NotNil(t, env.reconciler.e)
+	require.Equal(t, statemachine.ReconciliationContract, env.reconciler.e.Type)
+	require.Equal(t, constants.DataspaceConsumer, env.reconciler.e.Role)
+	require.Equal(t, contract.States.VERIFIED.String(), env.reconciler.e.TargetState)
+	require.Equal(t, http.MethodPost, env.reconciler.e.Method)
+	require.Equal(t, mkRequestUrl(
+		callBack,
+		"negotiations",
+		providerPID.String(),
+		"agreement",
+		"verification",
+	), env.reconciler.e.URL.String())
+
+	var reqPayload shared.ContractAgreementVerificationMessage
+	err := json.Unmarshal(env.reconciler.e.Body, &reqPayload)
+	require.Nil(t, err)
+	require.Equal(t, consumerPID.URN(), reqPayload.ConsumerPID)
+	require.Equal(t, providerPID.URN(), reqPayload.ProviderPID)
 }
 
 //nolint:funlen
@@ -649,7 +685,6 @@ func TestNegotiationConsumerOffer(t *testing.T) { //nolint:funlen
 	}
 }
 
-//nolint:funlen
 func TestNegotiationConsumerAgreement(t *testing.T) {
 	for _, autoAccept := range []bool{true, false} {
 		for _, s := range []contract.State{contract.States.REQUESTED, contract.States.ACCEPTED} {
@@ -700,28 +735,69 @@ func TestNegotiationConsumerAgreement(t *testing.T) {
 			require.Equal(t, callBack.String(), negotiation.GetCallback().String())
 
 			if autoAccept {
-				require.NotNil(t, env.reconciler.e)
-				require.Equal(t, statemachine.ReconciliationContract, env.reconciler.e.Type)
-				require.Equal(t, constants.DataspaceConsumer, env.reconciler.e.Role)
-				require.Equal(t, contract.States.VERIFIED.String(), env.reconciler.e.TargetState)
-				require.Equal(t, http.MethodPost, env.reconciler.e.Method)
-				require.Equal(t, mkRequestUrl(
-					callBack,
-					"negotiations",
-					staticProviderPID.String(),
-					"agreement",
-					"verification",
-				), env.reconciler.e.URL.String())
-
-				var reqPayload shared.ContractAgreementVerificationMessage
-				err = json.Unmarshal(env.reconciler.e.Body, &reqPayload)
-				require.Nil(t, err)
-				require.Equal(t, staticConsumerPID.URN(), reqPayload.ConsumerPID)
-				require.Equal(t, staticProviderPID.URN(), reqPayload.ProviderPID)
+				assertQueuedVerification(t, env, staticProviderPID, staticConsumerPID)
 			}
 			cancel()
 			env.Close()
 		}
+	}
+}
+
+func TestNegotiationConsumerAgreementLearnsProviderPID(t *testing.T) {
+	for _, autoAccept := range []bool{true, false} {
+		ctx, cancel, env := setupEnvironment(t, false, false)
+		createNegotiationWithPIDs(
+			ctx, t, env.store, uuid.UUID{}, staticConsumerPID, contract.States.REQUESTED,
+			constants.DataspaceConsumer, autoAccept, &dsrpc.RequesterInfo{
+				AuthenticationStatus: dsrpc.AuthenticationStatus_AUTHENTICATION_STATUS_LOCAL_ORIGIN,
+			})
+
+		if !autoAccept {
+			env.contractService.EXPECT().AgreementReceived(
+				mock.Anything, &dsrpc.ContractServiceAgreementReceivedRequest{
+					Pid: staticConsumerPID.String(),
+					RequesterInfo: &dsrpc.RequesterInfo{
+						AuthenticationStatus: dsrpc.AuthenticationStatus_AUTHENTICATION_STATUS_AUTHENTICATED,
+						ExternalId:           "test",
+					},
+				},
+			).Return(&dsrpc.ContractServiceAgreementReceivedResponse{}, nil)
+		}
+
+		u := env.server.URL + "/callback/negotiations/" + staticConsumerPID.String() + "/agreement"
+
+		body := encode(t, shared.ContractAgreementMessage{
+			Context:         shared.GetDSPContext(),
+			Type:            "dspace:ContractAgreementMessage",
+			ConsumerPID:     staticConsumerPID.URN(),
+			ProviderPID:     staticProviderPID.URN(),
+			Agreement:       odrlAgreement,
+			CallbackAddress: callBack.String(),
+		})
+
+		status := fetchAndDecode[shared.ContractNegotiation](ctx, t, http.MethodPost, u, body)
+		require.Equal(t, "dspace:ContractNegotiation", status.Type)
+		require.Equal(t, staticConsumerPID.URN(), status.ConsumerPID)
+		require.Equal(t, staticProviderPID.URN(), status.ProviderPID)
+		require.Equal(t, contract.States.AGREED.String(), status.State)
+
+		negotiation, err := env.store.GetContract(
+			ctx,
+			contractopts.WithRolePID(staticConsumerPID, constants.DataspaceConsumer),
+		)
+		require.Nil(t, err)
+		require.Equal(t, staticConsumerPID, negotiation.GetConsumerPID())
+		require.Equal(t, staticProviderPID, negotiation.GetProviderPID())
+		require.Equal(t, contract.States.AGREED, negotiation.GetState())
+
+		if autoAccept {
+			// The decisive assertion: sendContractVerification builds this URL
+			// from GetProviderPID(), which must already be backfilled by the
+			// time Send runs right after Recv -- not just the 200 above.
+			assertQueuedVerification(t, env, staticProviderPID, staticConsumerPID)
+		}
+		cancel()
+		env.Close()
 	}
 }
 

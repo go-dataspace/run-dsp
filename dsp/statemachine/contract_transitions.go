@@ -243,6 +243,8 @@ type ContractNegotiationRequested struct {
 
 // Recv gets called when a consumer receives a request message, it will verify the PIDs, and
 // forcefully set the callback. After that it will set the status of the contract to OFFERED.
+//
+//nolint:cyclop,funlen // Same shape as the sibling ContractNegotiationOffered.Recv, which carries the same nolint.
 func (cn *ContractNegotiationRequested) Recv(
 	ctx context.Context, message any,
 ) (context.Context, applyFunc, error) {
@@ -282,6 +284,11 @@ func (cn *ContractNegotiationRequested) Recv(
 		consumerPID = t.ConsumerPID
 		providerPID = t.ProviderPID
 		callbackAddress = t.CallbackAddress
+		// Backfill the provider PID before validation to avoid rejecting consumer-initiated negotiations
+		// that have not yet received the provider-assigned PID from the reconciler.
+		if ppid, err := uuid.Parse(providerPID); err == nil && cn.GetProviderPID() == emptyUUID {
+			cn.SetProviderPID(ppid)
+		}
 		cn.SetAgreement(&t.Agreement)
 		targetState = contract.States.AGREED
 		ctx = ctxslog.With(ctx,
