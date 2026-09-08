@@ -150,6 +150,21 @@ func (cn *Negotiation) GetLocalPID() uuid.UUID {
 	}
 }
 
+// TryLocalPID is the non-panicking counterpart to GetLocalPID: it returns
+// false instead of panicking when the negotiation's role is invalid, so a
+// caller that can't treat "not a valid role" as an unrecoverable bug can fail
+// explicitly instead.
+func (cn *Negotiation) TryLocalPID() (uuid.UUID, bool) {
+	switch cn.role {
+	case constants.DataspaceConsumer:
+		return cn.GetConsumerPID(), true
+	case constants.DataspaceProvider:
+		return cn.GetProviderPID(), true
+	default:
+		return uuid.UUID{}, false
+	}
+}
+
 // GetLogFields will return relevant log fields for the negotiation.
 // The suffix argument will append a prefix to the keys.
 func (cn *Negotiation) GetLogFields(suffix string) []any {

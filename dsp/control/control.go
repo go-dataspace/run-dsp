@@ -173,7 +173,7 @@ func (s *Server) GetProviderDataset(
 
 // Publishes a dataset.
 //
-//nolint:funlen,cyclop
+//nolint:funlen,cyclop,maintidx
 func (s *Server) GetProviderDatasetDownloadInformation(
 	ctx context.Context, req *dsrpc.GetProviderDatasetDownloadInformationRequest,
 ) (*dsrpc.GetProviderDatasetDownloadInformationResponse, error) {
@@ -237,8 +237,10 @@ func (s *Server) GetProviderDatasetDownloadInformation(
 	// These don't really return errors, the err is for uniformity with the recv applyFunc
 	_ = apply()
 
-	// Cache PID before fetch failure to avoid panic on invalid negotiation in error path.
-	localPID := negotiation.GetLocalPID()
+	localPID, ok := negotiation.TryLocalPID()
+	if !ok {
+		return nil, status.Errorf(codes.Internal, "negotiation has an invalid role, this is a bug")
+	}
 	negotiation, err = s.store.GetContract(
 		ctx,
 		contractopts.WithRolePID(localPID, dspconstants.DataspaceConsumer),
@@ -257,8 +259,10 @@ func (s *Server) GetProviderDatasetDownloadInformation(
 			ctxslog.Debug(ctx, "Contract not finalized...", "checks", checks, "state", negotiation.GetState().String())
 		}
 		time.Sleep(1 * time.Second)
-		// Cache PID before fetch failure to avoid panic on invalid negotiation in error path.
-		localPID = negotiation.GetLocalPID()
+		localPID, ok = negotiation.TryLocalPID()
+		if !ok {
+			return nil, status.Errorf(codes.Internal, "negotiation has an invalid role, this is a bug")
+		}
 		negotiation, err = s.store.GetContract(
 			ctx,
 			contractopts.WithRolePID(localPID, dspconstants.DataspaceConsumer),
@@ -441,8 +445,10 @@ func (s *Server) GetProviderDatasetUploadInformation(
 	// These don't really return errors, the err is for uniformity with the recv applyFunc
 	_ = apply()
 
-	// Cache PID before fetch failure to avoid panic on invalid negotiation in error path.
-	localPID := negotiation.GetLocalPID()
+	localPID, ok := negotiation.TryLocalPID()
+	if !ok {
+		return nil, status.Errorf(codes.Internal, "negotiation has an invalid role")
+	}
 	negotiation, err = s.store.GetContract(
 		ctx,
 		contractopts.WithRolePID(localPID, dspconstants.DataspaceProvider),
@@ -460,8 +466,10 @@ func (s *Server) GetProviderDatasetUploadInformation(
 			ctxslog.Info(ctx, "Contract not finalized", "current_state", negotiation.GetState().String())
 		}
 		time.Sleep(1 * time.Second)
-		// Cache PID before fetch failure to avoid panic on invalid negotiation in error path.
-		localPID = negotiation.GetLocalPID()
+		localPID, ok = negotiation.TryLocalPID()
+		if !ok {
+			return nil, status.Errorf(codes.Internal, "negotiation has an invalid role")
+		}
 		negotiation, err = s.store.GetContract(
 			ctx,
 			contractopts.WithRolePID(localPID, dspconstants.DataspaceProvider),
