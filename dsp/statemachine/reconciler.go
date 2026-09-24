@@ -164,11 +164,11 @@ func (r *HTTPReconciler) manager() {
 	for {
 		select {
 		case <-ticker.C:
+			r.Lock()
 			if r.q.Len() == 0 {
+				r.Unlock()
 				continue
 			}
-
-			r.Lock()
 			op := r.q.PopFront()
 			r.Unlock()
 			if time.Now().After(op.NextAttempt) {
