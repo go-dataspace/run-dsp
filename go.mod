@@ -1,6 +1,6 @@
 module go-dataspace.eu/run-dsp
 
-go 1.27.1
+go 1.27.2
 
 require (
 	github.com/charmbracelet/log v0.4.2

@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-FROM --platform=$BUILDPLATFORM docker.io/library/golang:1.27.1 AS builder
+FROM --platform=$BUILDPLATFORM docker.io/library/golang:1.27.2 AS builder
 WORKDIR /app
 RUN apt -y update && apt -y install just
 COPY . ./
