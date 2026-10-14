@@ -50,6 +50,7 @@ import (
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/connectivity"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
 
@@ -574,6 +575,7 @@ func (c *command) setupServices(ctx context.Context, //nolint:cyclop
 		if err != nil {
 			return nil, []*http.Server{}, grpcConnections, nil, err
 		}
+		c.watchContractService(ctx, wg, csConn, contractService)
 	}
 
 	// Setup HTTP services
@@ -671,6 +673,45 @@ func (c *command) configureContractService(
 		return err
 	}
 	return nil
+}
+
+// Configure is sent once at startup, so a contract service restarted later
+// would never receive it. Re-send it on every Ready transition, and Connect on
+// Idle so that happens before the next negotiation rather than during it.
+func (c *command) watchContractService(
+	ctx context.Context,
+	wg *sync.WaitGroup,
+	conn *grpc.ClientConn,
+	contractService dsrpc.ContractServiceClient,
+) {
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		conn.Connect()
+		for {
+			state := conn.GetState()
+			if !conn.WaitForStateChange(ctx, state) {
+				return
+			}
+			next := conn.GetState()
+			if next == connectivity.Idle {
+				ctxslog.Debug(ctx, "ContractService connection idle, reconnecting")
+				conn.Connect()
+			}
+			if next == connectivity.Ready && state != connectivity.Ready {
+				ctxslog.Info(ctx, "ContractService connection ready, sending Configure")
+				callCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+				err := c.configureContractService(callCtx, contractService)
+				cancel()
+				if err != nil {
+					if ctx.Err() != nil {
+						return
+					}
+					ctxslog.Warn(ctx, "Failed to configure ContractService", "err", err)
+				}
+			}
+		}
+	}()
 }
 
 func (c *command) startControl(
