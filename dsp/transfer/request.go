@@ -364,6 +364,7 @@ func (tr *Request) ToModel() (models.TransferRequest, error) {
 
 	var pi *string
 	if tr.GetPublishInfo() != nil {
+		//nolint:gosec // G117: provider download handle persisted with the transfer; credentials stored in plaintext
 		b, err := json.Marshal(tr.publishInfo)
 		if err != nil {
 			return models.TransferRequest{}, err
