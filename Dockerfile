@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-FROM --platform=$BUILDPLATFORM docker.io/library/golang:1.27.1 AS builder
+FROM --platform=$BUILDPLATFORM docker.io/library/golang:1.27.3 AS builder
 WORKDIR /app
 RUN apt -y update && apt -y install just
 COPY . ./
@@ -21,6 +21,6 @@ RUN just build
 FROM scratch
 WORKDIR /app
 COPY --from=builder /app/_build/run-dsp /
-COPY --from=alpine:latest /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
+ADD --checksum=sha256:796f1389bfea13c0ed78f663b765baaff54a508e5483786bd6ece73c5e3e3cbe --chmod=644 https://curl.se/ca/cacert-2026-10-20.pem /etc/ssl/certs/ca-certificates.crt
 
 ENTRYPOINT [ "/run-dsp" ]
